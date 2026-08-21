@@ -6,7 +6,7 @@
 
   <groupId>dev.konacode</groupId>
   <artifactId>konacode</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.1.0</version>
   <packaging>jar</packaging>
   <name>konacode</name>
 
@@ -68,6 +68,12 @@
 
   <build>
     <finalName>konacode</finalName>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

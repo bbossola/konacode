@@ -27,6 +27,10 @@ public final class Banner {
     }
 
     static String forWidth(int width) {
-        return width >= WIDTH ? LOGO : "kona";
+        String version = Version.current();
+        if (width < WIDTH) {
+            return "kona " + version;
+        }
+        return LOGO + "\n" + " ".repeat(Math.max(0, WIDTH - version.length())) + version;
     }
 }

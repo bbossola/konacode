@@ -3,6 +3,7 @@ package dev.konacode.cli;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BannerTest {
@@ -16,7 +17,18 @@ class BannerTest {
     }
 
     @Test
+    void endsWithTheVersion() {
+        assertTrue(Banner.forWidth(Banner.WIDTH).endsWith(Version.current()),
+                Banner.forWidth(Banner.WIDTH));
+    }
+
+    @Test
+    void knowsItsVersion() {
+        assertNotEquals("unknown", Version.current());
+    }
+
+    @Test
     void showsThePlainNameWhenTheTerminalIsTooNarrow() {
-        assertEquals("kona", Banner.forWidth(Banner.WIDTH - 1));
+        assertEquals("kona " + Version.current(), Banner.forWidth(Banner.WIDTH - 1));
     }
 }
