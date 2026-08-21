@@ -5,13 +5,18 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class WorkspaceTest {
 
@@ -89,16 +94,65 @@ class WorkspaceTest {
     }
 
     @Test
-    void listsDirectoryEntriesInSortedOrder() throws IOException {
+    void overwritesAnExistingFile() throws IOException {
         Workspace workspace = new Workspace(root);
-        Files.createFile(root.resolve("zebra.txt"));
+        Path file = root.resolve("existing.txt");
+        Files.writeString(file, "before", StandardCharsets.UTF_8);
+
+        workspace.writeAtomic(file, "after");
+
+        assertEquals("after", Files.readString(file, StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void preservesAnExistingFilesPermissionsWhenOverwriting() throws IOException {
+        assumeTrue(FileSystems.getDefault().supportedFileAttributeViews().contains("posix"),
+                "POSIX permissions are not supported on this filesystem");
+
+        Workspace workspace = new Workspace(root);
+        Path script = root.resolve("build.sh");
+        Files.writeString(script, "#!/bin/sh\necho old\n", StandardCharsets.UTF_8);
+        Set<PosixFilePermission> executable = PosixFilePermissions.fromString("rwxr-xr-x");
+        Files.setPosixFilePermissions(script, executable);
+
+        workspace.writeAtomic(script, "#!/bin/sh\necho new\n");
+
+        // A temp-file-and-move that ignores this strips the executable bit from every script
+        // the edit_file tool touches, silently.
+        assertEquals(executable, Files.getPosixFilePermissions(script));
+    }
+
+    @Test
+    void createsNewFilesWithOrdinaryPermissionsNotRestrictiveTempFileOnes() throws IOException {
+        assumeTrue(FileSystems.getDefault().supportedFileAttributeViews().contains("posix"),
+                "POSIX permissions are not supported on this filesystem");
+
+        Workspace workspace = new Workspace(root);
+        Path viaWorkspace = root.resolve("viaWorkspace.txt");
+        Path viaOrdinaryWrite = root.resolve("viaOrdinaryWrite.txt");
+
+        workspace.writeAtomic(viaWorkspace, "x");
+        Files.writeString(viaOrdinaryWrite, "x", StandardCharsets.UTF_8);
+
+        // Compared against an ordinary write rather than a hardcoded mode, so the assertion
+        // holds under any umask.
+        assertEquals(Files.getPosixFilePermissions(viaOrdinaryWrite),
+                Files.getPosixFilePermissions(viaWorkspace));
+    }
+
+    @Test
+    void listsDirectoryEntriesInCollatorOrderNotAsciiOrder() throws IOException {
+        Workspace workspace = new Workspace(root);
+        Files.createFile(root.resolve("Banana.txt"));
         Files.createFile(root.resolve("apple.txt"));
-        Files.createDirectory(root.resolve("middle"));
+        Files.createFile(root.resolve("cherry.txt"));
 
         List<String> names = workspace.listSorted(root).stream()
                 .map(path -> path.getFileName().toString())
                 .toList();
 
-        assertEquals(List.of("apple.txt", "middle", "zebra.txt"), names);
+        // String::compareTo would give [Banana.txt, apple.txt, cherry.txt] — uppercase sorts
+        // first in ASCII. Collator orders the way a human reads a file listing.
+        assertEquals(List.of("apple.txt", "Banana.txt", "cherry.txt"), names);
     }
 }
