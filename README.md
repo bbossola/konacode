@@ -81,6 +81,26 @@ Things worth trying:
 
 Plus `-Dkonacode.maxIterations=8`, the ceiling on tool-call iterations per user message.
 
+### Running without an API key
+
+`KONACODE_BASE_URL` points at any OpenAI-compatible endpoint, so a local model works with no
+code changes. With [Ollama](https://ollama.com):
+
+```bash
+ollama pull qwen2.5-coder:32b
+export KONACODE_BASE_URL=http://localhost:11434/v1
+export KONACODE_MODEL=qwen2.5-coder:32b
+export OPENAI_API_KEY=ollama          # required non-empty; Ollama ignores it
+java -jar target/konacode.jar
+```
+
+Pick a model that is genuinely good at function calling — `qwen2.5-coder` and `qwen3-coder` both
+are. Smaller general-purpose models will emit a single tool call and then fail to chain, which
+is the one thing an agent needs them to do well.
+
+Note that a Claude Pro or Max subscription cannot be used here. Those do not grant API access;
+the Anthropic API is billed separately and needs its own key.
+
 ## How it is put together
 
 ```

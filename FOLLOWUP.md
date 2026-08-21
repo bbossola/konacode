@@ -24,9 +24,9 @@ three things every other component depends on. That is a wide change made under 
 the moment you are also trying to get something else working.
 
 **What it unblocks:** reasoning-state preservation across tool calls (below), Anthropic
-extended-thinking blocks — which carry signatures that must be returned unmodified or the
-request is rejected — and provider fields not yet encountered. Each becomes a codec-local
-change instead of a hierarchy-wide one.
+thinking blocks — which must be passed back unchanged when continuing on the same model — and
+provider fields not yet encountered. Each becomes a codec-local change instead of a
+hierarchy-wide one.
 
 **Recommendation:** add it with the first provider change, and no later.
 
@@ -90,3 +90,24 @@ adds planning, and expect to revisit the default.
   can be swapped for something with a token budget. No other component changes.
 - **A `run_command` tool.** One class, and a genuine safety question — it is the point at which
   `AllowAllPolicy` stops being a defensible default.
+
+## 4. A native Anthropic provider
+
+Roughly 200 lines, and not a base-URL swap — the Messages API differs structurally from Chat
+Completions. `system` is a top-level parameter rather than a message; tool results are
+user-role content blocks rather than a `tool` role; completion is signalled by
+`stop_reason: "tool_use"`; and thinking blocks must be returned unchanged when continuing on
+the same model, which needs the passthrough field from section 1.
+
+Two credential details worth handling when it is written:
+
+- An unset `ANTHROPIC_API_KEY` does not mean there are no credentials. `ant auth login` stores
+  an OAuth profile that the official SDKs resolve automatically. For hand-rolled HTTP that is
+  `Authorization: Bearer <token>` plus an `anthropic-beta: oauth-2025-04-20` header, with the
+  token from `ant auth print-credentials --access-token` — note `Authorization`, not
+  `x-api-key`. Check for a profile before demanding a key.
+- A Claude Pro/Max subscription does **not** grant API access, and cannot be used to
+  authenticate konacode. This comes up often enough to be worth stating in the README.
+
+Because the whole conversation is resent on every turn, prompt caching is worth more here than
+in most applications. Design the codec so cache breakpoints have somewhere to go.
