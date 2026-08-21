@@ -143,6 +143,15 @@ Write all documents and all replies in ASD-STE100 Simplified Technical English.
 ## Conventions
 
 - Java 21. Records for data, sealed interfaces for closed sets, pattern-matching switch over them.
-- Dependencies: Jackson and JUnit 5. Nothing else. No agent framework, no HTTP client library, no DI container. If a new dependency seems necessary, that is a conversation, not a commit.
-- TDD. Test first, and keep the suite offline — no test may touch the network.
+- Dependencies: konacode has no agent framework, no HTTP client library, and no dependency
+  injection container. Those three hide the mechanism this project exists to show. A library that
+  solves a different problem is allowed. Jackson, JLine, commonmark, JUnit 5, and Mockito are
+  allowed. A new dependency is a conversation, not a commit. Check the version with Meterian
+  before you pin it, and read `maven-metadata.xml` for the newest version, because the search
+  endpoint at `search.maven.org` sorts by relevance and reports an old version as the newest.
+- TDD. Test first, and keep the suite offline. No test may touch the network.
+- Write the test double by hand when the type is ours. `FakeLlmClient` and
+  `RecordingToolCallListener` are small, explicit, and they read well. Use Mockito when the type
+  belongs to a library and a hand-written double is impractical, for example the JLine
+  `LineReader`. A class that needs a mock takes its collaborators in the constructor.
 - Tool descriptions are prompt engineering. Changing one changes agent behavior; treat it like changing code.
