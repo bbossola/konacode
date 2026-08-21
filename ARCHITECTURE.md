@@ -102,18 +102,22 @@ would take a situation the model can fix and hand it to the human instead.
 **Three ways a turn ends**, and all three return text: an AssistantMessage with no ToolCalls,
 an exhausted iteration budget, or a transport failure. None of them throws.
 
-## An open question
+## A reply that lies about being finished
 
-The invariants above contain one that is doing more work than it looks:
+The invariants above contain one that does more work than it looks:
 
-> **An AssistantMessage carrying no ToolCalls is the definition of "the model is done."**
+> **An AssistantMessage that carries no ToolCalls means the model is done.**
 
-The loop has no other notion of completion. So a reply whose *text* reads
-`<function=list_files>` while carrying no ToolCalls is not a malformed message — it is a
-well-formed message meaning "done", sent by a model that meant the opposite. Some local models
-do this intermittently; qwen3-coder does it roughly one turn in four.
+The loop has no other test for completion. A model can write a tool call as prose. The reply then
+carries no ToolCalls. That reply is correct in form and it means "done". The model meant the
+opposite. Some local models do this. qwen3-coder does it in about one turn in four.
 
-The domain currently has no vocabulary for *the model tried to call a tool and failed to
-express it*. Whether that is a gap worth naming in the domain, or a provider-level quirk that
-should be normalised away before it ever reaches the loop, is undecided. See
-[FOLLOWUP.md](FOLLOWUP.md).
+konacode treats this as a provider defect. It is not a domain idea. `LlmClient` promises text or
+tool calls, and it promises them faithfully. A model that writes the call as prose gives a broken
+response from that provider. Therefore the provider repairs it. The OpenAI provider finds such a
+reply and sends the same request again, one time. The loop never learns that this happens.
+
+The detector misses cases on purpose. A wrong refusal costs more than a missed one. konacode reads
+its own repository, which contains many tool call formats. A model that quotes one of them is
+correct, and konacode must not refuse that reply. See
+[the design](docs/superpowers/specs/2026-08-21-reply-validation-design.md).
