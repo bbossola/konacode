@@ -41,10 +41,12 @@ final class Commands {
 
     private void help() {
         ui.showAnswer("""
-                - `/help` — show this list
-                - `/tools` — show the tools the model can call
-                - `/clear` — forget the conversation and start again
-                - `/exit` — end the session""");
+                ```
+                /help    show this list
+                /tools   show the tools the model can call
+                /clear   forget the conversation and start again
+                /exit    end the session
+                ```""");
     }
 
     private void tools() {
