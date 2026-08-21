@@ -74,7 +74,7 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 | `ListFiles` | implements `Tool` | Directory snapshot, sorted, capped at 200 entries. Directories get a `/` suffix, symlinks `@`. |
 | `ReadFile` | implements `Tool` | File contents, capped at 100 KB. Decodes with malformed-input replacement rather than failing, so a cap landing mid-codepoint is not reported as "binary file". |
 | `EditFile` | implements `Tool` | Exact-match replacement. Refuses zero matches, refuses more than one, refuses `old_str == new_str`. Creates the file when `old_str` is empty and the file does not exist. Replacement is **literal** — `String.replace`, never `replaceAll`, which would treat `$` and `\` in the model's `new_str` as replacement-template syntax and silently corrupt the edit. |
-| `Workspace` | final class | The only place that touches the filesystem. Resolves relative, `~` and absolute paths against a root; `readUtf8Capped`, `writeAtomic`, `listSorted`. Where path confinement will hook in when it is added. |
+| `Workspace` | final class | Owns every filesystem *operation* — resolving relative, `~` and absolute paths against a root, plus `readUtf8Capped`, `writeAtomic`, `listSorted`. Tools call bare `Files.exists` / `isDirectory` / `isSymbolicLink` predicates inline; everything that reads, writes or enumerates goes through here. Where path confinement will hook in when it is added. |
 | `Schemas` | static helper | Builds tool input schemas without repeating Jackson boilerplate. |
 
 ### `dev.konacode.policy`
