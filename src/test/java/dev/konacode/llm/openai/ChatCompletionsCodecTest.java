@@ -129,4 +129,15 @@ class ChatCompletionsCodecTest {
     void raisesLlmExceptionOnUnparseableJson() {
         assertThrows(LlmException.class, () -> codec.decodeResponse("not json at all"));
     }
+
+    @Test
+    void raisesLlmExceptionOnAToolCallWithNoId() {
+        String body = "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,"
+                + "\"tool_calls\":[{\"type\":\"function\",\"function\":"
+                + "{\"name\":\"read_file\",\"arguments\":\"{}\"}}]}}]}";
+
+        LlmException thrown = assertThrows(LlmException.class, () -> codec.decodeResponse(body));
+
+        assertTrue(thrown.getMessage().contains("no id"), thrown.getMessage());
+    }
 }

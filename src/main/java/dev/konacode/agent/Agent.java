@@ -9,6 +9,7 @@ import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.ToolMessage;
 import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.llm.ToolCall;
+import dev.konacode.llm.ToolSpec;
 import dev.konacode.policy.Decision;
 import dev.konacode.policy.ToolPolicy;
 import dev.konacode.tools.Tool;
@@ -78,10 +79,10 @@ public final class Agent {
 
     public String respond(String userText) {
         conversation.add(new UserMessage(userText));
+        List<ToolSpec> tools = ToolSpecs.from(registry);
         try {
             for (int iteration = 0; iteration < maxIterations; iteration++) {
-                AssistantMessage reply =
-                        client.chat(conversation.messages(), ToolSpecs.from(registry));
+                AssistantMessage reply = client.chat(conversation.messages(), tools);
 
                 // Before running anything: providers reject a tool result whose originating
                 // assistant message is absent from the history.

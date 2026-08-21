@@ -115,8 +115,14 @@ public final class ChatCompletionsCodec {
         List<ToolCall> toolCalls = new ArrayList<>();
         for (JsonNode call : message.path("tool_calls")) {
             JsonNode function = call.path("function");
+            String id = call.path("id").asText("");
+            if (id.isBlank()) {
+                throw new LlmException(
+                        "Provider returned a tool call with no id, which cannot be correlated "
+                                + "to its result: " + call);
+            }
             toolCalls.add(new ToolCall(
-                    call.path("id").asText(""),
+                    id,
                     function.path("name").asText(""),
                     function.path("arguments").asText("")));
         }

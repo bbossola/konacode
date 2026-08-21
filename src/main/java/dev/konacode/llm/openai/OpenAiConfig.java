@@ -18,6 +18,9 @@ public record OpenAiConfig(String apiKey, String model, String baseUrl, Duration
     public static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(2);
 
     public OpenAiConfig {
+        apiKey = apiKey == null ? null : apiKey.trim();
+        model = model == null ? null : model.trim();
+        baseUrl = baseUrl == null ? null : baseUrl.trim();
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalArgumentException("OPENAI_API_KEY is not set.");
         }

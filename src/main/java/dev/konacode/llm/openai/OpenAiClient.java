@@ -43,12 +43,20 @@ public final class OpenAiClient implements LlmClient {
     public AssistantMessage chat(List<Message> history, List<ToolSpec> tools) {
         ObjectNode body = codec.encodeRequest(config.model(), history, tools);
 
-        HttpRequest request = HttpRequest.newBuilder(config.chatCompletionsUri())
-                .timeout(config.timeout())
-                .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + config.apiKey())
-                .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
-                .build();
+        HttpRequest request;
+        try {
+            request = HttpRequest.newBuilder(config.chatCompletionsUri())
+                    .timeout(config.timeout())
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + config.apiKey())
+                    .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
+                    .build();
+        } catch (IllegalArgumentException e) {
+            // A malformed base URL, or a key carrying a control character - a trailing newline
+            // survives isBlank() - would otherwise escape as an unchecked exception and kill the
+            // session, since the agent loop catches only LlmException.
+            throw new LlmException("Could not build the request: " + e.getMessage(), e);
+        }
 
         HttpResponse<String> response;
         try {

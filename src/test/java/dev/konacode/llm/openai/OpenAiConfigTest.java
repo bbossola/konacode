@@ -67,4 +67,18 @@ class OpenAiConfigTest {
 
         assertTrue(thrown.getMessage().contains("OPENAI_API_KEY"), thrown.getMessage());
     }
+
+    @Test
+    void trimsSurroundingWhitespaceSoAKeyReadFromAFileStillWorks() {
+        // "sk-test\n".isBlank() is false, so validation passes and the newline reaches
+        // HttpRequest.header, which rejects it with an unchecked exception.
+        OpenAiConfig config = OpenAiConfig.fromEnvironment(Map.of(
+                "OPENAI_API_KEY", "sk-test\n",
+                "KONACODE_MODEL", " gpt-5-mini ",
+                "KONACODE_BASE_URL", " https://example.test/v1 "));
+
+        assertEquals("sk-test", config.apiKey());
+        assertEquals("gpt-5-mini", config.model());
+        assertEquals("https://example.test/v1", config.baseUrl());
+    }
 }

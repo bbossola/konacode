@@ -62,7 +62,7 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 |---|---|---|
 | `OpenAiConfig` | record `(apiKey, model, baseUrl, timeout)` | Provider settings. |
 | `ChatCompletionsCodec` | final class, pure | Translates `Message`/`ToolSpec` to request JSON and response JSON back to `AssistantMessage`. **Contains no HTTP.** This is what makes the wire format testable against fixtures. |
-| `OpenAiClient` | implements `LlmClient` | `java.net.http.HttpClient` plus the codec. Owns status handling and retries, nothing else. |
+| `OpenAiClient` | implements `LlmClient` | `java.net.http.HttpClient` plus the codec. Owns status handling and error translation, nothing else — there is no retry; see FOLLOWUP.md. |
 
 ### `dev.konacode.tools`
 
