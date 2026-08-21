@@ -15,6 +15,9 @@ public final class EditFile implements Tool {
 
     static final int CONTENT_PREVIEW_LIMIT = 100_000;
 
+    /** Files above this size are refused rather than edited. Source files are far below it. */
+    static final int MAX_EDITABLE_BYTES = 1_000_000;
+
     private final Workspace workspace;
 
     public EditFile(Workspace workspace) {
@@ -96,7 +99,7 @@ public final class EditFile implements Tool {
             return ToolResult.err("old_str must not be empty when editing an existing file.");
         }
         try {
-            String original = workspace.readUtf8Capped(file, Integer.MAX_VALUE);
+            String original = workspace.readUtf8ForEditing(file, MAX_EDITABLE_BYTES);
             int matches = countOccurrences(original, oldStr);
 
             if (matches == 0) {

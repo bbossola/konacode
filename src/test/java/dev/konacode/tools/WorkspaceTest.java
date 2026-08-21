@@ -155,4 +155,37 @@ class WorkspaceTest {
         // first in ASCII. Collator orders the way a human reads a file listing.
         assertEquals(List.of("apple.txt", "Banana.txt", "cherry.txt"), names);
     }
+
+    @Test
+    void readsAnEditableFileWholeWithoutTruncating() throws IOException {
+        Workspace workspace = new Workspace(root);
+        Path file = root.resolve("whole.txt");
+        String content = "line\n".repeat(1_000);
+        Files.writeString(file, content, StandardCharsets.UTF_8);
+
+        assertEquals(content, workspace.readUtf8ForEditing(file, 1_000_000));
+    }
+
+    @Test
+    void refusesToReadAnOversizedFileForEditingRatherThanTruncatingIt() throws IOException {
+        Workspace workspace = new Workspace(root);
+        Path file = root.resolve("big.txt");
+        Files.writeString(file, "x".repeat(200), StandardCharsets.UTF_8);
+
+        // Truncating here would make edit_file rewrite the file as its own first N bytes.
+        IOException thrown = assertThrows(IOException.class,
+                () -> workspace.readUtf8ForEditing(file, 100));
+        assertTrue(thrown.getMessage().contains("edit limit"), thrown.getMessage());
+    }
+
+    @Test
+    void refusesToReadAFileThatIsNotValidUtf8ForEditing() throws IOException {
+        Workspace workspace = new Workspace(root);
+        Path file = root.resolve("binary.dat");
+        Files.write(file, new byte[]{(byte) 0xC3, (byte) 0x28, (byte) 0xA9});
+
+        // Lenient decoding would substitute U+FFFD, and the edit would write that back over
+        // the original bytes.
+        assertThrows(IOException.class, () -> workspace.readUtf8ForEditing(file, 1_000_000));
+    }
 }

@@ -80,6 +80,26 @@ public final class Workspace {
     }
 
     /**
+     * Reads a file that is about to be edited and written back.
+     *
+     * <p>Differs from {@link #readUtf8Capped} in two ways, both because the caller writes this
+     * string back to disk: an oversized file is refused rather than truncated, and decoding is
+     * strict rather than substituting replacement characters. Truncating would delete the tail of
+     * the user's file; substituting would corrupt every byte the decoder could not read.
+     */
+    public String readUtf8ForEditing(Path file, int maxBytes) throws IOException {
+        long size = Files.size(file);
+        if (size > maxBytes) {
+            throw new IOException(
+                    "file is " + size + " bytes, above the " + maxBytes + " byte edit limit");
+        }
+        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT);
+        return decoder.decode(ByteBuffer.wrap(Files.readAllBytes(file))).toString();
+    }
+
+    /**
      * Writes via a temporary file and a move, so a failure never leaves a half-written file.
      *
      * <p>The temp file is created with {@link Files#createFile} rather than

@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -148,5 +149,41 @@ class EditFileTest {
         JsonNode malformed = MAPPER.createObjectNode().put("path", "code.txt").put("old_str", 7);
 
         assertTrue(errorOf(tool.execute(malformed)).contains("Invalid arguments"));
+    }
+
+    @Test
+    void refusesToEditAnOversizedFileAndLeavesItUnchanged() throws IOException {
+        String oversized = "x".repeat(EditFile.MAX_EDITABLE_BYTES + 1);
+        Files.writeString(root.resolve("huge.txt"), oversized, StandardCharsets.UTF_8);
+
+        ToolResult result = tool.execute(args("huge.txt", "x", "y"));
+
+        assertInstanceOf(ToolResult.Err.class, result);
+        assertEquals(oversized, contents("huge.txt"));
+    }
+
+    @Test
+    void refusesToEditANonUtf8FileAndLeavesItUnchanged() throws IOException {
+        Path file = root.resolve("binary.dat");
+        byte[] original = {(byte) 0xC3, (byte) 0x28, (byte) 0xA9};
+        Files.write(file, original);
+
+        ToolResult result = tool.execute(args("binary.dat", "a", "b"));
+
+        assertInstanceOf(ToolResult.Err.class, result);
+        assertArrayEquals(original, Files.readAllBytes(file));
+    }
+
+    @Test
+    void truncatesTheEchoedContentInTheSuccessMessageButNotTheFile() throws IOException {
+        String body = "y".repeat(EditFile.CONTENT_PREVIEW_LIMIT + 500);
+        Files.writeString(root.resolve("wide.txt"), "SEED" + body, StandardCharsets.UTF_8);
+
+        ToolResult result = tool.execute(args("wide.txt", "SEED", "DONE"));
+
+        ToolResult.Ok ok = assertInstanceOf(ToolResult.Ok.class, result);
+        String echoed = ok.text().substring(ok.text().indexOf('\n') + 1);
+        assertEquals(EditFile.CONTENT_PREVIEW_LIMIT, echoed.length());
+        assertEquals("DONE" + body, contents("wide.txt"));
     }
 }
