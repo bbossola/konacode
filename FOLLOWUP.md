@@ -96,6 +96,13 @@ adds planning, and expect to revisit the default.
   refused and re-sent. A session that sent forty requests looks exactly like one that sent twenty.
   This is the accepted cost of repairing a model quirk below the loop — see
   `docs/superpowers/specs/2026-08-21-reply-validation-design.md`. To be addressed with logging.
+- **Replace our markdown renderer with Mordant.** Mordant renders markdown to a terminal and
+  konacode writes about 400 lines to do the same job. konacode cannot use it today, because
+  `mordant-markdown-jvm` needs `org.jetbrains.kotlin:kotlin-stdlib`, and every released version of
+  that artifact carries CVE-2026-53914, a CRITICAL fault with a CVSS score of 9.8. The fix is
+  version 2.4.20, and Maven Central holds only `2.4.20-RC`. **Trigger:** when Kotlin 2.4.20 reaches
+  a stable release, audit Mordant again. If it is clean, delete `dev.konacode.cli.markdown` and
+  call Mordant from `Markdown.render`. That method is the only thing the rest of konacode uses.
 - **A `run_command` tool.** One class, and a genuine safety question — it is the point at which
   `AllowAllPolicy` stops being a defensible default.
 - **Bounded retry in `OpenAiClient`.** The client makes exactly one attempt, so a single transient

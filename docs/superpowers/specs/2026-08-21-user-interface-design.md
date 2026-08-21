@@ -292,6 +292,32 @@ The thread is a daemon thread, so it cannot keep the process alive.
 
 ## The markdown renderer
 
+### Why konacode writes the renderer
+
+I searched for a library first. Only one renders markdown to a terminal on the JVM.
+
+| Library | Version | Last updated | Ships | Renderer |
+|---|---|---|---|---|
+| commonmark | 0.30.0 | 2026-08-06 | 214 KB | no |
+| flexmark | 0.64.8 | 2023-05-23 | 435 KB | no |
+| mordant | 3.0.2 | 2025-02-15 | 1,798 KB of Kotlin runtime | yes |
+
+Mordant renders markdown. konacode cannot use it. `mordant-markdown-jvm` needs
+`org.jetbrains.kotlin:kotlin-stdlib`, and every released version of that artifact carries
+CVE-2026-53914. The severity is CRITICAL and the CVSS score is 9.8. The affected range is
+`[0, 2.4.20)`, which is every version. Maven Central holds no stable 2.4.20. It holds
+`2.4.20-RC` only, and konacode does not ship a release candidate of a language runtime.
+
+The fault is in build cache metadata, which is a build-time path. konacode would not compile
+Kotlin, so the attack is probably not reachable. That argument does not settle it. Anyone who
+scans konacode sees a CRITICAL finding.
+
+flexmark does not help. It has no renderer either, it is twice the size of commonmark, and its
+last release was more than three years ago.
+
+**The trigger to revisit.** When Kotlin 2.4.20 reaches a stable release, audit Mordant again. If
+it is clean, delete our renderer and use Mordant. `FOLLOWUP.md` records this.
+
 The renderer lives in its own package, `dev.konacode.cli.markdown`. A reader who wants to
 understand the agent can skip the package. The agent loop stays 24 lines.
 
