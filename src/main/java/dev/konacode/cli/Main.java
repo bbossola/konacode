@@ -1,7 +1,7 @@
 package dev.konacode.cli;
 
 import dev.konacode.agent.Agent;
-import dev.konacode.agent.AppendOnlyConversation;
+import dev.konacode.agent.Conversation;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.openai.OpenAiClient;
 import dev.konacode.llm.openai.OpenAiConfig;
@@ -45,7 +45,7 @@ public final class Main {
                         new ReadFile(workspace),
                         new EditFile(workspace)),
                 new AllowAllPolicy(),
-                new AppendOnlyConversation(new SystemMessage(SYSTEM_PROMPT)),
+                new Conversation(new SystemMessage(SYSTEM_PROMPT)),
                 new ConsoleToolCallListener(System.out),
                 maxIterations);
 
