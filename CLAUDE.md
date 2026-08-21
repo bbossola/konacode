@@ -113,6 +113,11 @@ Three, deliberately not merged:
 
 Never promote a tool failure to an exception. Never hand an `LlmException` to the model.
 
+## Questions
+
+Give each question a number. Put the number at the start of the question. The reader can then
+answer with the number only.
+
 ## Comments
 
 Do not write a comment that repeats the code. Write a comment only when a reader cannot
