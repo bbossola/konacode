@@ -33,7 +33,6 @@ final class PlainUi implements Ui {
 
     @Override
     public void welcome() {
-        out.println();
         out.println("Chat with konacode (use 'ctrl-c' to quit)");
         out.println();
     }
