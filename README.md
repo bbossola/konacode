@@ -113,7 +113,8 @@ src/main/java/dev/konacode/
     └── openai/
 ```
 
-Dependencies run strictly downhill: `cli → agent → {llm, tools, policy}`. Four things are
+Dependencies run strictly downhill: `cli → agent → {llm, tools, policy}`.
+[ARCHITECTURE.md](ARCHITECTURE.md) diagrams how a turn actually runs. Four things are
 interfaces with a default implementation rather than hardcoded — tools, the LLM provider,
 conversation handling, and tool approval — so extending any of them is a new class rather than a
 rewrite. [CLAUDE.md](CLAUDE.md) defines every element; [CONTEXT.md](CONTEXT.md) records why the

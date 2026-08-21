@@ -29,6 +29,9 @@ Plus one system property: `-Dkonacode.maxIterations=8` caps tool-call iterations
 
 ## Architecture rule
 
+[ARCHITECTURE.md](ARCHITECTURE.md) has the runtime picture — how a turn runs, and the
+invariants that hold it together. Read it before changing the loop.
+
 Dependencies run strictly downhill:
 
 ```
