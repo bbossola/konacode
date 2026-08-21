@@ -14,6 +14,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Transport. Owns HTTP status handling and nothing else — the translation lives in
@@ -42,7 +43,29 @@ public final class OpenAiClient implements LlmClient {
     @Override
     public AssistantMessage chat(List<Message> history, List<ToolSpec> tools) {
         ObjectNode body = codec.encodeRequest(config.model(), history, tools);
+        ReplyValidator validator = ReplyValidator.create(config.model(), tools);
 
+        return sendUntilAccepted(validator, () -> sendOnce(body));
+    }
+
+    /**
+     * Sends until the validator accepts a reply. The body is encoded once and re-sent unchanged,
+     * so a retry is a fresh sample of the same request rather than a subtly different one.
+     *
+     * <p>Package-private and static so the retry behaviour can be tested with a scripted sender,
+     * without a network or a mocking framework. Termination is guaranteed by the validator, which
+     * accepts unconditionally once its budget is spent.
+     */
+    static AssistantMessage sendUntilAccepted(
+            ReplyValidator validator, Supplier<AssistantMessage> send) {
+        AssistantMessage reply = send.get();
+        while (!validator.accepts(reply)) {
+            reply = send.get();
+        }
+        return reply;
+    }
+
+    private AssistantMessage sendOnce(ObjectNode body) {
         HttpRequest request;
         try {
             request = HttpRequest.newBuilder(config.chatCompletionsUri())
