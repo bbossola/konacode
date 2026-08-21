@@ -238,6 +238,7 @@ exercised without HTTP.
 | Blank text | accept |
 | Second refusal with a budget of 1 | accept — budget spent |
 | Budget of 0 | accept immediately, never refuses |
+| Negative budget | constructor rejects it |
 
 `OpenAiClientTest` — retry behaviour via `sendUntilAccepted` and a scripted `Supplier`, offline:
 
