@@ -22,8 +22,10 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -106,10 +108,35 @@ class RichUiTest {
     }
 
     @Test
+    void promptsWithAGreaterThanSign() {
+        when(reader.readLine(anyString())).thenReturn("hello");
+
+        ui().readLine();
+
+        verify(reader).readLine(contains(">"));
+    }
+
+    @Test
+    void showsTheAnswerWithNoName() {
+        ui().showAnswer("Hello.");
+
+        assertFalse(written().contains("konacode"), written());
+        assertTrue(written().contains("Hello."), written());
+    }
+
+    @Test
     void rendersMarkdown() {
         ui().showAnswer("a **bold** word");
 
         assertTrue(captured.toString(StandardCharsets.UTF_8).contains(Ansi.BOLD));
+    }
+
+    @Test
+    void showsAToolCallInGreen() {
+        ui().onToolCall("read_file", "{}");
+
+        assertTrue(captured.toString(StandardCharsets.UTF_8).contains(Ansi.GREEN),
+                captured.toString(StandardCharsets.UTF_8));
     }
 
     @Test

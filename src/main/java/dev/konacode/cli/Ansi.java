@@ -4,6 +4,9 @@ import java.util.regex.Pattern;
 
 public final class Ansi {
 
+    /** Erases the whole line. A row of spaces leaves residue past the text that follows. */
+    public static final String ERASE_LINE = "\u001B[2K";
+
     public static final String RESET = "\u001B[0m";
     public static final String BOLD = "\u001B[1m";
     public static final String DIM = "\u001B[2m";

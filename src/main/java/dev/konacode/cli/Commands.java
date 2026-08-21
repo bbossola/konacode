@@ -41,16 +41,16 @@ final class Commands {
 
     private void help() {
         ui.showAnswer("""
-                /help    show this list
-                /tools   show the tools the model can call
-                /clear   forget the conversation and start again
-                /exit    end the session""");
+                - `/help` — show this list
+                - `/tools` — show the tools the model can call
+                - `/clear` — forget the conversation and start again
+                - `/exit` — end the session""");
     }
 
     private void tools() {
         StringBuilder text = new StringBuilder();
         for (Tool tool : registry.all()) {
-            text.append(tool.name()).append("\n  ")
+            text.append("- `").append(tool.name()).append("` — ")
                 .append(tool.description().replace("\n", " ")).append("\n");
         }
         ui.showAnswer(text.toString().stripTrailing());

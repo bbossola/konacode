@@ -11,8 +11,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class Spinner {
 
-    static final int ERASE = 40;
-
     private static final char[] FRAMES = {'|', '/', '-', '\\'};
     private static final long PERIOD = 120;
 
@@ -45,7 +43,7 @@ public class Spinner {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        out.print("\r" + " ".repeat(ERASE) + "\r");
+        out.print("\r" + Ansi.ERASE_LINE);
         out.flush();
     }
 

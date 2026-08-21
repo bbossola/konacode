@@ -36,7 +36,8 @@ class SpinnerTest {
         Thread.sleep(250);
         spinner.stop();
 
-        assertTrue(written().endsWith("\r" + " ".repeat(Spinner.ERASE) + "\r"), "no erase");
+        // Spaces leave residue. Printing 8 characters over 40 spaces leaves 32 of them.
+        assertTrue(written().endsWith("\r" + Ansi.ERASE_LINE), written());
     }
 
     @Test

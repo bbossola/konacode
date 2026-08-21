@@ -68,7 +68,7 @@ final class RichUi implements Ui {
     @Override
     public Optional<String> readLine() {
         try {
-            return Optional.ofNullable(reader.readLine(Ansi.blue("You") + ": "));
+            return Optional.ofNullable(reader.readLine(Ansi.blue("> ")));
         } catch (UserInterruptException e) {
             return Optional.of("");
         } catch (EndOfFileException e) {
@@ -79,7 +79,6 @@ final class RichUi implements Ui {
     @Override
     public void showAnswer(String text) {
         spinner.stop();
-        out.println(Ansi.style("konacode", Ansi.BOLD, Ansi.GREEN));
         out.println(Markdown.render(text, terminal.getWidth()));
         out.println();
     }
@@ -98,7 +97,7 @@ final class RichUi implements Ui {
     @Override
     public void onToolCall(String name, String argumentsJson) {
         spinner.stop();
-        out.println(Ansi.style("tool: " + name + "(" + argumentsJson + ")", Ansi.DIM));
+        out.println(Ansi.style("tool: " + name + "(" + argumentsJson + ")", Ansi.GREEN));
     }
 
     @Override
