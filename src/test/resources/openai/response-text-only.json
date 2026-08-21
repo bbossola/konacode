@@ -1,0 +1,15 @@
+{
+  "id": "chatcmpl-fixture-1",
+  "object": "chat.completion",
+  "model": "gpt-5-mini",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "It is a Java CLI agent."
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}
