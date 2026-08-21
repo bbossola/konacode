@@ -12,20 +12,25 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 108 tests, all offline, no network
+mvn test                        # 173 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
 
-Configuration is environment-only:
+konacode keeps one rule for configuration. The environment configures the provider. A system
+property configures konacode.
 
-| Variable | Required | Default |
-|---|---|---|
-| `OPENAI_API_KEY` | yes | — |
-| `KONACODE_MODEL` | no | `gpt-5-mini` |
-| `KONACODE_BASE_URL` | no | `https://api.openai.com/v1` |
+| Name | Kind | Required | Default |
+|---|---|---|---|
+| `OPENAI_API_KEY` | environment | yes | — |
+| `KONACODE_MODEL` | environment | no | `gpt-5-mini` |
+| `KONACODE_BASE_URL` | environment | no | `https://api.openai.com/v1` |
+| `konacode.maxIterations` | property | no | `8` |
+| `konacode.ui` | property | no | `auto` |
 
-Plus one system property: `-Dkonacode.maxIterations=8` caps tool-call iterations per user message.
+This rule keeps the key out of the process list. konacode reads no command line argument.
+
+A wrong value fails loudly. Both properties print one line and exit 1.
 
 ## Architecture rule
 
@@ -94,14 +99,30 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 | Element | Kind | Definition |
 |---|---|---|
 | `Agent` | final class | `String respond(String userText)`. The loop. Depends only on interfaces. |
-| `Conversation` | interface | `add(Message)`, `messages()`. |
-| `AppendOnlyConversation` | implements `Conversation` | Appends forever, never trims. |
+| `Conversation` | final class | `add(Message)`, `messages()`, `restart(List<Message>)`. The history of one session, and the only state the loop keeps. It is a class and not an interface, because `messages()` and `restart` together cover every change to the history. A caller reads all of it, transforms it, and writes all of it back. `/clear` and `/compact` both work that way. |
 | `ToolCallListener` | interface | `onToolCall(name, argsJson)`, `onToolResult(name, ToolResult)`. How the loop reports activity without owning `System.out` — and how tests assert on it. |
 | `ToolSpecs` | static adapter | `Tool` to `ToolSpec`. The one place `tools` and `llm` meet. |
 
 ### `dev.konacode.cli`
 
-`Main` (env parsing, wiring, REPL), `Ansi` (three colour codes), `ConsoleToolCallListener` (prints `tool: name({...})`).
+| Element | Kind | Definition |
+|---|---|---|
+| `Ui` | interface | Everything konacode shows the user, and the one thing it reads from them. It extends `ToolCallListener`, because showing a tool call is a user interface concern. One object then owns the screen. |
+| `PlainUi` | implements `Ui` | The interface for a pipe. It reads with a `BufferedReader` and prints what konacode printed before there were two interfaces. It renders no markdown and shows no spinner. |
+| `RichUi` | implements `Ui` | The interface for a terminal. JLine gives the line editing, the history in `~/.konacode/chat_history`, and `alt-enter` for a second line. It renders markdown and drives the spinner. The constructor takes every collaborator, and `open()` builds the real ones, which is why the class can have tests. |
+| `Repl` | final class | The loop. Read a line, skip it when empty, run it as a command when it starts with `/`, otherwise ask the agent. Both interfaces share it. |
+| `Commands` | final class | `/help`, `/tools` and `/clear`. An unknown command prints an error and never reaches the model. |
+| `Spinner` | class | One daemon thread that draws and erases a character while the agent works. `RichUi` stops it before every write of its own. It is not final, so a test can record the calls. |
+| `Ansi` | final class | The escape codes, plus `strip` and `visibleLength`. A code takes bytes and no columns, so word wrap and table alignment both need `visibleLength`. |
+| `Main` | final class | Reads the environment, picks the interface, wires the parts. The only place that names a concrete implementation. |
+
+### `dev.konacode.cli.markdown`
+
+| Element | Kind | Definition |
+|---|---|---|
+| `Markdown` | final class | `render(String, int width)`. The whole surface. Mordant would replace everything behind it, but konacode cannot use Mordant. See FOLLOWUP.md. |
+| `AnsiRenderer` | final class | Walks the commonmark tree. Two rules keep the blank lines right: `emit` and `code` never add one, and every top level block adds one for itself. |
+| `Wrap` | final class | Wraps styled text at a space, and repeats the open style after a break. |
 
 ## Error channels
 

@@ -2509,6 +2509,15 @@ Say what looked wrong. A layout that a test accepts can still read badly.
 
 ---
 
+## Amendment
+
+**Tasks 6, 7 and 8 state an expected result that cannot happen.** Each says "Expected: 8 tests
+pass", or 19, or 9. Maven compiles the whole of `src/main` before it runs any test, and the flag
+`-Dtest=X` does not change that. `Main` does not compile between Task 6 and Task 9, so those
+three commands fail to compile every time. The correct expectation is one compilation error that
+names `ConsoleToolCallListener`, and nothing else. The implementer found this and reported it
+rather than working around it.
+
 ## Done
 
 `mvn test` is green. konacode has two interfaces. A pipe gets the old one, and a terminal gets

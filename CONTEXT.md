@@ -26,9 +26,9 @@ persistence. Roughly 1100–1300 lines including tests.
 | Intent | A seed for a real agent, not a demo | The plan is to keep adding to it, so the interesting work was never the agent loop but deciding where the seams go. |
 | Wire layer | Hand-rolled `java.net.http` + Jackson | Not an SDK, and explicitly not LangChain4j or Spring AI. A framework would hide the `/v1/chat/completions` format, which is exactly the part worth being able to see. Costs ~100–150 lines of request and response types. |
 | Baseline | Java 21 LTS + Maven | Records, sealed interfaces, pattern-matching switch, text blocks for tool descriptions. Maven because `pom.xml` is the least surprising thing for a Java reader at this size. |
-| Extension seams | All four: tools, LLM provider, conversation, tool policy | Chosen up front rather than retrofitted. Costs roughly 400 lines over the minimal version. |
+| Extension seams | Three: tools, the LLM provider, the tool policy | Chosen up front rather than retrofitted. The conversation was a fourth seam and is now a plain class, because `messages()` and `restart(List)` together cover every change to the history. |
 | Default tool policy | `AllowAllPolicy` | The interface exists so restrictions can be added later without touching the loop; the default imposes nothing. Confinement is deliberately not on day one. |
-| Testing | Tools, agent loop against a fake LLM, codec against fixtures | 108 tests, entirely offline. |
+| Testing | Tools, agent loop against a fake LLM, codec against fixtures | 173 tests, entirely offline. |
 | `maxIterations` | System property `konacode.maxIterations`, default 8 | Eight is enough for read-read-edit and far too few for anything that plans. |
 
 ## Design calls worth remembering
