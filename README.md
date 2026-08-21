@@ -42,6 +42,14 @@ the model asks for it. Adding a fourth means writing one class and registering i
 
 You will need Java 21 and an OpenAI API key.
 
+Take the jar from the [latest release](https://github.com/bbossola/konacode/releases/latest):
+
+```bash
+OPENAI_API_KEY=sk-... java -jar konacode.jar
+```
+
+Or build it:
+
 ```bash
 git clone git@github.com:bbossola/konacode.git
 cd konacode
@@ -126,8 +134,9 @@ the Anthropic API is billed separately and needs its own key.
 
 ```
 src/main/java/dev/konacode/
-├── cli/        the REPL: read a line, print the answer, repeat
-├── agent/      conversation history + the tool loop
+├── cli/        the two interfaces, the loop, the commands
+│   └── markdown/   the renderer
+├── agent/      the conversation and the tool loop
 ├── tools/      the Tool interface, the registry, the three tools
 ├── policy/     what the agent is allowed to do
 └── llm/        the provider interface, and one implementation of it
@@ -135,10 +144,11 @@ src/main/java/dev/konacode/
 ```
 
 Dependencies run strictly downhill: `cli → agent → {llm, tools, policy}`.
-[ARCHITECTURE.md](ARCHITECTURE.md) diagrams how a turn actually runs. Four things are
-interfaces with a default implementation rather than hardcoded — tools, the LLM provider,
-conversation handling, and tool approval — so extending any of them is a new class rather than a
-rewrite. [CLAUDE.md](CLAUDE.md) defines every element; [CONTEXT.md](CONTEXT.md) records why the
+[ARCHITECTURE.md](ARCHITECTURE.md) diagrams how a turn actually runs. Three things are
+interfaces with a default implementation rather than hardcoded — the tools, the LLM provider,
+and the tool policy — so extending any of them is a new class rather than a rewrite. The
+conversation is a plain class, because reading all of the history and writing all of it back
+covers every change to it. [CLAUDE.md](CLAUDE.md) defines every element; [CONTEXT.md](CONTEXT.md) records why the
 design is shaped this way.
 
 ## Safety rails

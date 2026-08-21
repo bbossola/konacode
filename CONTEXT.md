@@ -28,7 +28,7 @@ persistence. Roughly 1100–1300 lines including tests.
 | Baseline | Java 21 LTS + Maven | Records, sealed interfaces, pattern-matching switch, text blocks for tool descriptions. Maven because `pom.xml` is the least surprising thing for a Java reader at this size. |
 | Extension seams | Three: tools, the LLM provider, the tool policy | Chosen up front rather than retrofitted. The conversation was a fourth seam and is now a plain class, because `messages()` and `restart(List)` together cover every change to the history. |
 | Default tool policy | `AllowAllPolicy` | The interface exists so restrictions can be added later without touching the loop; the default imposes nothing. Confinement is deliberately not on day one. |
-| Testing | Tools, agent loop against a fake LLM, codec against fixtures | 184 tests, entirely offline. |
+| Testing | The tools, the agent loop against a fake client, the codec against fixtures, the markdown renderer, and the interfaces | 186 tests, entirely offline. Doubles are hand-written for our own types, and Mockito covers the JLine types. |
 | `maxIterations` | System property `konacode.maxIterations`, default 8 | Eight is enough for read-read-edit and far too few for anything that plans. |
 
 ## Design calls worth remembering
@@ -59,6 +59,6 @@ back:
 
 ## Not doing yet
 
-Streaming, conversation persistence, token budgets, sub-agents, a `run_command` tool, path
-confinement, and reasoning support. See [FOLLOWUP.md](FOLLOWUP.md) for the ones that carry a
-design consequence.
+Streaming, interrupting a turn, conversation persistence, token budgets, sub-agents, a
+`run_command` tool, path confinement, and reasoning support. See [FOLLOWUP.md](FOLLOWUP.md) for
+the ones that carry a design consequence.
