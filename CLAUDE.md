@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 182 tests, all offline, no network
+mvn test                        # 184 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -113,6 +113,7 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 | `Repl` | final class | The loop. Read a line, skip it when empty, run it as a command when it starts with `/`, otherwise ask the agent. Both interfaces share it. |
 | `Commands` | final class | `/help`, `/tools`, `/clear` and `/exit`. `run` returns false when the session must end, so every command lives in one class and `Repl` gains one line. A command writes markdown, so the rich interface renders it and needs no second output method. An unknown command prints an error and never reaches the model. |
 | `Spinner` | class | One daemon thread that draws and erases a character while the agent works. `RichUi` stops it before every write of its own. It is not final, so a test can record the calls. |
+| `Banner` | final class | The art from the README. It is 80 columns wide, so a narrower terminal gets the plain name. Generated from `README.md`, not retyped. |
 | `Ansi` | final class | The escape codes, plus `strip` and `visibleLength`. A code takes bytes and no columns, so word wrap and table alignment both need `visibleLength`. |
 | `Main` | final class | Reads the environment, picks the interface, wires the parts. The only place that names a concrete implementation. |
 

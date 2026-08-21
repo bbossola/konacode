@@ -58,8 +58,8 @@ final class RichUi implements Ui {
 
     @Override
     public void welcome() {
-        out.println(Ansi.style("konacode", Ansi.BOLD, Ansi.CYAN)
-                + Ansi.style("  ctrl-d quits, alt-enter adds a line, /help lists the commands",
+        out.println(Ansi.style(Banner.forWidth(terminal.getWidth()), Ansi.CYAN));
+        out.println(Ansi.style("ctrl-d quits, alt-enter adds a line, /help lists the commands",
                 Ansi.DIM));
         out.println();
     }
