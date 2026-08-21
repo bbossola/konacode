@@ -91,6 +91,11 @@ adds planning, and expect to revisit the default.
   once the CLI can render partial output usefully.
 - **Conversation trimming.** `Conversation` is an interface precisely so `AppendOnlyConversation`
   can be swapped for something with a token budget. No other component changes.
+- **Observability for reply validation.** A retry inside the provider is currently invisible:
+  nothing in the agent loop, the `ToolCallListener`, or the conversation records that a reply was
+  refused and re-sent. A session that sent forty requests looks exactly like one that sent twenty.
+  This is the accepted cost of repairing a model quirk below the loop — see
+  `docs/superpowers/specs/2026-08-21-reply-validation-design.md`. To be addressed with logging.
 - **A `run_command` tool.** One class, and a genuine safety question — it is the point at which
   `AllowAllPolicy` stops being a defensible default.
 - **Bounded retry in `OpenAiClient`.** The client makes exactly one attempt, so a single transient

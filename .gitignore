@@ -23,5 +23,8 @@
 hs_err_pid*
 replay_pid*
 
+# internal samples
+samples/
+
 # Maven
 target/
