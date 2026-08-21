@@ -82,18 +82,22 @@ HTTP timeout is a constant in `OpenAiConfig` until there is a reason for it not 
 
 JUnit 5. Every test offline — no test may open a socket.
 
-| Suite | ~Cases | Approach |
+| Suite | Cases | Approach |
 |---|---|---|
-| `EditFileTest` | 12 | `@TempDir`. Create-on-empty-`old_str`; zero matches; exactly one; multiple matches refused; `old_str == new_str` refused; empty path; missing parent directory created; `$` and `\` in `new_str` survive verbatim; non-UTF-8 target; existing file with empty `old_str` refused. |
-| `ListFilesTest` | 5 | `@TempDir`. Sorted order; `/` on directories; `@` on symlinks; empty directory; the 200-entry cap and its "… N more" line. |
-| `ReadFileTest` | 5 | `@TempDir`. Small file; missing file; directory passed as a file; over-cap truncation; a cap landing mid-codepoint producing replacement characters rather than an error. |
-| `AgentLoopTest` | 6 | `FakeLlmClient` returning a scripted queue of `AssistantMessage`s. Plain text reply; single tool call then reply; two calls in one message; unknown tool; policy `Deny`; iteration ceiling reached. Asserts on `RecordingToolCallListener` and on the conversation the fake received. |
-| `ChatCompletionsCodecTest` | 4 | Fixture JSON under `src/test/resources/openai/`. Request shape for history plus tools; response with text only; response with tool calls; malformed response raising `LlmException`. |
-| `ToolRegistryTest` | 2 | Lookup hit and miss. |
-| `WorkspaceTest` | 4 | Relative, absolute and `~` resolution; normalization. |
+| `EditFileTest` | 13 | `@TempDir`. Create-on-empty-`old_str`; parent directories created; zero matches; exactly one; multiple matches refused; `old_str == new_str` refused; empty path; existing file with empty `old_str` refused; missing file with non-empty `old_str` refused; `$`, `\` and regex metacharacters all treated literally; non-string arguments refused. |
+| `WorkspaceTest` | 9 | `@TempDir`. Relative, absolute and `~` resolution; normalization; empty path refused; capped read; a cap landing mid-codepoint producing a replacement character rather than a failure; atomic write creating parents; sorted listing. |
+| `AgentTest` | 11 | `FakeLlmClient` returning a scripted queue of `AssistantMessage`s. Plain text reply; tool call then reply; assistant message ordered before its tool result; two calls in one message; unknown tool; unparseable arguments; policy `Deny`; a tool that throws; iteration ceiling; transport failure; the system property. Asserts on `RecordingToolCallListener` and on the histories the fake received. |
+| `ListFilesTest` | 7 | `@TempDir`. Sorted order; `/` on directories; `@` on symlinks; default path; empty directory; a file rather than a directory; the 200-entry cap and its "… N more" line; missing path. |
+| `ChatCompletionsCodecTest` | 6 | Fixture JSON under `src/test/resources/openai/`. All four roles encoded; tool specs as function definitions; tools omitted when empty; text-only response; tool-call response with arguments kept raw; no choices and unparseable JSON both raising `LlmException`. |
+| `OpenAiConfigTest` | 6 | Defaults; overrides; any non-blank key accepted so local models work; blank key refused; endpoint built without losing the `/v1` segment. |
+| `ReadFileTest` | 5 | `@TempDir`. Small file; missing file; directory passed as a file; over-cap truncation; unusable arguments. |
+| `ToolRegistryTest` | 4 | Lookup hit and miss; registration order preserved; duplicate names refused. |
+| `MessageTest` | 3 | `AssistantMessage` null normalization, tool-call reporting, defensive copying. |
+| `ToolResultTest`, `SchemasTest`, `AllowAllPolicyTest` | 2 each | Rendering, schema shape, allow-all behavior. |
+| `ConsoleToolCallListenerTest` | 1 | One line printed per tool call. |
 
-Test doubles are hand-written — `FakeLlmClient`, `RecordingToolCallListener`, `FixedPolicy`. No
-mocking framework.
+71 tests in total. Test doubles are hand-written — `FakeLlmClient` and `RecordingToolCallListener`,
+with policies supplied as lambdas. No mocking framework.
 
 ## File inventory
 
