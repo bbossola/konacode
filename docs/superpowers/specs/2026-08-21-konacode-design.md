@@ -96,7 +96,7 @@ JUnit 5. Every test offline — no test may open a socket.
 | `ToolResultTest`, `SchemasTest`, `AllowAllPolicyTest` | 2 each | Rendering, schema shape, allow-all behavior. |
 | `ConsoleToolCallListenerTest` | 1 | One line printed per tool call. |
 
-108 tests in total. These doubles are hand-written: `FakeLlmClient` and
+173 tests in total. These doubles are hand-written: `FakeLlmClient` and
 `RecordingToolCallListener`. Policies are lambdas. konacode prefers a hand-written double for its
 own types. It allows Mockito for a library type. See `CLAUDE.md`.
 

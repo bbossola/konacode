@@ -1,7 +1,7 @@
 package dev.konacode.cli;
 
 import dev.konacode.agent.Agent;
-import dev.konacode.agent.AppendOnlyConversation;
+import dev.konacode.agent.Conversation;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.openai.OpenAiClient;
 import dev.konacode.llm.openai.OpenAiConfig;
@@ -12,12 +12,8 @@ import dev.konacode.tools.ReadFile;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 
-/** The REPL: read a line, print the answer, repeat. */
 public final class Main {
 
     private static final String SYSTEM_PROMPT = "You are konacode, a concise CLI assistant.";
@@ -28,52 +24,50 @@ public final class Main {
     public static void main(String[] args) {
         OpenAiConfig config;
         int maxIterations;
+        Ui ui;
         try {
             config = OpenAiConfig.fromEnvironment(System.getenv());
             maxIterations = Agent.configuredMaxIterations();
-        } catch (IllegalArgumentException e) {
+            ui = selectUi();
+        } catch (IllegalArgumentException | IOException e) {
             System.err.println(e.getMessage());
             System.exit(1);
             return;
         }
 
         Workspace workspace = Workspace.ofCurrentDirectory();
-        Agent agent = new Agent(
-                new OpenAiClient(config),
-                ToolRegistry.of(
-                        new ListFiles(workspace),
-                        new ReadFile(workspace),
-                        new EditFile(workspace)),
-                new AllowAllPolicy(),
-                new AppendOnlyConversation(new SystemMessage(SYSTEM_PROMPT)),
-                new ConsoleToolCallListener(System.out),
-                maxIterations);
+        ToolRegistry registry = ToolRegistry.of(
+                new ListFiles(workspace), new ReadFile(workspace), new EditFile(workspace));
+        SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
+        Conversation conversation = new Conversation(system);
 
-        System.out.println();
-        System.out.println("Chat with konacode (use 'ctrl-c' to quit)");
-        System.out.println();
+        Agent agent = new Agent(new OpenAiClient(config), registry, new AllowAllPolicy(),
+                conversation, ui, maxIterations);
 
-        BufferedReader in = new BufferedReader(
-                new InputStreamReader(System.in, StandardCharsets.UTF_8));
-
-        try {
-            while (true) {
-                System.out.print(Ansi.blue("You") + ": ");
-                System.out.flush();
-
-                String line = in.readLine();
-                if (line == null) {
-                    break;
-                }
-                String trimmed = line.trim();
-                if (trimmed.isEmpty()) {
-                    continue;
-                }
-                System.out.println(Ansi.green("konacode") + ": " + agent.respond(trimmed));
-            }
-        } catch (IOException e) {
-            System.err.println("Input failed: " + e.getMessage());
+        try (ui) {
+            new Repl(agent, ui, new Commands(conversation, system, registry, ui)).run();
+        } catch (Exception e) {
+            System.err.println(e.getMessage());
             System.exit(1);
+        }
+    }
+
+    static Ui selectUi() throws IOException {
+        String choice = System.getProperty("konacode.ui", "auto");
+        return switch (choice) {
+            case "plain" -> PlainUi.open();
+            case "rich" -> RichUi.open();
+            case "auto" -> System.console() == null ? PlainUi.open() : openRichOrFallBack();
+            default -> throw new IllegalArgumentException(
+                    "konacode.ui must be auto, plain or rich, but was: " + choice);
+        };
+    }
+
+    private static Ui openRichOrFallBack() {
+        try {
+            return RichUi.open();
+        } catch (IOException e) {
+            return PlainUi.open();
         }
     }
 }

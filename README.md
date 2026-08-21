@@ -79,7 +79,28 @@ Things worth trying:
 | `KONACODE_MODEL` | no | `gpt-5-mini` |
 | `KONACODE_BASE_URL` | no | `https://api.openai.com/v1` |
 
-Plus `-Dkonacode.maxIterations=8`, the ceiling on tool-call iterations per user message.
+Plus two system properties.
+
+| Property | Values | Purpose |
+|---|---|---|
+| `konacode.maxIterations` | a whole number, default `8` | the ceiling on tool calls for one message |
+| `konacode.ui` | `auto`, `plain`, `rich`, default `auto` | which interface to use |
+
+konacode looks for a terminal. It uses the rich interface when it finds one, and the plain
+interface otherwise. A pipe therefore gets the plain interface.
+
+The rich interface gives line editing and history, with the arrow keys, `ctrl-a`, `ctrl-e` and
+`ctrl-r`. It saves the history in `~/.konacode/chat_history`. Press `alt-enter` to add a second
+line, and `enter` to send. It renders markdown, and it turns a spinner while the model thinks.
+
+Three commands work in both interfaces.
+
+| Command | Action |
+|---|---|
+| `/help` | show the commands |
+| `/tools` | show the tools the model can call |
+| `/clear` | forget the conversation and start again |
+| `/exit` | end the session |
 
 ### Running without an API key
 

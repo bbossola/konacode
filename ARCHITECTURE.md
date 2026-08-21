@@ -29,8 +29,12 @@ For what each element *is*, see [CLAUDE.md](CLAUDE.md). For why it is shaped thi
         Allow | Deny          Ok | Err
 ```
 
-Every one of those collaborators is an interface with a default implementation. `Agent` names
-none of them concretely — the CLI decides what they are, and it is the only place that does.
+Three of those collaborators are interfaces with a default implementation: the tools, the LLM
+provider, and the tool policy. `Conversation` is a class. A caller changes the history through
+`messages()` and `restart(List)`, so a second implementation buys nothing.
+
+`Agent` names no implementation. The CLI decides what they are, and it is the only place that
+does.
 
 ## One turn
 

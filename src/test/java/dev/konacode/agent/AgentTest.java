@@ -73,7 +73,7 @@ class AgentTest {
                 client,
                 registry,
                 policy,
-                new AppendOnlyConversation(new SystemMessage("You are konacode.")),
+                new Conversation(new SystemMessage("You are konacode.")),
                 listener,
                 maxIterations);
     }
@@ -257,8 +257,8 @@ class AgentTest {
     @Test
     void answersEveryUserMessageEvenWhenTheTransportFails() {
         FakeLlmClient client = new FakeLlmClient().failWith(new LlmException("HTTP 500"));
-        AppendOnlyConversation conversation =
-                new AppendOnlyConversation(new SystemMessage("You are konacode."));
+        Conversation conversation =
+                new Conversation(new SystemMessage("You are konacode."));
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
                 new AllowAllPolicy(), conversation, new RecordingToolCallListener(), 8);
 
@@ -280,8 +280,8 @@ class AgentTest {
         for (int i = 0; i < 5; i++) {
             client.reply(new AssistantMessage("", List.of(call("c" + i, "echo", "{}"))));
         }
-        AppendOnlyConversation conversation =
-                new AppendOnlyConversation(new SystemMessage("You are konacode."));
+        Conversation conversation =
+                new Conversation(new SystemMessage("You are konacode."));
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
                 new AllowAllPolicy(), conversation, new RecordingToolCallListener(), 2);
 
@@ -315,7 +315,7 @@ class AgentTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new Agent(new FakeLlmClient(), ToolRegistry.of(new EchoTool("echo")),
                         new AllowAllPolicy(),
-                        new AppendOnlyConversation(new SystemMessage("s")),
+                        new Conversation(new SystemMessage("s")),
                         new RecordingToolCallListener(), 0));
     }
 
