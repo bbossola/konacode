@@ -32,7 +32,7 @@ konacode does not get these:
 
 ## Dependencies
 
-konacode takes four new artifacts. The artifact `org.jline:jline` is the bundle. It contains the reader and the terminal.
+konacode takes six new artifacts. Two of them are for tests only. The artifact `org.jline:jline` is the bundle. It contains the reader and the terminal.
 
 | Artifact | Version | Audit |
 |---|---|---|
@@ -40,6 +40,8 @@ konacode takes four new artifacts. The artifact `org.jline:jline` is the bundle.
 | `org.commonmark:commonmark` | 0.30.0 | clean |
 | `org.commonmark:commonmark-ext-gfm-tables` | 0.30.0 | clean |
 | `org.commonmark:commonmark-ext-gfm-strikethrough` | 0.30.0 | clean |
+| `org.mockito:mockito-core` | 5.23.0 | clean, test scope |
+| `org.mockito:mockito-junit-jupiter` | 5.23.0 | clean, test scope |
 
 I audited every artifact with Meterian. Every one is clean.
 
@@ -238,22 +240,46 @@ width to the renderer.
 **Failure.** When JLine cannot open a terminal, `RichUi` fails to build. In `auto` mode `Main`
 then uses `PlainUi`. In `rich` mode `Main` prints the reason and exits 1.
 
+**Construction.** `RichUi` takes its collaborators in the constructor. It does not build them.
+
+```java
+final class RichUi implements Ui {
+
+    RichUi(LineReader reader, Terminal terminal, PrintStream out, Spinner spinner);
+
+    static RichUi open() throws IOException;
+}
+```
+
+`open` builds the real JLine objects and calls the constructor. A test calls the constructor with
+a mocked `LineReader`, a mocked `Terminal`, a captured `PrintStream`, and a recording `Spinner`.
+This is why `RichUi` can have tests.
+
+**The interrupt key.** JLine throws `UserInterruptException` when the user presses `ctrl-c` at the
+prompt. konacode catches it and returns an empty string. The `Repl` then skips the empty line and
+prompts again. This matches a shell. konacode does not end the session, because `ctrl-d` already
+does that and JLine reports it as `EndOfFileException`.
+
 ## The spinner
 
 The spinner lives in its own class. It does not know about the agent, the interface, or markdown.
 
 ```java
-final class Spinner implements AutoCloseable {
+class Spinner {
 
-    static Spinner start(PrintStream out, String label);
+    Spinner(PrintStream out, String label);
 
-    @Override
-    public void close();
+    void start();
+
+    void stop();
 }
 ```
 
 `start` begins a daemon thread. The thread draws one character, waits, and draws the next.
-`close` stops the thread, erases the line, and returns. `close` is safe to call two times.
+`stop` stops the thread and erases the line. Both methods are safe to call two times.
+
+The class is not final, and `RichUi` takes one in its constructor. A test then gives `RichUi` a
+subclass that records the calls. konacode needs no interface and no factory for this.
 
 `RichUi` owns the spinner and controls it in three places. `thinking` starts it. `onToolCall`
 stops it, prints the tool line, and `onToolResult` starts it again, because the loop returns to
@@ -312,10 +338,15 @@ the answer to question 4, and you accepted it.
 | `SpinnerTest` | Start and stop. Assert the thread stops. Assert two calls to `close` are safe. |
 | `UiSelectionTest` | `plain`, `rich`, `auto`, and a wrong value. |
 
-`RichUi` gets no test. JLine needs a real terminal, and the project allows no mocking framework.
-This matches `OpenAiClient`, which has tests only for the failures that happen before a socket
-opens. The logic inside `RichUi` stays thin for this reason. Every part that can be tested lives
-somewhere else: the renderer, the spinner, the commands, and the loop.
+| `RichUiTest` | Mockito gives a `LineReader` and a `Terminal`. The test captures a `PrintStream` and gives a recording `Spinner`. Cases: a typed line arrives; `EndOfFileException` ends the session; `UserInterruptException` gives an empty line and the session continues; the answer is rendered to the width the terminal reports; a tool call stops the spinner and prints the line; a tool result starts the spinner again; `close` closes the terminal. |
+
+konacode prefers a hand-written double for its own types. `Spinner` is ours, so the test
+subclasses it. `LineReader` and `Terminal` belong to JLine, so the test mocks them. `CLAUDE.md`
+holds this rule.
+
+Mockito loads an agent into the running JVM. Java 21 prints a warning about this. The build must
+add `-XX:+EnableDynamicAgentLoading` to the surefire `argLine`, or the warning appears in every
+test run and hides real output.
 
 ## Documents to correct
 

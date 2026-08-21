@@ -53,8 +53,8 @@ public final class OpenAiClient implements LlmClient {
      * so a retry is a fresh sample of the same request rather than a subtly different one.
      *
      * <p>Package-private and static so the retry behaviour can be tested with a scripted sender,
-     * without a network or a mocking framework. Termination is guaranteed by the validator, which
-     * accepts unconditionally once its budget is spent.
+     * and without a network. Termination is guaranteed by the validator, which accepts
+     * unconditionally once its budget is spent.
      */
     static AssistantMessage sendUntilAccepted(
             ReplyValidator validator, Supplier<AssistantMessage> send) {

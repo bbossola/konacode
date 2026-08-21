@@ -205,7 +205,7 @@ and the loop in a package-private helper:
 ```
 
 The helper exists for one reason: it makes the retry behaviour testable offline, driven by a
-scripted `Supplier`, without a network or a mocking framework. Inlining the loop in `chat` would
+scripted `Supplier`, and without a network. Inlining the loop in `chat` would
 leave the only new behaviour in this change untested, since `OpenAiClient` cannot otherwise be
 exercised without HTTP.
 
