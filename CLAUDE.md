@@ -112,6 +112,14 @@ Three, deliberately not merged:
 
 Never promote a tool failure to an exception. Never hand an `LlmException` to the model.
 
+## Comments
+
+Do not write a comment that repeats the code. Write a comment only when a reader cannot
+understand the code without it. Give the reason, not the action.
+
+Javadoc on a public type or method is different. Write it when the contract needs an
+explanation.
+
 ## Writing style
 
 Write all documents and all replies in ASD-STE100 Simplified Technical English.
