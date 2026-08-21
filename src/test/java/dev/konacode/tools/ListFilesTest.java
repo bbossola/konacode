@@ -99,4 +99,22 @@ class ListFilesTest {
     void reportsAMissingPathAsAnError() {
         assertInstanceOf(ToolResult.Err.class, tool.execute(args("nowhere")));
     }
+
+    @Test
+    void rendersSymlinksToDirectoriesDistinctlyFromSymlinksToFiles() throws IOException {
+        Files.createDirectory(root.resolve("realdir"));
+        Files.createFile(root.resolve("realfile"));
+        Files.createSymbolicLink(root.resolve("link_to_dir"), root.resolve("realdir"));
+        Files.createSymbolicLink(root.resolve("link_to_file"), root.resolve("realfile"));
+
+        List<String> lines = lines(tool.execute(args(".")));
+
+        // Files.isDirectory follows the link deliberately. That yields three distinct renderings
+        // rather than two: "/" tells the model the entry can be passed to list_files, and "@"
+        // tells it the entry is a link. LinkOption.NOFOLLOW_LINKS would collapse link_to_dir and
+        // link_to_file into the same output, discarding the actionable half of the signal.
+        assertTrue(lines.contains("realdir/"), lines.toString());
+        assertTrue(lines.contains("link_to_dir/@"), lines.toString());
+        assertTrue(lines.contains("link_to_file@"), lines.toString());
+    }
 }
