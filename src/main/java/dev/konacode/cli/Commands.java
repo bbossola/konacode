@@ -25,20 +25,26 @@ final class Commands {
         return line.startsWith("/");
     }
 
-    void run(String line) {
+    /** Returns false when the session must end. */
+    boolean run(String line) {
         switch (line) {
             case "/help" -> help();
             case "/tools" -> tools();
             case "/clear" -> clear();
+            case "/exit" -> {
+                return false;
+            }
             default -> ui.showError("Unknown command: " + line + ". Type /help for the list.");
         }
+        return true;
     }
 
     private void help() {
         ui.showAnswer("""
                 /help    show this list
                 /tools   show the tools the model can call
-                /clear   forget the conversation and start again""");
+                /clear   forget the conversation and start again
+                /exit    end the session""");
     }
 
     private void tools() {

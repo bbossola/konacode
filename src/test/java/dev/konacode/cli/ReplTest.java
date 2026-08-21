@@ -81,6 +81,15 @@ class ReplTest {
     }
 
     @Test
+    void stopsWhenTheUserTypesExit() {
+        RecordingUi ui = new RecordingUi("/exit", "never reached");
+
+        repl(ui).run();
+
+        assertEquals(List.of(), ui.answers);
+    }
+
+    @Test
     void sendsACommandToTheCommandsAndNotToTheAgent() {
         RecordingUi ui = new RecordingUi("/help");
 

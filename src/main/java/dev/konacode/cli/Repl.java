@@ -22,7 +22,9 @@ final class Repl {
                 continue;
             }
             if (commands.handles(text)) {
-                commands.run(text);
+                if (!commands.run(text)) {
+                    return;
+                }
                 continue;
             }
             ui.thinking();

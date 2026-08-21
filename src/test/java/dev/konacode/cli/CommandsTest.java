@@ -48,6 +48,7 @@ class CommandsTest {
         assertTrue(shown.contains("/help"), shown);
         assertTrue(shown.contains("/tools"), shown);
         assertTrue(shown.contains("/clear"), shown);
+        assertTrue(shown.contains("/exit"), shown);
     }
 
     @Test
@@ -71,6 +72,21 @@ class CommandsTest {
 
         assertEquals(1, conversation.messages().size());
         assertEquals(SYSTEM, conversation.messages().get(0));
+    }
+
+    @Test
+    void exitEndsTheSession() {
+        assertFalse(commands(new RecordingUi(), new Conversation(SYSTEM)).run("/exit"));
+    }
+
+    @Test
+    void everyOtherCommandLetsTheSessionContinue() {
+        Commands commands = commands(new RecordingUi(), new Conversation(SYSTEM));
+
+        assertTrue(commands.run("/help"));
+        assertTrue(commands.run("/tools"));
+        assertTrue(commands.run("/clear"));
+        assertTrue(commands.run("/tolos"));
     }
 
     @Test

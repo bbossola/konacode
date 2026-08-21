@@ -100,6 +100,7 @@ Three commands work in both interfaces.
 | `/help` | show the commands |
 | `/tools` | show the tools the model can call |
 | `/clear` | forget the conversation and start again |
+| `/exit` | end the session |
 
 ### Running without an API key
 
