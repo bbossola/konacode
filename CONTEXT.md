@@ -28,7 +28,7 @@ persistence. Roughly 1100–1300 lines including tests.
 | Baseline | Java 21 LTS + Maven | Records, sealed interfaces, pattern-matching switch, text blocks for tool descriptions. Maven because `pom.xml` is the least surprising thing for a Java reader at this size. |
 | Extension seams | All four: tools, LLM provider, conversation, tool policy | Chosen up front rather than retrofitted. Costs roughly 400 lines over the minimal version. |
 | Default tool policy | `AllowAllPolicy` | The interface exists so restrictions can be added later without touching the loop; the default imposes nothing. Confinement is deliberately not on day one. |
-| Testing | Tools, agent loop against a fake LLM, codec against fixtures | 71 tests, entirely offline. |
+| Testing | Tools, agent loop against a fake LLM, codec against fixtures | 93 tests, entirely offline. |
 | `maxIterations` | System property `konacode.maxIterations`, default 8 | Eight is enough for read-read-edit and far too few for anything that plans. |
 
 ## Design calls worth remembering

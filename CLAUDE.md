@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 71 tests, all offline, no network
+mvn test                        # 93 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -62,7 +62,7 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 |---|---|---|
 | `OpenAiConfig` | record `(apiKey, model, baseUrl, timeout)` | Provider settings. |
 | `ChatCompletionsCodec` | final class, pure | Translates `Message`/`ToolSpec` to request JSON and response JSON back to `AssistantMessage`. **Contains no HTTP.** This is what makes the wire format testable against fixtures. |
-| `OpenAiClient` | implements `LlmClient` | `java.net.http.HttpClient` plus the codec. Owns status handling and retries, nothing else. |
+| `OpenAiClient` | implements `LlmClient` | `java.net.http.HttpClient` plus the codec. Owns status handling and error translation, nothing else — there is no retry; see FOLLOWUP.md. |
 
 ### `dev.konacode.tools`
 
@@ -74,7 +74,7 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 | `ListFiles` | implements `Tool` | Directory snapshot, sorted, capped at 200 entries. Directories get a `/` suffix, symlinks `@`. |
 | `ReadFile` | implements `Tool` | File contents, capped at 100 KB. Decodes with malformed-input replacement rather than failing, so a cap landing mid-codepoint is not reported as "binary file". |
 | `EditFile` | implements `Tool` | Exact-match replacement. Refuses zero matches, refuses more than one, refuses `old_str == new_str`. Creates the file when `old_str` is empty and the file does not exist. Replacement is **literal** — `String.replace`, never `replaceAll`, which would treat `$` and `\` in the model's `new_str` as replacement-template syntax and silently corrupt the edit. |
-| `Workspace` | final class | The only place that touches the filesystem. Resolves relative, `~` and absolute paths against a root; `readUtf8Capped`, `writeAtomic`, `listSorted`. Where path confinement will hook in when it is added. |
+| `Workspace` | final class | Owns every filesystem *operation* — resolving relative, `~` and absolute paths against a root, plus `readUtf8Capped`, `writeAtomic`, `listSorted`. Tools call bare `Files.exists` / `isDirectory` / `isSymbolicLink` predicates inline; everything that reads, writes or enumerates goes through here. Where path confinement will hook in when it is added. |
 | `Schemas` | static helper | Builds tool input schemas without repeating Jackson boilerplate. |
 
 ### `dev.konacode.policy`

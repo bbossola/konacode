@@ -28,7 +28,10 @@ thinking blocks — which must be passed back unchanged when continuing on the s
 provider fields not yet encountered. Each becomes a codec-local change instead of a
 hierarchy-wide one.
 
-**Recommendation:** add it with the first provider change, and no later.
+**Recommendation:** add it when a *second* provider lands, or when reasoning support does —
+whichever comes first — and not before. The OpenAI Chat Completions provider is the baseline and
+needs nothing from this field, so adding it there would mean guessing the shape against a payload
+that never exercises it.
 
 ## 2. Reasoning
 
@@ -90,6 +93,15 @@ adds planning, and expect to revisit the default.
   can be swapped for something with a token budget. No other component changes.
 - **A `run_command` tool.** One class, and a genuine safety question — it is the point at which
   `AllowAllPolicy` stops being a defensible default.
+- **Bounded retry in `OpenAiClient`.** The client makes exactly one attempt, so a single transient
+  `429` or `5xx` discards a whole turn — costly for a loop that may make eight round trips per
+  user message. Two or three attempts with backoff, scoped to `429`, `502`, `503`, `504` and
+  `IOException`, and never to a `4xx`: the model cannot fix a 401, and retrying one wastes the
+  user's time twice.
+- **`finish_reason` is decoded and discarded.** A completion truncated at the token limit
+  (`finish_reason: "length"`) is currently indistinguishable from a complete one. Plain text is
+  silently cut off; a truncated tool call usually fails argument parsing and recovers by accident
+  rather than by design. Capturing it would make truncation diagnosable.
 
 ## 4. A native Anthropic provider
 
