@@ -17,6 +17,6 @@ class BannerTest {
 
     @Test
     void showsThePlainNameWhenTheTerminalIsTooNarrow() {
-        assertEquals("konacode", Banner.forWidth(Banner.WIDTH - 1));
+        assertEquals("kona", Banner.forWidth(Banner.WIDTH - 1));
     }
 }
