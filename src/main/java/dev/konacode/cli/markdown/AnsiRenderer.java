@@ -165,7 +165,7 @@ final class AnsiRenderer extends AbstractVisitor {
 
     @Override
     public void visit(HardLineBreak node) {
-        inline.append(' ');
+        inline.append('\n');
     }
 
     @Override
@@ -252,7 +252,10 @@ final class AnsiRenderer extends AbstractVisitor {
 
     private void emit(String text, String firstPrefix, String restPrefix) {
         int usable = Math.max(1, width - indent - Ansi.visibleLength(firstPrefix));
-        List<String> lines = Wrap.lines(text, usable);
+        List<String> lines = new ArrayList<>();
+        for (String segment : text.split("\n", -1)) {
+            lines.addAll(Wrap.lines(segment, usable));
+        }
         for (int i = 0; i < lines.size(); i++) {
             out.append(" ".repeat(indent))
                .append(i == 0 ? firstPrefix : restPrefix)

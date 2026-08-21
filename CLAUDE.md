@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 179 tests, all offline, no network
+mvn test                        # 182 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -121,7 +121,7 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 | Element | Kind | Definition |
 |---|---|---|
 | `Markdown` | final class | `render(String, int width)`. The whole surface. Mordant would replace everything behind it, but konacode cannot use Mordant. See FOLLOWUP.md. |
-| `AnsiRenderer` | final class | Walks the commonmark tree. Two rules keep the blank lines right: `emit` and `code` never add one, and every top level block adds one for itself. |
+| `AnsiRenderer` | final class | Walks the commonmark tree. Two rules keep the blank lines right: `emit` and `code` never add one, and every top level block adds one for itself. A hard line break ends the line. A soft one becomes a space, which is what markdown means. |
 | `Wrap` | final class | Wraps styled text at a space, and repeats the open style after a break. |
 
 ## Error channels

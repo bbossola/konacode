@@ -95,6 +95,21 @@ class MarkdownTest {
     }
 
     @Test
+    void endsTheLineAtAHardBreakWrittenWithTwoSpaces() {
+        assertEquals(List.of("first", "second"), layout("first  \nsecond", 40));
+    }
+
+    @Test
+    void endsTheLineAtAHardBreakWrittenWithABackslash() {
+        assertEquals(List.of("first", "second"), layout("first\\\nsecond", 40));
+    }
+
+    @Test
+    void stillJoinsALineThatEndsWithoutAHardBreak() {
+        assertEquals(List.of("first second"), layout("first\nsecond", 40));
+    }
+
+    @Test
     void putsOneBlankLineBetweenBlocks() {
         assertEquals(List.of("first", "", "second"), layout("first\n\nsecond", 40));
     }
