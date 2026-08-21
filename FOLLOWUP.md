@@ -86,9 +86,6 @@ adds planning, and expect to revisit the default.
 - **Interactive approval.** `AskUserPolicy` requires a third `Decision` case. Because `Decision`
   is sealed, adding `Ask` produces a compile error at every handling site — which is the
   intended behavior, not an obstacle.
-- **Streaming.** Changes the shape of `LlmClient.chat`, which currently returns a complete
-  `AssistantMessage`. Either an overload taking a consumer, or a second method. Worth doing only
-  once the CLI can render partial output usefully.
 - **`/compact`.** The command reads `conversation.messages()`, asks the model for a summary, and
   calls `conversation.restart(List.of(systemMessage, summary))`. It needs the `LlmClient`, which
   `Commands` does not hold today. This replaces the older plan to swap the conversation for one
@@ -105,7 +102,45 @@ adds planning, and expect to revisit the default.
   silently cut off; a truncated tool call usually fails argument parsing and recovers by accident
   rather than by design. Capturing it would make truncation diagnosable.
 
-## 4. A native Anthropic provider
+## 4. Streaming, and interrupting a turn
+
+The user interface work left both of these out on purpose. Both change an interface outside the
+`cli` package, so neither is a detail of the interface.
+
+### Streaming
+
+`LlmClient.chat` returns a complete `AssistantMessage`. Streaming changes that contract: an
+overload that takes a consumer, or a second method. Every provider then implements it.
+
+Three things follow from that change.
+
+The codec must read server-sent events, and not one JSON body. A tool call arrives in pieces, so
+`ChatCompletionsCodec` must join the name and the arguments across several events before it can
+build a `ToolCall`.
+
+The markdown renderer needs a whole block. It cannot lay out a table or wrap a paragraph from half
+of one. So `RichUi` must print raw text while it arrives and render the block when it closes, or
+render nothing until the answer is complete. The second choice gives up most of the benefit.
+
+The spinner then goes away. It exists because nothing appears while the model works.
+
+### Interrupting a turn
+
+Today `ctrl-c` clears the line at the prompt. During a turn it kills the process.
+
+`Agent.respond` must become cancellable. It must read a flag between iterations, and the request
+must stop. `HttpClient.send` blocks, and `sendAsync` returns a `CompletableFuture` that cancels.
+
+The conversation is the hard part. ARCHITECTURE.md records the invariant: every `ToolCall` is
+answered by exactly one `ToolMessage`. A turn cut in the middle can leave a call with no result,
+and the next request then carries a history that a provider rejects. So the cancel path must
+either finish the results it owes, or remove the assistant message that asked for them.
+
+This is the same class of fault as the unanswered user message that a review found earlier. A
+failure path left the conversation in a shape a provider refuses, and no test noticed, because
+every test ran to the end.
+
+## 5. A native Anthropic provider
 
 Roughly 200 lines, and not a base-URL swap — the Messages API differs structurally from Chat
 Completions. `system` is a top-level parameter rather than a message; tool results are
