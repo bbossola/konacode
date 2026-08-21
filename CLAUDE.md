@@ -112,6 +112,20 @@ Three, deliberately not merged:
 
 Never promote a tool failure to an exception. Never hand an `LlmException` to the model.
 
+## Writing style
+
+Write all documents and all replies in ASD-STE100 Simplified Technical English.
+
+- Write short sentences. Use 20 words or less in a procedural sentence.
+- Write one instruction in one sentence.
+- Use the active voice.
+- Use the same word for the same idea. Do not use synonyms.
+- Use articles. Write "the file", not "file".
+- Do not put more than three nouns together.
+- Start each paragraph with the topic sentence.
+- Write positive statements. Do not put two negatives in one sentence.
+- Use simple verb tenses.
+
 ## Conventions
 
 - Java 21. Records for data, sealed interfaces for closed sets, pattern-matching switch over them.
