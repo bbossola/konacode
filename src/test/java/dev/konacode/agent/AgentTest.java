@@ -7,6 +7,7 @@ import dev.konacode.llm.Message;
 import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.Message.ToolMessage;
+import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.llm.ToolCall;
 import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.policy.Decision;
@@ -20,7 +21,9 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AgentTest {
@@ -224,6 +227,104 @@ class AgentTest {
         try {
             System.setProperty("konacode.maxIterations", "42");
             assertEquals(42, Agent.configuredMaxIterations());
+        } finally {
+            if (previous == null) {
+                System.clearProperty("konacode.maxIterations");
+            } else {
+                System.setProperty("konacode.maxIterations", previous);
+            }
+        }
+    }
+
+    @Test
+    void survivesAPolicyThatThrows() {
+        ToolPolicy brokenPolicy = (tool, args) -> {
+            throw new IllegalStateException("policy bug");
+        };
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
+                .replyText("Recovered.");
+        RecordingToolCallListener listener = new RecordingToolCallListener();
+
+        String answer = agent(client, ToolRegistry.of(new EchoTool("echo")),
+                brokenPolicy, listener, 8).respond("go");
+
+        assertEquals("Recovered.", answer);
+        assertTrue(assertInstanceOf(ToolResult.Err.class, listener.results().get(0))
+                .message().contains("policy bug"));
+    }
+
+    @Test
+    void answersEveryUserMessageEvenWhenTheTransportFails() {
+        FakeLlmClient client = new FakeLlmClient().failWith(new LlmException("HTTP 500"));
+        AppendOnlyConversation conversation =
+                new AppendOnlyConversation(new SystemMessage("You are konacode."));
+        Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
+                new AllowAllPolicy(), conversation, new RecordingToolCallListener(), 8);
+
+        agent.respond("first");
+        agent.respond("second");
+
+        // Two consecutive user turns are rejected by providers that enforce alternation.
+        List<Message> history = conversation.messages();
+        for (int i = 1; i < history.size(); i++) {
+            assertFalse(history.get(i - 1) instanceof UserMessage
+                            && history.get(i) instanceof UserMessage,
+                    "two consecutive user messages at index " + i + ": " + history);
+        }
+    }
+
+    @Test
+    void recordsTheIterationCeilingInTheConversation() {
+        FakeLlmClient client = new FakeLlmClient();
+        for (int i = 0; i < 5; i++) {
+            client.reply(new AssistantMessage("", List.of(call("c" + i, "echo", "{}"))));
+        }
+        AppendOnlyConversation conversation =
+                new AppendOnlyConversation(new SystemMessage("You are konacode."));
+        Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
+                new AllowAllPolicy(), conversation, new RecordingToolCallListener(), 2);
+
+        agent.respond("go");
+
+        List<Message> history = conversation.messages();
+        AssistantMessage last = assertInstanceOf(
+                AssistantMessage.class, history.get(history.size() - 1));
+        assertTrue(last.text().contains("Exceeded maximum tool iterations"), last.text());
+    }
+
+    @Test
+    void runsRemainingToolCallsAfterOneFails() {
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(
+                        call("c1", "explode", "{}"),
+                        call("c2", "echo", "{\"value\":\"still ran\"}"))))
+                .replyText("Done.");
+        RecordingToolCallListener listener = new RecordingToolCallListener();
+
+        agent(client, ToolRegistry.of(new EchoTool("echo"), new ExplodingTool("explode")),
+                new AllowAllPolicy(), listener, 8).respond("go");
+
+        assertEquals(2, listener.results().size());
+        assertInstanceOf(ToolResult.Err.class, listener.results().get(0));
+        assertEquals(ToolResult.ok("echo:still ran"), listener.results().get(1));
+    }
+
+    @Test
+    void rejectsAMaxIterationsBelowOne() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Agent(new FakeLlmClient(), ToolRegistry.of(new EchoTool("echo")),
+                        new AllowAllPolicy(),
+                        new AppendOnlyConversation(new SystemMessage("s")),
+                        new RecordingToolCallListener(), 0));
+    }
+
+    @Test
+    void rejectsAMalformedMaxIterationsPropertyRatherThanSilentlyDefaulting() {
+        String previous = System.getProperty("konacode.maxIterations");
+        try {
+            System.setProperty("konacode.maxIterations", "eihgt");
+            assertThrows(IllegalArgumentException.class, Agent::configuredMaxIterations);
         } finally {
             if (previous == null) {
                 System.clearProperty("konacode.maxIterations");

@@ -27,8 +27,10 @@ public final class Main {
 
     public static void main(String[] args) {
         OpenAiConfig config;
+        int maxIterations;
         try {
             config = OpenAiConfig.fromEnvironment(System.getenv());
+            maxIterations = Agent.configuredMaxIterations();
         } catch (IllegalArgumentException e) {
             System.err.println(e.getMessage());
             System.exit(1);
@@ -45,7 +47,7 @@ public final class Main {
                 new AllowAllPolicy(),
                 new AppendOnlyConversation(new SystemMessage(SYSTEM_PROMPT)),
                 new ConsoleToolCallListener(System.out),
-                Agent.configuredMaxIterations());
+                maxIterations);
 
         System.out.println();
         System.out.println("Chat with konacode (use 'ctrl-c' to quit)");

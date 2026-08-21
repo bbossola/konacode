@@ -15,6 +15,7 @@ import dev.konacode.tools.Tool;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.ToolResult;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -55,9 +56,24 @@ public final class Agent {
         this.maxIterations = maxIterations;
     }
 
-    /** Eight is enough for read-read-edit and too few for anything that plans. */
+    /**
+     * Eight is enough for read-read-edit and too few for anything that plans.
+     *
+     * <p>A malformed value is an error rather than a silent fall back to the default: this is set
+     * once in a shell script or a unit file, and a typo that quietly does nothing would go
+     * unnoticed indefinitely.
+     */
     public static int configuredMaxIterations() {
-        return Integer.getInteger("konacode.maxIterations", DEFAULT_MAX_ITERATIONS);
+        String configured = System.getProperty("konacode.maxIterations");
+        if (configured == null) {
+            return DEFAULT_MAX_ITERATIONS;
+        }
+        try {
+            return Integer.parseInt(configured.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                    "konacode.maxIterations must be a whole number, but was: " + configured);
+        }
     }
 
     public String respond(String userText) {
@@ -80,10 +96,23 @@ public final class Agent {
                     conversation.add(new ToolMessage(call.id(), result.render()));
                 }
             }
-            return "<error> Exceeded maximum tool iterations.";
+            return fail("<error> Exceeded maximum tool iterations.");
         } catch (LlmException e) {
-            return "<error> " + e.getMessage();
+            return fail("<error> " + e.getMessage());
         }
+    }
+
+    /**
+     * Records a failure as the assistant's turn before returning it.
+     *
+     * <p>Without this, a failed turn leaves the conversation ending on an unanswered user
+     * message — two failures in a row would produce two consecutive user turns, which providers
+     * that enforce strict alternation reject. It also gives the model a record of why a turn
+     * ended, which it otherwise has no way to see.
+     */
+    private String fail(String message) {
+        conversation.add(new AssistantMessage(message, List.of()));
+        return message;
     }
 
     private ToolResult perform(ToolCall call) {
@@ -108,7 +137,15 @@ public final class Agent {
                     "Could not parse arguments for " + call.name() + ": " + e.getOriginalMessage());
         }
 
-        if (policy.check(tool, args) instanceof Decision.Deny(String reason)) {
+        Decision decision;
+        try {
+            decision = policy.check(tool, args);
+        } catch (RuntimeException e) {
+            // A misbehaving policy must not kill the session, for the same reason a
+            // misbehaving tool must not. Denying is the safe reading of a broken policy.
+            return ToolResult.err("Policy check for " + call.name() + " failed: " + e);
+        }
+        if (decision instanceof Decision.Deny(String reason)) {
             return ToolResult.err(reason);
         }
 
