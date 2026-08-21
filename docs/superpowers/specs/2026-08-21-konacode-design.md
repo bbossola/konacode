@@ -96,7 +96,7 @@ JUnit 5. Every test offline — no test may open a socket.
 | `ToolResultTest`, `SchemasTest`, `AllowAllPolicyTest` | 2 each | Rendering, schema shape, allow-all behavior. |
 | `ConsoleToolCallListenerTest` | 1 | One line printed per tool call. |
 
-75 tests in total. Test doubles are hand-written — `FakeLlmClient` and `RecordingToolCallListener`,
+81 tests in total. Test doubles are hand-written — `FakeLlmClient` and `RecordingToolCallListener`,
 with policies supplied as lambdas. No mocking framework.
 
 ## File inventory
