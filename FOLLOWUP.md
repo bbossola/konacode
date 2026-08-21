@@ -28,7 +28,10 @@ thinking blocks — which must be passed back unchanged when continuing on the s
 provider fields not yet encountered. Each becomes a codec-local change instead of a
 hierarchy-wide one.
 
-**Recommendation:** add it with the first provider change, and no later.
+**Recommendation:** add it when a *second* provider lands, or when reasoning support does —
+whichever comes first — and not before. The OpenAI Chat Completions provider is the baseline and
+needs nothing from this field, so adding it there would mean guessing the shape against a payload
+that never exercises it.
 
 ## 2. Reasoning
 
