@@ -762,9 +762,12 @@ Add these to `JsonlTraceTest`, and add the imports `java.nio.file.Files`, `java.
     }
 
     @Test
-    void openGivesBackTheEmptySinkWhenTheLevelIsOff() throws IOException {
-        assertEquals(Trace.NONE, JsonlTrace.open(Level.OFF, directory, 100, System.err));
-        assertFalse(Files.exists(directory));
+    void openGivesBackTheEmptySinkWhenTheLevelIsOff() {
+        // Not the @TempDir field itself: JUnit makes that directory before the test runs.
+        Path traces = directory.resolve("traces");
+
+        assertEquals(Trace.NONE, JsonlTrace.open(Level.OFF, traces, 100, System.err));
+        assertFalse(Files.exists(traces));
     }
 
     @Test
