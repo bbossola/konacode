@@ -123,12 +123,13 @@ what it did.
 `ctrl-c` behaves as it always has, and `esc` did not change it: at the prompt it clears the line,
 and during a turn it ends konacode. `ctrl-d` quits.
 
-Three commands work in both interfaces.
+Five commands work in both interfaces.
 
 | Command | Action |
 |---|---|
 | `/help` | show the commands |
 | `/tools` | show the tools the model can call |
+| `/skill` | show the skills, or load one by name |
 | `/clear` | forget the conversation and start again |
 | `/exit` | end the session |
 
