@@ -86,7 +86,7 @@ public final class Agent {
         List<ToolSpec> tools = ToolSpecs.from(registry);
         try {
             for (int iteration = 0; iteration < maxIterations; iteration++) {
-                AssistantMessage reply = client.chat(conversation.messages(), tools);
+                AssistantMessage reply = chat(tools);
 
                 // Before running anything: providers reject a tool result whose originating
                 // assistant message is absent from the history.
@@ -144,6 +144,21 @@ public final class Agent {
         }
         conversation.add(new AssistantMessage("Stopped by the user.", List.of()));
         return "Stopped.";
+    }
+
+    /**
+     * Arms the interrupt for the length of the provider call and no longer.
+     *
+     * <p>The finally makes the window exactly this call, whether it returns or throws. A tool
+     * that runs afterwards is never interrupted by accident.
+     */
+    private AssistantMessage chat(List<ToolSpec> tools) {
+        cancellation.arm();
+        try {
+            return client.chat(conversation.messages(), tools);
+        } finally {
+            cancellation.disarm();
+        }
     }
 
     private ToolResult perform(ToolCall call) {

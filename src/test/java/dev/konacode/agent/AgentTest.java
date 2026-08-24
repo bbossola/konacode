@@ -463,4 +463,38 @@ class AgentTest {
 
         assertEquals("hello", agent.respond("hello"));
     }
+
+    @Test
+    void interruptsTheThreadThatWaitsForTheProvider() {
+        Cancellation cancellation = new Cancellation();
+        boolean[] wasInterrupted = {false};
+        FakeLlmClient client = new FakeLlmClient()
+                .beforeReply(() -> {
+                    cancellation.request();
+                    wasInterrupted[0] = Thread.currentThread().isInterrupted();
+                })
+                .replyText("hello");
+        Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
+                new AllowAllPolicy(), new Conversation(new SystemMessage("You are konacode.")),
+                new RecordingToolCallListener(), cancellation, 8);
+
+        agent.respond("hello");
+
+        assertTrue(wasInterrupted[0], "the thread inside chat must be interrupted");
+    }
+
+    @Test
+    void leavesNoInterruptBehindAfterAStop() {
+        Cancellation cancellation = new Cancellation();
+        FakeLlmClient client = new FakeLlmClient()
+                .beforeReply(cancellation::request)
+                .replyText("hello");
+        Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
+                new AllowAllPolicy(), new Conversation(new SystemMessage("You are konacode.")),
+                new RecordingToolCallListener(), cancellation, 8);
+
+        agent.respond("hello");
+
+        assertFalse(Thread.interrupted(), "disarm must clear the interrupt status");
+    }
 }
