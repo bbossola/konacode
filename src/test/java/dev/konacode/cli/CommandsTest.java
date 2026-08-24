@@ -182,15 +182,17 @@ class CommandsTest {
     void skillAppendsTheBodyAndAnAcknowledgement() throws IOException {
         writeSkill("commit-message", "Use for a commit.");
         Conversation conversation = new Conversation(SYSTEM);
+        RecordingUi ui = new RecordingUi();
 
-        commands(new RecordingUi(), conversation).run("/skill commit-message");
+        commands(ui, conversation).run("/skill commit-message");
 
         List<Message> messages = conversation.messages();
         assertEquals(3, messages.size());
         UserMessage loaded = (UserMessage) messages.get(1);
         assertTrue(loaded.text().contains("The body of commit-message."), loaded.text());
-        assertTrue(loaded.text().contains("commit-message"), loaded.text());
-        assertTrue(messages.get(2) instanceof AssistantMessage);
+        assertEquals("The skill `commit-message` is loaded.",
+                ((AssistantMessage) messages.get(2)).text());
+        assertEquals(List.of("The skill `commit-message` is loaded."), ui.answers);
     }
 
     @Test
@@ -227,6 +229,8 @@ class CommandsTest {
         Commands commands = commands(new RecordingUi(), conversation);
 
         commands.run("/skill one");
+        assertEquals(3, conversation.messages().size());
+
         commands.run("/clear");
 
         assertEquals(List.of(SYSTEM), conversation.messages());
@@ -253,5 +257,29 @@ class CommandsTest {
         commands.run("/skill  commit-message");
 
         assertEquals(5, conversation.messages().size());
+    }
+
+    @Test
+    void reportsANameThatIsNotAFolderNameAndChangesNoMessage() {
+        Conversation conversation = new Conversation(SYSTEM);
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, conversation).run("/skill ..");
+
+        assertTrue(ui.errors.get(0).contains("one folder name"), ui.errors.toString());
+        assertEquals(1, conversation.messages().size());
+    }
+
+    @Test
+    void reportsABrokenSkillAndChangesNoMessage() throws IOException {
+        Path directory = Files.createDirectories(root.resolve("skills").resolve("broken"));
+        Files.writeString(directory.resolve("SKILL.md"), "---\nname: broken\n---\nbody\n");
+        Conversation conversation = new Conversation(SYSTEM);
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, conversation).run("/skill broken");
+
+        assertTrue(ui.errors.get(0).contains("description"), ui.errors.toString());
+        assertEquals(1, conversation.messages().size());
     }
 }

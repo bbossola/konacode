@@ -49,9 +49,9 @@ instructions twice.
 The text of the first message is prompt text, so it is part of this design:
 
 ```
-The skill `commit-message` is now active. Its folder is
-/home/bbossola/.konacode/skills/commit-message. A path in the text below is relative
-to that folder. Use read_file to read it.
+The skill `commit-message` is loaded. Its folder is
+`/home/bbossola/.konacode/skills/commit-message`. Use read_file to read a file inside
+that folder.
 
 <the body of SKILL.md>
 ```

@@ -5,6 +5,7 @@ import dev.konacode.llm.Message;
 import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.skills.Skill;
+import dev.konacode.skills.SkillException;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.Tool;
 import dev.konacode.tools.ToolRegistry;
@@ -87,14 +88,18 @@ final class Commands {
             list();
             return;
         }
-        Skill skill = skills.lookup(name).orElse(null);
-        if (skill == null) {
-            ui.showError("Unknown skill: " + name + ". Type /skill for the list.");
-            return;
+        try {
+            Skill skill = skills.lookup(name).orElse(null);
+            if (skill == null) {
+                ui.showError("Unknown skill: " + name + ". Type /skill for the list.");
+                return;
+            }
+            conversation.add(new UserMessage(load(skill, skills.body(skill))));
+            conversation.add(new AssistantMessage(loaded(skill), List.of()));
+            ui.showAnswer(loaded(skill));
+        } catch (SkillException e) {
+            ui.showError(e.getMessage());
         }
-        conversation.add(new UserMessage(load(skill, skills.body(skill))));
-        conversation.add(new AssistantMessage(loaded(skill), List.of()));
-        ui.showAnswer(loaded(skill));
     }
 
     private static String loaded(Skill skill) {
@@ -102,13 +107,12 @@ final class Commands {
     }
 
     /**
-     * The text the model reads. This is prompt text and not a comment: it gives the folder, because
-     * a path in the body of a skill is relative to it, and it names the tool that reads one.
+     * The text the model reads. This is prompt text and not a comment. It names the folder, because
+     * a reference file of a skill sits inside it, and it names the tool that reads one.
      */
     private static String load(Skill skill, String body) {
-        return "The skill `" + skill.name() + "` is now active. Its folder is "
-                + skill.folder() + ". A path in the text below is relative to that folder. "
-                + "Use read_file to read it.\n\n" + body;
+        return loaded(skill) + " Its folder is `" + skill.folder()
+                + "`. Use read_file to read a file inside that folder.\n\n" + body.strip();
     }
 
     private void list() {
