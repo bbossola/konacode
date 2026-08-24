@@ -239,10 +239,14 @@ class WorkspaceTest {
     @Test
     void aLinkThatLeavesTheRootIsOutside() throws IOException {
         Path target = Files.createDirectories(outside.resolve("target"));
-        Files.createSymbolicLink(root.resolve("escape"), target);
+        Path link = Files.createSymbolicLink(root.resolve("escape"), target);
         Workspace workspace = new Workspace(root);
 
         assertFalse(workspace.insideRoot(root.resolve("escape/secret.txt")));
+
+        // JUnit declines to follow a link out of the temporary folder, and says so on every run.
+        // The test made the link, so the test removes it.
+        Files.delete(link);
     }
 
     @Test
