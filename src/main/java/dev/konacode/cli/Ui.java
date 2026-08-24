@@ -1,5 +1,6 @@
 package dev.konacode.cli;
 
+import dev.konacode.trace.Level;
 import dev.konacode.trace.Trace;
 
 import java.util.Optional;
@@ -23,6 +24,11 @@ public interface Ui extends Trace, AutoCloseable {
 
     /** The agent started work. An implementation may show progress. */
     void thinking();
+
+    /** How much of the trace the screen shows. `/trace` changes it. */
+    void liveTrace(Level level);
+
+    Level liveTrace();
 
     @Override
     default void close() {

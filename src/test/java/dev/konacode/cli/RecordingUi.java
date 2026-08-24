@@ -1,5 +1,6 @@
 package dev.konacode.cli;
 
+import dev.konacode.trace.Level;
 import dev.konacode.trace.TraceEvent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 
@@ -16,6 +17,7 @@ final class RecordingUi implements Ui {
     final List<String> answers = new ArrayList<>();
     final List<String> errors = new ArrayList<>();
     final List<String> events = new ArrayList<>();
+    Level live = Level.OFF;
 
     RecordingUi(String... input) {
         Collections.addAll(lines, input);
@@ -46,6 +48,16 @@ final class RecordingUi implements Ui {
     @Override
     public void thinking() {
         events.add("thinking");
+    }
+
+    @Override
+    public void liveTrace(Level level) {
+        this.live = level;
+    }
+
+    @Override
+    public Level liveTrace() {
+        return live;
     }
 
     @Override

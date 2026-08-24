@@ -2,6 +2,7 @@ package dev.konacode.cli;
 
 import dev.konacode.agent.Cancellation;
 import dev.konacode.cli.markdown.Markdown;
+import dev.konacode.trace.Level;
 import dev.konacode.trace.TraceEvent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.ToolFinished;
@@ -34,6 +35,7 @@ final class RichUi implements Ui {
     private final PrintStream out;
     private final Spinner spinner;
     private final EscapeWatcher watcher;
+    private Level live = Level.OFF;
 
     RichUi(LineReader reader, Terminal terminal, PrintStream out, Spinner spinner,
            EscapeWatcher watcher) {
@@ -104,16 +106,29 @@ final class RichUi implements Ui {
     }
 
     @Override
+    public void liveTrace(Level level) {
+        this.live = level;
+    }
+
+    @Override
+    public Level liveTrace() {
+        return live;
+    }
+
+    @Override
     public void emit(TraceEvent event) {
-        switch (event) {
-            case ToolCalled called -> {
-                spinner.stop();
-                out.println(Ansi.style(
-                        "tool: " + called.name() + "(" + called.argumentsJson() + ")", Ansi.GREEN));
-            }
-            case ToolFinished ignored -> spinner.start();
-            default -> {
-            }
+        if (event instanceof ToolCalled called) {
+            spinner.stop();
+            out.println(Ansi.style(
+                    "tool: " + called.name() + "(" + called.argumentsJson() + ")", Ansi.GREEN));
+            return;
+        }
+        live.keep(event).ifPresent(kept -> {
+            spinner.stop();
+            out.println(Ansi.style("trace: " + TraceLine.of(kept), Ansi.MAGENTA));
+        });
+        if (event instanceof ToolFinished) {
+            spinner.start();
         }
     }
 
