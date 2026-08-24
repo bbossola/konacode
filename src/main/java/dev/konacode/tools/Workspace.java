@@ -36,8 +36,8 @@ public final class Workspace {
     }
 
     /**
-     * @param alsoReadable folders outside the root that a tool may read. konacode never writes
-     *     into one. The skills folder is the first of them.
+     * @param alsoReadable folders outside the root that a tool may read without a question. A
+     *     write there is still outside the project, so the user is asked about it.
      */
     public Workspace(Path root, List<Path> alsoReadable) {
         this.root = root.toAbsolutePath().normalize();
@@ -105,9 +105,12 @@ public final class Workspace {
     }
 
     /**
-     * Resolves every link that can be resolved. {@code toRealPath} fails for a file that does not
+     * Resolves every link that can be resolved. {@code toRealPath} fails for a path that does not
      * exist, and {@code edit_file} creates files, so this resolves the nearest ancestor that does
      * exist and keeps the rest of the path as written.
+     *
+     * <p>The walk earns its place through a link, and not through a missing file. A file under a
+     * link that leaves the root would otherwise read as inside.
      */
     private static Path real(Path path) {
         Path absolute = path.toAbsolutePath().normalize();
