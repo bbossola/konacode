@@ -88,12 +88,14 @@ Things worth trying:
 | `KONACODE_MODEL` | no | `gpt-5-mini` |
 | `KONACODE_BASE_URL` | no | `https://api.openai.com/v1` |
 
-Plus two system properties.
+Plus four system properties.
 
 | Property | Values | Purpose |
 |---|---|---|
 | `konacode.maxIterations` | a whole number, default `8` | the ceiling on tool calls for one message |
 | `konacode.ui` | `auto`, `plain`, `rich`, default `auto` | which interface to use |
+| `konacode.trace` | `off`, `basic`, `full`, default `off` | how much the trace file records |
+| `konacode.trace.maxFiles` | a whole number, default `100` | how many trace files konacode keeps |
 
 konacode looks for a terminal. It uses the rich interface when it finds one, and the plain
 interface otherwise. A pipe therefore gets the plain interface.
@@ -109,14 +111,20 @@ what it did.
 `ctrl-c` behaves as it always has, and `esc` did not change it: at the prompt it clears the line,
 and during a turn it ends konacode. `ctrl-d` quits.
 
-Three commands work in both interfaces.
+Five commands work in both interfaces.
 
 | Command | Action |
 |---|---|
 | `/help` | show the commands |
 | `/tools` | show the tools the model can call |
+| `/trace` | show or set how much the screen reports |
 | `/clear` | forget the conversation and start again |
 | `/exit` | end the session |
+
+konacode writes a trace of each session to `~/.konacode/traces/`, one JSON line for each event.
+`konacode.trace=basic` records the loop, the times, the outcome of each turn and the token
+counts. `konacode.trace=full` adds the request and the reply, so you can replay a call. `/trace
+basic` shows the same events on the screen while the session runs.
 
 ### Running without an API key
 

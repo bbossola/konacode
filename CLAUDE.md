@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 226 tests, all offline, no network
+mvn test                        # 273 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -27,10 +27,12 @@ property configures konacode.
 | `KONACODE_BASE_URL` | environment | no | `https://api.openai.com/v1` |
 | `konacode.maxIterations` | property | no | `8` |
 | `konacode.ui` | property | no | `auto` |
+| `konacode.trace` | property | no | `off` |
+| `konacode.trace.maxFiles` | property | no | `100` |
 
 This rule keeps the key out of the process list. konacode reads no command line argument.
 
-A wrong value fails loudly. Both properties print one line and exit 1.
+A wrong value fails loudly. Every property prints one line and exits 1.
 
 ## Architecture rule
 
@@ -40,7 +42,7 @@ invariants that hold it together. Read it before changing the loop.
 Dependencies run strictly downhill:
 
 ```
-cli -> agent -> { llm, tools, policy }
+cli -> agent -> { llm, tools, policy } -> trace
 ```
 
 **`tools` must not depend on `llm`.** A tool exposes a name, a description and a JSON schema
@@ -96,6 +98,15 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 | `Decision` | sealed interface | `Allow` or `Deny(String reason)`. Sealed on purpose: adding `Ask` later becomes a compile error at every handling site. |
 | `AllowAllPolicy` | implements `ToolPolicy` | The default. Always allows. The seam exists; the restriction does not, yet. |
 
+### `dev.konacode.trace` — what happened during a turn
+
+| Element | Kind | Definition |
+|---|---|---|
+| `TraceEvent` | sealed interface | One thing that happened. Nine records. Each carries strings, numbers and booleans only, so this package depends on no other konacode package and both `agent` and `llm` can emit into it. |
+| `Trace` | interface | `void emit(TraceEvent)`. `NONE` discards, `fanOut` combines. A sink never throws into the caller. |
+| `Level` | enum | `OFF`, `BASIC`, `FULL`. `keep(TraceEvent)` gives back the event a level keeps, with the payloads already cut. The rule lives here, because each sink holds its own level. |
+| `JsonlTrace` | implements `Trace` | The file sink. One JSON line for each event, in `~/.konacode/traces/`, one file for each session. It sweeps the oldest files when it opens, and it flushes every line. |
+
 ### `dev.konacode.agent`
 
 | Element | Kind | Definition |
@@ -103,22 +114,22 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 | `Agent` | final class | `String respond(String userText)`. The loop. Depends only on interfaces. |
 | `Conversation` | final class | `add(Message)`, `messages()`, `restart(List<Message>)`. The history of one session, and the only state the loop keeps. It is a class and not an interface, because `messages()` and `restart` together cover every change to the history. A caller reads all of it, transforms it, and writes all of it back. `/clear` and `/compact` both work that way. |
 | `Cancellation` | final class | The user's request to stop one turn. `request` and `stopped` are public; `arm` and `disarm` are not, because only the loop may decide where an interrupt is safe. One lock keeps an interrupt from arriving after the clear. Implements `StopCheck`. |
-| `ToolCallListener` | interface | `onToolCall(name, argsJson)`, `onToolResult(name, ToolResult)`. How the loop reports activity without owning `System.out` — and how tests assert on it. |
 | `ToolSpecs` | static adapter | `Tool` to `ToolSpec`. The one place `tools` and `llm` meet. |
 
 ### `dev.konacode.cli`
 
 | Element | Kind | Definition |
 |---|---|---|
-| `Ui` | interface | Everything konacode shows the user, and the one thing it reads from them. It extends `ToolCallListener`, because showing a tool call is a user interface concern. One object then owns the screen. |
+| `Ui` | interface | Everything konacode shows the user, and the one thing it reads from them. It extends `Trace`, because showing what the agent did is a user interface concern, and it gains `liveTrace`, the level the screen shows. One object then owns the screen. |
 | `PlainUi` | implements `Ui` | The interface for a pipe. It reads with a `BufferedReader` and prints what konacode printed before there were two interfaces. It renders no markdown and shows no spinner. |
-| `RichUi` | implements `Ui` | The interface for a terminal. JLine gives the line editing, the history in `~/.konacode/chat_history`, and `alt-enter` for a second line. It renders markdown, and it owns the spinner and the `EscapeWatcher`. `onToolCall` stops the spinner and leaves the watcher running, so ESC still works while a tool runs. The constructor takes every collaborator, and `open()` builds the real ones, which is why the class can have tests. |
+| `RichUi` | implements `Ui` | The interface for a terminal. JLine gives the line editing, the history in `~/.konacode/chat_history`, and `alt-enter` for a second line. It renders markdown, and it owns the spinner and the `EscapeWatcher`. `emit` stops the spinner before it prints a line, and restarts it once a tool finishes; the watcher keeps running, so ESC still works while a tool runs. The constructor takes every collaborator, and `open()` builds the real ones, which is why the class can have tests. |
 | `Repl` | final class | The loop. Read a line, skip it when empty, run it as a command when it starts with `/`, otherwise ask the agent. Both interfaces share it. |
-| `Commands` | final class | `/help`, `/tools`, `/clear` and `/exit`. `run` returns false when the session must end, so every command lives in one class and `Repl` gains one line. A command writes markdown, so the rich interface renders it and needs no second output method. An unknown command prints an error and never reaches the model. |
+| `Commands` | final class | `/help`, `/tools`, `/trace`, `/clear` and `/exit`. `run` returns false when the session must end, so every command lives in one class and `Repl` gains one line. A command writes markdown, so the rich interface renders it and needs no second output method. An unknown command prints an error and never reaches the model. |
 | `EscapeWatcher` | class | Reads the terminal during a turn and calls `Cancellation.request()` on the byte `0x1B`. A sibling of `Spinner`: one daemon thread, `start` and `stop`, both idempotent, not final so a test can record. Raw mode keeps `ISIG` on, so ctrl-C still ends konacode. |
 | `Spinner` | class | One daemon thread that draws and erases a character while the agent works. `RichUi` stops it before every write of its own. It is not final, so a test can record the calls. |
 | `Banner` | final class | The art from the README, which reads `kona`. It is 41 columns wide, so a narrower terminal gets the plain name. Generated from `README.md`, not retyped. |
 | `Ansi` | final class | The escape codes, plus `strip` and `visibleLength`. A code takes bytes and no columns, so word wrap and table alignment both need `visibleLength`. |
+| `TraceLine` | final class | `of(TraceEvent)`. One event as one line of text. `PlainUi` and `RichUi` both call it, so the two interfaces show the same words. |
 | `Main` | final class | Reads the environment, picks the interface, wires the parts. The only place that names a concrete implementation. |
 
 ### `dev.konacode.cli.markdown`
@@ -177,7 +188,7 @@ Write all documents and all replies in ASD-STE100 Simplified Technical English.
   endpoint at `search.maven.org` sorts by relevance and reports an old version as the newest.
 - TDD. Test first, and keep the suite offline. No test may touch the network.
 - Write the test double by hand when the type is ours. `FakeLlmClient` and
-  `RecordingToolCallListener` are small, explicit, and they read well. Use Mockito when the type
+  `RecordingTrace` are small, explicit, and they read well. Use Mockito when the type
   belongs to a library and a hand-written double is impractical, for example the JLine
   `LineReader`. A class that needs a mock takes its collaborators in the constructor.
 - Tool descriptions are prompt engineering. Changing one changes agent behavior; treat it like changing code.
