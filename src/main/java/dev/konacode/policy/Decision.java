@@ -5,8 +5,7 @@ import java.nio.file.Path;
 /**
  * Whether a tool call may proceed.
  *
- * <p>Sealed deliberately: when an {@code Ask} case is added for interactive approval, every
- * handling site becomes a compile error until it is dealt with.
+ * <p>Sealed deliberately: a new case is a compile error at every handling site.
  */
 public sealed interface Decision {
 

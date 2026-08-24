@@ -226,15 +226,16 @@ public final class Agent {
             // misbehaving tool must not. Denying is the safe reading of a broken policy.
             return ToolResult.err("Policy check for " + call.name() + " failed: " + e);
         }
-        Optional<ToolResult> refusal = switch (decision) {
-            case Decision.Allow ignored -> Optional.empty();
-            case Decision.Deny(String reason) -> Optional.of(ToolResult.err(reason));
+        switch (decision) {
+            case Decision.Allow ignored -> { }
+            case Decision.Deny(String reason) -> {
+                return ToolResult.err(reason);
+            }
             // Task 4 replaces this with a question. Until then konacode has no way to ask.
-            case Decision.Ask ask -> Optional.of(ToolResult.err(
-                    "konacode cannot ask the user to approve " + call.name() + "."));
-        };
-        if (refusal.isPresent()) {
-            return refusal.get();
+            case Decision.Ask ask -> {
+                return ToolResult.err("konacode cannot ask the user to approve " + call.name()
+                        + ": " + ask.action() + ".");
+            }
         }
 
         try {

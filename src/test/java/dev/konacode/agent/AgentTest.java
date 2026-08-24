@@ -358,7 +358,7 @@ class AgentTest {
                 .replyText("done");
         Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                (tool, args) -> new Decision.Ask("read outside this project", "/etc/passwd", null),
+                (tool, args) -> Decision.ask("read outside this project", "/etc/passwd", null),
                 conversation, new RecordingTrace(), new Cancellation(), 8);
 
         agent.respond("do it");
@@ -368,7 +368,8 @@ class AgentTest {
                 .map(ToolMessage.class::cast)
                 .findFirst()
                 .orElseThrow();
-        assertTrue(result.content().startsWith("<error>"), result.content());
+        assertEquals("<error> konacode cannot ask the user to approve echo: "
+                + "read outside this project.", result.content());
     }
 
     @Test
@@ -377,12 +378,11 @@ class AgentTest {
                 .reply(new AssistantMessage("", List.of(call("1", "echo", "{}"))))
                 .replyText("done");
         EchoTool echo = new EchoTool("echo");
-        Agent agent = new Agent(client, ToolRegistry.of(echo),
-                (tool, args) -> new Decision.Ask("read outside this project", "/etc/passwd", null),
-                new Conversation(new SystemMessage("You are konacode.")), new RecordingTrace(),
-                new Cancellation(), 8);
+        RecordingTrace trace = new RecordingTrace();
 
-        agent.respond("do it");
+        agent(client, ToolRegistry.of(echo),
+                (tool, args) -> Decision.ask("read outside this project", "/etc/passwd", null),
+                trace, 8).respond("do it");
 
         assertEquals(0, echo.calls(), "a refused call must not run");
     }
