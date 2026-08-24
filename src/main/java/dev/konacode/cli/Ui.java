@@ -1,6 +1,7 @@
 package dev.konacode.cli;
 
 import dev.konacode.agent.ToolCallListener;
+import dev.konacode.trace.Trace;
 
 import java.util.Optional;
 
@@ -11,7 +12,7 @@ import java.util.Optional;
  * concern. One object then owns the screen, and the agent loop still never touches
  * {@code System.out}.
  */
-public interface Ui extends ToolCallListener, AutoCloseable {
+public interface Ui extends ToolCallListener, Trace, AutoCloseable {
 
     void welcome();
 

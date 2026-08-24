@@ -1,6 +1,9 @@
 package dev.konacode.cli;
 
 import dev.konacode.tools.ToolResult;
+import dev.konacode.trace.TraceEvent;
+import dev.konacode.trace.TraceEvent.ToolCalled;
+import dev.konacode.trace.TraceEvent.ToolFinished;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -54,5 +57,17 @@ final class RecordingUi implements Ui {
 
     @Override
     public void onToolResult(String name, ToolResult result) {
+    }
+
+    @Override
+    public void emit(TraceEvent event) {
+        switch (event) {
+            case ToolCalled called -> onToolCall(called.name(), called.argumentsJson());
+            case ToolFinished finished -> onToolResult(finished.name(), finished.ok()
+                    ? ToolResult.ok(finished.output())
+                    : ToolResult.err(finished.output()));
+            default -> {
+            }
+        }
     }
 }

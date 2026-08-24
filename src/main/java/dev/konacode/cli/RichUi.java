@@ -3,6 +3,9 @@ package dev.konacode.cli;
 import dev.konacode.agent.Cancellation;
 import dev.konacode.cli.markdown.Markdown;
 import dev.konacode.tools.ToolResult;
+import dev.konacode.trace.TraceEvent;
+import dev.konacode.trace.TraceEvent.ToolCalled;
+import dev.konacode.trace.TraceEvent.ToolFinished;
 import org.jline.keymap.KeyMap;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
@@ -110,6 +113,18 @@ final class RichUi implements Ui {
     @Override
     public void onToolResult(String name, ToolResult result) {
         spinner.start();
+    }
+
+    @Override
+    public void emit(TraceEvent event) {
+        switch (event) {
+            case ToolCalled called -> onToolCall(called.name(), called.argumentsJson());
+            case ToolFinished finished -> onToolResult(finished.name(), finished.ok()
+                    ? ToolResult.ok(finished.output())
+                    : ToolResult.err(finished.output()));
+            default -> {
+            }
+        }
     }
 
     @Override
