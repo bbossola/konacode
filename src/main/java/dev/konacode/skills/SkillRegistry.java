@@ -4,6 +4,7 @@ import dev.konacode.tools.Workspace;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,27 +57,46 @@ public final class SkillRegistry {
      *     and konacode cannot read the skill
      */
     public Optional<Skill> lookup(String name) {
-        Path folder = workspace.root().resolve(plainName(name));
+        Path folder = folderFor(name);
         if (!Files.isDirectory(folder)) {
             return Optional.empty();
         }
-        return Optional.of(new Skill(name, readOrReport(folder).description(), folder));
+        Path real = realPath(folder);
+        return Optional.of(new Skill(real.getFileName().toString(),
+                readOrReport(real).description(), real));
     }
 
-    /** The text below the header. */
+    /**
+     * The text below the header.
+     *
+     * @throws SkillException when konacode can no longer read the file
+     */
     public String body(Skill skill) {
         return readOrReport(skill.folder()).body();
     }
 
     /**
-     * A skill is one folder directly inside the skills folder. konacode refuses any other name,
-     * so that {@code /skill ../../etc} cannot read a file outside the skills folder.
+     * A skill is one folder directly inside the skills folder. konacode refuses any other name, so
+     * that {@code /skill ../../etc} cannot read a file outside the skills folder.
      */
-    private static String plainName(String name) {
-        if (name.contains("/") || name.contains("\\") || name.equals("..") || name.equals(".")) {
+    private Path folderFor(String name) {
+        if (name.isEmpty() || name.contains("/") || name.contains("\\")
+                || name.equals("..") || name.equals(".")) {
             throw new SkillException("A skill name is one folder name: " + name);
         }
-        return name;
+        try {
+            return workspace.root().resolve(name);
+        } catch (InvalidPathException e) {
+            throw new SkillException("A skill name is one folder name: " + name);
+        }
+    }
+
+    private static Path realPath(Path folder) {
+        try {
+            return folder.toRealPath();
+        } catch (IOException e) {
+            throw new SkillException("Could not read " + folder + ".", e);
+        }
     }
 
     private FrontMatter readOrReport(Path folder) {
@@ -87,7 +107,7 @@ public final class SkillRegistry {
         try {
             return read(file);
         } catch (IOException | IllegalArgumentException e) {
-            throw new SkillException("Could not read " + file + ": " + e.getMessage());
+            throw new SkillException("Could not read " + file + ": " + e.getMessage(), e);
         }
     }
 

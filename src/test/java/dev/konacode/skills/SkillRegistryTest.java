@@ -96,6 +96,7 @@ class SkillRegistryTest {
 
         assertTrue(found.isPresent());
         assertEquals(root.resolve("commit-message"), found.get().folder());
+        assertEquals("Use for a commit.", found.get().description());
     }
 
     @Test
@@ -146,5 +147,34 @@ class SkillRegistryTest {
     @Test
     void refusesANameThatHoldsASeparator() {
         assertThrows(SkillException.class, () -> registry().lookup("a/b"));
+    }
+
+    @Test
+    void refusesAnEmptyName() {
+        assertThrows(SkillException.class, () -> registry().lookup(""));
+    }
+
+    @Test
+    void refusesTheParentFolder() {
+        assertThrows(SkillException.class, () -> registry().lookup(".."));
+    }
+
+    @Test
+    void refusesTheCurrentFolder() {
+        assertThrows(SkillException.class, () -> registry().lookup("."));
+    }
+
+    @Test
+    void refusesANameThatHoldsABackslash() {
+        assertThrows(SkillException.class, () -> registry().lookup("a\\b"));
+    }
+
+    @Test
+    void bodyReportsAFileThatIsGone() throws IOException {
+        writeSkill("commit-message", file("commit-message", "Use for a commit."));
+        Skill skill = registry().lookup("commit-message").orElseThrow();
+        Files.delete(skill.folder().resolve("SKILL.md"));
+
+        assertThrows(SkillException.class, () -> registry().body(skill));
     }
 }
