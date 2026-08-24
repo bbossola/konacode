@@ -23,4 +23,10 @@ public interface Tool {
     ToolResult execute(JsonNode args);
 
     boolean stopsOnInterrupt();
+
+    /**
+     * What this call does. Abstract and never a default, so a new tool must answer it, the way
+     * {@link #stopsOnInterrupt()} already does.
+     */
+    Effect effect(JsonNode args);
 }

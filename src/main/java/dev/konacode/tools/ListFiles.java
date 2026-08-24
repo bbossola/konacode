@@ -80,6 +80,18 @@ public final class ListFiles implements Tool {
         return false;
     }
 
+    @Override
+    public Effect effect(JsonNode args) {
+        JsonNode pathNode = args.path("path");
+        if (!pathNode.isTextual() || pathNode.asText().isBlank()) {
+            return Effect.READS_INSIDE;
+        }
+        return workspace.tryResolve(pathNode.asText())
+                .filter(workspace::readable)
+                .map(path -> Effect.READS_INSIDE)
+                .orElse(Effect.READS_OUTSIDE);
+    }
+
     private String render(Path directory, List<Path> entries) {
         List<String> lines = new ArrayList<>();
         lines.add("directory " + directory);

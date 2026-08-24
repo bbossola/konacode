@@ -33,6 +33,11 @@ class ToolRegistryTest {
         public boolean stopsOnInterrupt() {
             return false;
         }
+
+        @Override
+        public Effect effect(JsonNode args) {
+            return Effect.READS_INSIDE;
+        }
     }
 
     @Test

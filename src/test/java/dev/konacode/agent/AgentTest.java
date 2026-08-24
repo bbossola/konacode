@@ -12,6 +12,7 @@ import dev.konacode.llm.ToolCall;
 import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.policy.Decision;
 import dev.konacode.policy.ToolPolicy;
+import dev.konacode.tools.Effect;
 import dev.konacode.tools.Schemas;
 import dev.konacode.tools.Tool;
 import dev.konacode.tools.ToolRegistry;
@@ -52,6 +53,11 @@ class AgentTest {
         public boolean stopsOnInterrupt() {
             return false;
         }
+
+        @Override
+        public Effect effect(JsonNode args) {
+            return Effect.READS_INSIDE;
+        }
     }
 
     /** Stops the turn from inside a tool, which is what an ESC during a tool call does. */
@@ -75,6 +81,11 @@ class AgentTest {
         @Override
         public boolean stopsOnInterrupt() {
             return false;
+        }
+
+        @Override
+        public Effect effect(JsonNode args) {
+            return Effect.READS_INSIDE;
         }
     }
 
@@ -115,6 +126,11 @@ class AgentTest {
         public boolean stopsOnInterrupt() {
             return declares;
         }
+
+        @Override
+        public Effect effect(JsonNode args) {
+            return Effect.READS_INSIDE;
+        }
     }
 
     private record ExplodingTool(String name) implements Tool {
@@ -136,6 +152,11 @@ class AgentTest {
         @Override
         public boolean stopsOnInterrupt() {
             return false;
+        }
+
+        @Override
+        public Effect effect(JsonNode args) {
+            return Effect.READS_INSIDE;
         }
     }
 
