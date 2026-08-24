@@ -1,6 +1,5 @@
 package dev.konacode.skills;
 
-import dev.konacode.tools.StopCheck;
 import dev.konacode.tools.Workspace;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -19,7 +18,7 @@ class SkillRegistryTest {
     Path root;
 
     private SkillRegistry registry() {
-        return new SkillRegistry(new Workspace(root), StopCheck.NEVER);
+        return new SkillRegistry(new Workspace(root));
     }
 
     private void writeSkill(String folder, String text) throws IOException {
@@ -43,6 +42,13 @@ class SkillRegistryTest {
     }
 
     @Test
+    void takesTheNameFromTheFolderAndNotFromTheHeader() throws IOException {
+        writeSkill("commit-message", file("a-different-name", "Use for a commit."));
+
+        assertEquals(List.of("commit-message"), registry().all().stream().map(Skill::name).toList());
+    }
+
+    @Test
     void skipsAFolderItCannotRead() throws IOException {
         writeSkill("good", file("good", "Use this."));
         writeSkill("broken", "there is no header here");
@@ -54,16 +60,27 @@ class SkillRegistryTest {
     }
 
     @Test
+    void ignoresAPlainFileAtTheRoot() throws IOException {
+        writeSkill("good", file("good", "Use this."));
+        Files.writeString(root.resolve("README.md"), "Not a skill.");
+
+        assertEquals(List.of("good"), registry().all().stream().map(Skill::name).toList());
+    }
+
+    @Test
     void readsAFileThatStartsWithAByteOrderMark() throws IOException {
         writeSkill("commit-message", "﻿" + file("commit-message", "Use for a commit."));
 
-        assertEquals(1, registry().all().size());
+        List<Skill> found = registry().all();
+
+        assertEquals(1, found.size());
+        assertEquals("commit-message", found.get(0).name());
+        assertEquals("Use for a commit.", found.get(0).description());
     }
 
     @Test
     void returnsAnEmptyListWhenTheFolderIsMissing() {
-        SkillRegistry registry =
-                new SkillRegistry(new Workspace(root.resolve("absent")), StopCheck.NEVER);
+        SkillRegistry registry = new SkillRegistry(new Workspace(root.resolve("absent")));
 
         assertTrue(registry.all().isEmpty());
     }

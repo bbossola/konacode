@@ -1,6 +1,5 @@
 package dev.konacode.skills;
 
-import dev.konacode.tools.StopCheck;
 import dev.konacode.tools.Workspace;
 
 import java.io.IOException;
@@ -12,18 +11,19 @@ import java.util.List;
 /**
  * The skills on disk. It reads the folder on every call, so a new skill appears without a
  * restart, and a missing folder gives an empty list instead of a failure at startup.
+ *
+ * <p>This holds no {@code StopCheck}. The command that reads a skill runs at the prompt and not
+ * inside a turn, so there is no turn to stop.
  */
 public final class SkillRegistry {
 
-    static final int MAX_BYTES = 100 * 1024;
-    static final String FILE_NAME = "SKILL.md";
+    private static final int MAX_BYTES = 100_000;
+    private static final String FILE_NAME = "SKILL.md";
 
     private final Workspace workspace;
-    private final StopCheck stop;
 
-    public SkillRegistry(Workspace workspace, StopCheck stop) {
+    public SkillRegistry(Workspace workspace) {
         this.workspace = workspace;
-        this.stop = stop;
     }
 
     /** Folder order, sorted. A folder that konacode cannot read is skipped. */
@@ -31,7 +31,7 @@ public final class SkillRegistry {
         List<Skill> skills = new ArrayList<>();
         List<Path> folders;
         try {
-            folders = workspace.listSorted(workspace.root(), stop);
+            folders = workspace.listSorted(workspace.root());
         } catch (IOException e) {
             return List.of();
         }
@@ -40,18 +40,17 @@ public final class SkillRegistry {
                 continue;
             }
             try {
-                FrontMatter header = read(folder);
+                FrontMatter header = read(folder.resolve(FILE_NAME));
                 skills.add(new Skill(folder.getFileName().toString(), header.description(), folder));
             } catch (IOException | IllegalArgumentException e) {
-                // One broken skill must not hide the others in the list.
+                // One unreadable file must not make every other skill unavailable.
             }
         }
         return List.copyOf(skills);
     }
 
-    private FrontMatter read(Path folder) throws IOException {
-        return FrontMatter.parse(
-                withoutByteOrderMark(workspace.readUtf8Capped(folder.resolve(FILE_NAME), MAX_BYTES, stop)));
+    private FrontMatter read(Path file) throws IOException {
+        return FrontMatter.parse(withoutByteOrderMark(workspace.readUtf8Capped(file, MAX_BYTES)));
     }
 
     /**
