@@ -142,6 +142,9 @@ public final class ChatCompletionsCodec {
      * method is testable alone.
      */
     public Optional<Usage> decodeUsage(String body) {
+        if (body == null) {
+            return Optional.empty();
+        }
         JsonNode usage;
         try {
             usage = mapper.readTree(body).path("usage");
