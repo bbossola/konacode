@@ -3,9 +3,10 @@ package dev.konacode.trace;
 /**
  * One thing that happened during a turn.
  *
- * <p>Every case carries strings, numbers and booleans only. No case carries a {@code Message}, a
- * {@code ToolResult} or a {@code JsonNode}. That is what keeps this package free of every other
- * konacode package, and it is what lets the agent loop and the provider both emit into it.
+ * <p>Every case carries plain values, and nothing from another konacode package. No case carries a
+ * {@code Message}, a {@code ToolResult} or a {@code JsonNode}. That is what keeps this package free
+ * of every other konacode package, and it is what lets the agent loop and the provider both emit
+ * into it.
  *
  * <p>Sealed, so a new case is a compile error at every sink.
  */
