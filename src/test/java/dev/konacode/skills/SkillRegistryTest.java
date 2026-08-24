@@ -33,6 +33,11 @@ class SkillRegistryTest {
         return "---\nname: " + name + "\ndescription: " + description + "\n---\nThe body.\n";
     }
 
+    private void assertRefusesTheName(String name) {
+        SkillException e = assertThrows(SkillException.class, () -> registry().lookup(name));
+        assertTrue(e.getMessage().startsWith("A skill name is one folder name"), e.getMessage());
+    }
+
     @Test
     void listsEverySkillByFolderName() throws IOException {
         writeSkill("commit-message", file("commit-message", "Use for a commit."));
@@ -141,32 +146,32 @@ class SkillRegistryTest {
 
     @Test
     void refusesANameThatLeavesTheSkillsFolder() {
-        assertThrows(SkillException.class, () -> registry().lookup("../secrets"));
+        assertRefusesTheName("../secrets");
     }
 
     @Test
     void refusesANameThatHoldsASeparator() {
-        assertThrows(SkillException.class, () -> registry().lookup("a/b"));
+        assertRefusesTheName("a/b");
     }
 
     @Test
     void refusesAnEmptyName() {
-        assertThrows(SkillException.class, () -> registry().lookup(""));
+        assertRefusesTheName("");
     }
 
     @Test
     void refusesTheParentFolder() {
-        assertThrows(SkillException.class, () -> registry().lookup(".."));
+        assertRefusesTheName("..");
     }
 
     @Test
     void refusesTheCurrentFolder() {
-        assertThrows(SkillException.class, () -> registry().lookup("."));
+        assertRefusesTheName(".");
     }
 
     @Test
     void refusesANameThatHoldsABackslash() {
-        assertThrows(SkillException.class, () -> registry().lookup("a\\b"));
+        assertRefusesTheName("a\\b");
     }
 
     @Test
