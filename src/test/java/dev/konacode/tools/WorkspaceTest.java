@@ -329,7 +329,8 @@ class WorkspaceTest {
 
         try {
             assertFalse(workspace.insideRoot(link), "the target is outside");
-            assertTrue(workspace.writable(link), "delete removes the link, which is inside");
+            assertTrue(workspace.writable(link),
+                    "delete_file removes the link, which is inside; edit_file must also ask readable");
         } finally {
             Files.delete(link);
         }
@@ -345,6 +346,33 @@ class WorkspaceTest {
             assertFalse(workspace.writable(folder.resolve("new.txt")));
         } finally {
             Files.delete(folder);
+        }
+    }
+
+    @Test
+    void aWriteInsideARootReachedThroughALinkIsWritable() throws IOException {
+        Path real = Files.createDirectories(outside.resolve("realroot"));
+        Path alias = Files.createSymbolicLink(root.resolve("alias"), real);
+        Workspace workspace = new Workspace(alias);
+
+        try {
+            assertTrue(workspace.writable(alias.resolve("new.txt")));
+        } finally {
+            Files.delete(alias);
+        }
+    }
+
+    @Test
+    void aLoopInTheParentChainIsNotWritable() throws IOException {
+        Files.createSymbolicLink(root.resolve("a"), root.resolve("b"));
+        Files.createSymbolicLink(root.resolve("b"), root.resolve("a"));
+        Workspace workspace = new Workspace(root);
+
+        try {
+            assertFalse(workspace.writable(root.resolve("a").resolve("x.txt")));
+        } finally {
+            Files.delete(root.resolve("a"));
+            Files.delete(root.resolve("b"));
         }
     }
 }

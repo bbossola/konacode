@@ -128,6 +128,9 @@ public final class Workspace {
      * {@code delete} removes a link and never its target. So the place the entry sits decides, and
      * not the file a link points to. The folders above the entry are resolved, because the write
      * lands in the real folder.
+     *
+     * <p>This judges the write only. A tool that reads before it writes must ask {@link #readable}
+     * as well, because a read follows the final link and a write replaces it.
      */
     public boolean writable(Path path) {
         Path entry = entry(path);

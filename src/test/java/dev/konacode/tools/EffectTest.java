@@ -140,8 +140,12 @@ class EffectTest {
     void aPathAboveTheRootIsOutsideForEveryTool() {
         assertEquals(Effect.READS_OUTSIDE,
                 new ReadFile(workspace(), StopCheck.NEVER).effect(path("../secret.txt")));
+        assertEquals(Effect.READS_OUTSIDE,
+                new ListFiles(workspace(), StopCheck.NEVER).effect(path("..")));
         assertEquals(Effect.WRITES_OUTSIDE,
                 new EditFile(workspace(), StopCheck.NEVER).effect(path("../secret.txt")));
+        assertEquals(Effect.WRITES_OUTSIDE,
+                new DeleteFile(workspace()).effect(path("../secret.txt")));
     }
 
     @Test
@@ -154,6 +158,23 @@ class EffectTest {
                     new EditFile(workspace(), StopCheck.NEVER).effect(path(link.toString())));
             assertEquals(Effect.WRITES_OUTSIDE,
                     new DeleteFile(workspace()).effect(path(link.toString())));
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void editReadsBeforeItWritesAndDeleteDoesNot() throws IOException {
+        Path secret = Files.writeString(outside.resolve("secret.txt"), "key");
+        Path link = Files.createSymbolicLink(root.resolve("notes.txt"), secret);
+
+        try {
+            assertEquals(Effect.WRITES_OUTSIDE,
+                    new EditFile(workspace(), StopCheck.NEVER).effect(path(link.toString())),
+                    "edit_file reads the target, so it must ask");
+            assertEquals(Effect.WRITES_INSIDE,
+                    new DeleteFile(workspace()).effect(path(link.toString())),
+                    "delete_file removes the link and reads nothing");
         } finally {
             Files.delete(link);
         }
