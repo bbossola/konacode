@@ -43,13 +43,8 @@ public final class Workspace {
      *     outside the project. No policy reads this list yet, and {@code EffectPolicy} will.
      */
     public Workspace(Path root, List<Path> alsoReadable) {
-        Objects.requireNonNull(alsoReadable, "alsoReadable");
         this.root = root.toAbsolutePath().normalize();
-        List<Path> folders = new ArrayList<>();
-        for (Path folder : alsoReadable) {
-            folders.add(folder.toAbsolutePath().normalize());
-        }
-        this.alsoReadable = List.copyOf(folders);
+        this.alsoReadable = List.copyOf(Objects.requireNonNull(alsoReadable, "alsoReadable"));
     }
 
     public static Workspace ofCurrentDirectory() {
