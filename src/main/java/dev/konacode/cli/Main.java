@@ -50,6 +50,9 @@ public final class Main {
                 Path.of(System.getProperty("user.home"), ".konacode", "traces"),
                 maxTraceFiles, System.err);
         Trace trace = Trace.fanOut(ui, file);
+        // JsonlTrace.open falls back to Trace.NONE when it cannot open the file, so the
+        // configured level is not always the level the file got.
+        Level fileLevel = file == Trace.NONE ? Level.OFF : traceLevel;
 
         Workspace workspace = Workspace.ofCurrentDirectory();
         ToolRegistry registry = ToolRegistry.of(
@@ -64,7 +67,7 @@ public final class Main {
                 conversation, trace, cancellation, maxIterations);
 
         try (ui; file) {
-            new Repl(agent, ui, new Commands(conversation, system, registry, ui, traceLevel)).run();
+            new Repl(agent, ui, new Commands(conversation, system, registry, ui, fileLevel)).run();
         } catch (Exception e) {
             System.err.println(e.getMessage());
             System.exit(1);
