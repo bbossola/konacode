@@ -2,6 +2,8 @@ package dev.konacode.cli;
 
 import dev.konacode.agent.Conversation;
 import dev.konacode.llm.Message;
+import dev.konacode.llm.Message.AssistantMessage;
+import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.skills.Skill;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.Tool;
@@ -83,7 +85,30 @@ final class Commands {
     private void skill(String name) {
         if (name.isEmpty()) {
             list();
+            return;
         }
+        Skill skill = skills.lookup(name).orElse(null);
+        if (skill == null) {
+            ui.showError("Unknown skill: " + name + ". Type /skill for the list.");
+            return;
+        }
+        conversation.add(new UserMessage(load(skill, skills.body(skill))));
+        conversation.add(new AssistantMessage(loaded(skill), List.of()));
+        ui.showAnswer(loaded(skill));
+    }
+
+    private static String loaded(Skill skill) {
+        return "The skill `" + skill.name() + "` is loaded.";
+    }
+
+    /**
+     * The text the model reads. This is prompt text and not a comment: it gives the folder, because
+     * a path in the body of a skill is relative to it, and it names the tool that reads one.
+     */
+    private static String load(Skill skill, String body) {
+        return "The skill `" + skill.name() + "` is now active. Its folder is "
+                + skill.folder() + ". A path in the text below is relative to that folder. "
+                + "Use read_file to read it.\n\n" + body;
     }
 
     private void list() {

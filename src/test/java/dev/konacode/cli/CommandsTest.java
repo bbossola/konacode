@@ -1,6 +1,8 @@
 package dev.konacode.cli;
 
 import dev.konacode.agent.Conversation;
+import dev.konacode.llm.Message;
+import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.skills.SkillRegistry;
@@ -15,6 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -173,5 +176,82 @@ class CommandsTest {
 
         assertTrue(ui.errors.get(0).contains("/help me"), ui.errors.toString());
         assertTrue(ui.answers.isEmpty(), ui.answers.toString());
+    }
+
+    @Test
+    void skillAppendsTheBodyAndAnAcknowledgement() throws IOException {
+        writeSkill("commit-message", "Use for a commit.");
+        Conversation conversation = new Conversation(SYSTEM);
+
+        commands(new RecordingUi(), conversation).run("/skill commit-message");
+
+        List<Message> messages = conversation.messages();
+        assertEquals(3, messages.size());
+        UserMessage loaded = (UserMessage) messages.get(1);
+        assertTrue(loaded.text().contains("The body of commit-message."), loaded.text());
+        assertTrue(loaded.text().contains("commit-message"), loaded.text());
+        assertTrue(messages.get(2) instanceof AssistantMessage);
+    }
+
+    @Test
+    void skillNamesTheFolderSoTheModelCanReadAReferenceFile() throws IOException {
+        writeSkill("commit-message", "Use for a commit.");
+        Conversation conversation = new Conversation(SYSTEM);
+
+        commands(new RecordingUi(), conversation).run("/skill commit-message");
+
+        UserMessage loaded = (UserMessage) conversation.messages().get(1);
+        assertTrue(loaded.text().contains(
+                root.resolve("skills").resolve("commit-message").toRealPath().toString()),
+                loaded.text());
+        assertTrue(loaded.text().contains("read_file"), loaded.text());
+    }
+
+    @Test
+    void twoSkillsBothStayInTheHistory() throws IOException {
+        writeSkill("one", "The first.");
+        writeSkill("two", "The second.");
+        Conversation conversation = new Conversation(SYSTEM);
+        Commands commands = commands(new RecordingUi(), conversation);
+
+        commands.run("/skill one");
+        commands.run("/skill two");
+
+        assertEquals(5, conversation.messages().size());
+    }
+
+    @Test
+    void clearRemovesEverySkill() throws IOException {
+        writeSkill("one", "The first.");
+        Conversation conversation = new Conversation(SYSTEM);
+        Commands commands = commands(new RecordingUi(), conversation);
+
+        commands.run("/skill one");
+        commands.run("/clear");
+
+        assertEquals(List.of(SYSTEM), conversation.messages());
+    }
+
+    @Test
+    void reportsAnUnknownSkillAndChangesNoMessage() {
+        Conversation conversation = new Conversation(SYSTEM);
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, conversation).run("/skill absent");
+
+        assertTrue(ui.errors.get(0).contains("absent"), ui.errors.toString());
+        assertEquals(1, conversation.messages().size());
+    }
+
+    @Test
+    void aTabOrTwoSpacesSeparatesTheNameFromTheCommand() throws IOException {
+        writeSkill("commit-message", "Use for a commit.");
+        Conversation conversation = new Conversation(SYSTEM);
+        Commands commands = commands(new RecordingUi(), conversation);
+
+        commands.run("/skill\tcommit-message");
+        commands.run("/skill  commit-message");
+
+        assertEquals(5, conversation.messages().size());
     }
 }
