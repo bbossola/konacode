@@ -28,7 +28,8 @@ import java.util.Optional;
  * more than one line.
  *
  * <p>The constructor takes every collaborator, and {@link #open()} builds the real ones. A test
- * therefore gives this class a mocked reader and terminal, and a spinner that records.
+ * therefore gives this class a mocked reader and terminal, and a spinner that records. It also
+ * keeps the {@link Cancellation}, so {@link #ask} can stop the turn when the user presses ESC.
  */
 final class RichUi implements Ui {
 
@@ -113,7 +114,8 @@ final class RichUi implements Ui {
      * Asks the user, and reads one key.
      *
      * <p>{@link EscapeWatcher} reads the terminal during a turn, so it must stop before the key is
-     * read and start again after it. Without that it consumes the answer.
+     * read and start again after it. Without that it consumes the answer. The watcher is stopped
+     * while the key is read, so it cannot see ESC there; the question reports the stop itself.
      */
     @Override
     public Answer ask(String toolName, Decision.Ask ask) {
@@ -154,6 +156,12 @@ final class RichUi implements Ui {
     }
 
     private Answer answer(int key, boolean folderOffered) {
+        if (key == -1) {
+            out.println();
+            out.println("Could not read the answer. konacode refuses.");
+            out.flush();
+            return Answer.NO;
+        }
         if (key == EscapeWatcher.ESCAPE) {
             cancellation.request();
             return Answer.NO;

@@ -9,10 +9,12 @@ import org.jline.reader.EndOfFileException;
 import org.jline.reader.History;
 import org.jline.reader.LineReader;
 import org.jline.reader.UserInterruptException;
+import org.jline.terminal.Attributes;
 import org.jline.terminal.Terminal;
 import org.jline.utils.NonBlockingReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -33,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -269,6 +272,17 @@ class RichUiTest {
     }
 
     @Test
+    void theUppercaseVariantsAlsoWork() throws IOException {
+        NonBlockingReader upperY = keys('Y');
+        when(terminal.reader()).thenReturn(upperY);
+        assertEquals(ToolApproval.Answer.YES, ui().ask("edit_file", askAbout("/notes/a.txt")));
+
+        NonBlockingReader upperA = keys('A');
+        when(terminal.reader()).thenReturn(upperA);
+        assertEquals(ToolApproval.Answer.ALWAYS, ui().ask("edit_file", askAbout("/notes/a.txt")));
+    }
+
+    @Test
     void anyOtherKeyMeansNo() throws IOException {
         NonBlockingReader input = keys('q');
         when(terminal.reader()).thenReturn(input);
@@ -278,7 +292,7 @@ class RichUiTest {
 
     @Test
     void escapeMeansNoAndStopsTheTurn() throws IOException {
-        NonBlockingReader input = keys(27);
+        NonBlockingReader input = keys(EscapeWatcher.ESCAPE);
         when(terminal.reader()).thenReturn(input);
 
         assertEquals(ToolApproval.Answer.NO, ui().ask("edit_file", askAbout("/notes/a.txt")));
@@ -302,7 +316,7 @@ class RichUiTest {
         ui().ask("edit_file", askAbout("/notes/a.txt"));
 
         String shown = written();
-        assertTrue(shown.contains("edit_file"), shown);
+        assertTrue(shown.contains("edit_file wants to write outside this project."), shown);
         assertTrue(shown.contains("/notes/a.txt"), shown);
         assertTrue(shown.contains("always, for edit_file under /notes"), shown);
     }
@@ -329,5 +343,40 @@ class RichUiTest {
         ui.ask("edit_file", askAbout("/notes/a.txt"));
 
         assertEquals(List.of("stop", "start"), watcher.calls);
+    }
+
+    @Test
+    void aMissingAnswerRefuses() throws IOException {
+        NonBlockingReader input = keys(-1);
+        when(terminal.reader()).thenReturn(input);
+
+        assertEquals(ToolApproval.Answer.NO, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertTrue(written().contains("Could not read the answer. konacode refuses."), written());
+    }
+
+    @Test
+    void theFirstWordOfTheActionBecomesTheVerb() throws IOException {
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+
+        ui().ask("read_file", new Decision.Ask("read outside this project", "/etc/hosts",
+                Path.of("/etc")));
+
+        assertTrue(written().contains("y  read it once"), written());
+    }
+
+    @Test
+    void theTerminalEntersRawModeAndIsRestored() throws IOException {
+        Attributes saved = new Attributes();
+        when(terminal.enterRawMode()).thenReturn(saved);
+        NonBlockingReader input = keys('y');
+        when(terminal.reader()).thenReturn(input);
+
+        ui().ask("edit_file", askAbout("/notes/a.txt"));
+
+        InOrder order = inOrder(terminal);
+        order.verify(terminal).enterRawMode();
+        order.verify(terminal).reader();
+        order.verify(terminal).setAttributes(saved);
     }
 }

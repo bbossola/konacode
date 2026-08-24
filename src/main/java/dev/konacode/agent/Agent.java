@@ -235,7 +235,15 @@ public final class Agent {
                 return ToolResult.err(reason);
             }
             case Decision.Ask ask -> {
-                if (!approvals.approve(call.name(), ask)) {
+                boolean approved;
+                try {
+                    approved = approvals.approve(call.name(), ask);
+                } catch (RuntimeException e) {
+                    // A user interface that fails must not end the session, for the same reason a
+                    // misbehaving tool must not. konacode then has no approval.
+                    return ToolResult.err("Could not ask the user about " + call.name() + ": " + e);
+                }
+                if (!approved) {
                     return ToolResult.err("konacode did not get approval for " + call.name()
                             + " to " + ask.action() + ": " + ask.subject() + ".");
                 }

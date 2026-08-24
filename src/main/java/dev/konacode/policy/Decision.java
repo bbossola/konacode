@@ -16,7 +16,8 @@ public sealed interface Decision {
     /**
      * The policy needs the user to decide.
      *
-     * @param action what the tool wants to do, for example "write outside this project"
+     * @param action what the tool wants to do, for example "write outside this project". The
+     *     first word is an imperative verb, because the question builds a line from it.
      * @param subject the absolute path the question is about
      * @param alwaysFolder the folder that an "always" answer covers, or {@code null} when konacode
      *     offers no "always". The question then shows yes and no only.

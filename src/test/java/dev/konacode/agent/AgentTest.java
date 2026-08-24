@@ -485,6 +485,29 @@ class AgentTest {
     }
 
     @Test
+    void survivesAnApprovalThatThrows() {
+        ToolApproval brokenApproval = (toolName, ask) -> {
+            throw new IllegalStateException("terminal bug");
+        };
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
+                .replyText("Recovered.");
+        RecordingTrace trace = new RecordingTrace();
+        Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
+                (tool, args) -> Decision.ask("write outside this project", "/etc/hosts",
+                        Path.of("/etc")),
+                new Approvals(brokenApproval),
+                new Conversation(new SystemMessage("You are konacode.")), trace,
+                new Cancellation(), 8);
+
+        String answer = agent.respond("go");
+
+        assertEquals("Recovered.", answer);
+        assertTrue(assertInstanceOf(ToolResult.Err.class, trace.results().get(0))
+                .message().contains("terminal bug"));
+    }
+
+    @Test
     void answersEveryUserMessageEvenWhenTheTransportFails() {
         FakeLlmClient client = new FakeLlmClient().failWith(new LlmException("HTTP 500"));
         Conversation conversation =
