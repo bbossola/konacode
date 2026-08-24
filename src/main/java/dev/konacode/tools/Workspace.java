@@ -36,8 +36,8 @@ public final class Workspace {
     }
 
     /**
-     * @param alsoReadable folders outside the root that a tool may read without a question. A
-     *     write there is still outside the project, so the user is asked about it.
+     * @param alsoReadable folders outside the root that a tool may read. A write there stays
+     *     outside the project. No policy reads this list yet, and {@code EffectPolicy} will.
      */
     public Workspace(Path root, List<Path> alsoReadable) {
         this.root = root.toAbsolutePath().normalize();
