@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.text.Collator;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -151,13 +152,27 @@ public final class Workspace {
     }
 
     public List<Path> listSorted(Path directory) throws IOException {
+        return listSorted(directory, StopCheck.NEVER);
+    }
+
+    /**
+     * Reads the entries, stopping between two of them when the user asks. The caller sees a short
+     * list and must ask the {@link StopCheck} itself to know whether the list is complete.
+     */
+    public List<Path> listSorted(Path directory, StopCheck stop) throws IOException {
         // Locale.ROOT pins the collation rules so listing order does not vary between a
         // developer's machine and CI, which may run under a different default locale.
         Collator collator = Collator.getInstance(Locale.ROOT);
-        try (Stream<Path> entries = Files.list(directory)) {
-            return entries
-                    .sorted(Comparator.comparing(path -> path.getFileName().toString(), collator))
-                    .toList();
+        List<Path> entries = new ArrayList<>();
+        try (Stream<Path> stream = Files.list(directory)) {
+            for (Path entry : (Iterable<Path>) stream::iterator) {
+                if (stop.stopped()) {
+                    break;
+                }
+                entries.add(entry);
+            }
         }
+        entries.sort(Comparator.comparing(path -> path.getFileName().toString(), collator));
+        return entries;
     }
 }

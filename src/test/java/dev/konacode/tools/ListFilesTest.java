@@ -26,7 +26,7 @@ class ListFilesTest {
 
     @BeforeEach
     void setUp() {
-        tool = new ListFiles(new Workspace(root));
+        tool = new ListFiles(new Workspace(root), StopCheck.NEVER);
     }
 
     private static JsonNode args(String path) {
@@ -116,5 +116,18 @@ class ListFilesTest {
         assertTrue(lines.contains("realdir/"), lines.toString());
         assertTrue(lines.contains("link_to_dir/@"), lines.toString());
         assertTrue(lines.contains("link_to_file@"), lines.toString());
+    }
+
+    @Test
+    void stopsBetweenEntriesAndReportsThatNothingChanged() throws IOException {
+        Files.createFile(root.resolve("a.txt"));
+        Files.createFile(root.resolve("b.txt"));
+        ListFiles stopping = new ListFiles(new Workspace(root), () -> true);
+
+        ToolResult result = stopping.execute(args("."));
+
+        ToolResult.Err error = assertInstanceOf(ToolResult.Err.class, result);
+        assertTrue(error.message().startsWith("Stopped by the user"), error.message());
+        assertTrue(error.message().contains("Nothing was changed."), error.message());
     }
 }

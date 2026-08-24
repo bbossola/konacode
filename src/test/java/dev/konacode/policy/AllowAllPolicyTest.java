@@ -2,6 +2,7 @@ package dev.konacode.policy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.konacode.tools.ListFiles;
+import dev.konacode.tools.StopCheck;
 import dev.konacode.tools.Workspace;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -21,7 +22,8 @@ class AllowAllPolicyTest {
         ToolPolicy policy = new AllowAllPolicy();
 
         Decision decision = policy.check(
-                new ListFiles(new Workspace(root)), new ObjectMapper().createObjectNode());
+                new ListFiles(new Workspace(root), StopCheck.NEVER),
+                new ObjectMapper().createObjectNode());
 
         assertInstanceOf(Decision.Allow.class, decision);
     }

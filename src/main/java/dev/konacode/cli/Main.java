@@ -10,6 +10,7 @@ import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.tools.EditFile;
 import dev.konacode.tools.ListFiles;
 import dev.konacode.tools.ReadFile;
+import dev.konacode.tools.StopCheck;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
 
@@ -38,7 +39,8 @@ public final class Main {
 
         Workspace workspace = Workspace.ofCurrentDirectory();
         ToolRegistry registry = ToolRegistry.of(
-                new ListFiles(workspace), new ReadFile(workspace), new EditFile(workspace));
+                new ListFiles(workspace, StopCheck.NEVER), new ReadFile(workspace),
+                new EditFile(workspace));
         SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
         Conversation conversation = new Conversation(system);
 

@@ -7,6 +7,7 @@ import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
 import dev.konacode.tools.ListFiles;
 import dev.konacode.tools.ReadFile;
+import dev.konacode.tools.StopCheck;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -26,7 +27,8 @@ class CommandsTest {
     private Commands commands(RecordingUi ui, Conversation conversation) {
         Workspace workspace = new Workspace(root);
         return new Commands(conversation, SYSTEM,
-                ToolRegistry.of(new ListFiles(workspace), new ReadFile(workspace)), ui);
+                ToolRegistry.of(new ListFiles(workspace, StopCheck.NEVER),
+                        new ReadFile(workspace)), ui);
     }
 
     @Test
