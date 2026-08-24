@@ -21,4 +21,6 @@ public interface Tool {
     ObjectNode inputSchema();
 
     ToolResult execute(JsonNode args);
+
+    boolean stopsOnInterrupt();
 }

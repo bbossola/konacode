@@ -1,6 +1,7 @@
 package dev.konacode.cli;
 
 import dev.konacode.agent.Agent;
+import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.Conversation;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.Message;
@@ -11,6 +12,7 @@ import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
 import dev.konacode.tools.ListFiles;
+import dev.konacode.tools.StopCheck;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -30,8 +32,9 @@ class ReplTest {
     private Repl repl(RecordingUi ui) {
         LlmClient client = (history, tools) -> new AssistantMessage("the answer", List.of());
         Conversation conversation = new Conversation(SYSTEM);
-        ToolRegistry registry = ToolRegistry.of(new ListFiles(new Workspace(root)));
-        Agent agent = new Agent(client, registry, new AllowAllPolicy(), conversation, ui, 8);
+        ToolRegistry registry = ToolRegistry.of(new ListFiles(new Workspace(root), StopCheck.NEVER));
+        Agent agent = new Agent(client, registry, new AllowAllPolicy(), conversation, ui,
+                new Cancellation(), 8);
         return new Repl(agent, ui, new Commands(conversation, SYSTEM, registry, ui));
     }
 

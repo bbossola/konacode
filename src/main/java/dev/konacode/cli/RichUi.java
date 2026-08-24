@@ -1,5 +1,6 @@
 package dev.konacode.cli;
 
+import dev.konacode.agent.Cancellation;
 import dev.konacode.cli.markdown.Markdown;
 import dev.konacode.tools.ToolResult;
 import org.jline.keymap.KeyMap;
@@ -30,15 +31,18 @@ final class RichUi implements Ui {
     private final Terminal terminal;
     private final PrintStream out;
     private final Spinner spinner;
+    private final EscapeWatcher watcher;
 
-    RichUi(LineReader reader, Terminal terminal, PrintStream out, Spinner spinner) {
+    RichUi(LineReader reader, Terminal terminal, PrintStream out, Spinner spinner,
+           EscapeWatcher watcher) {
         this.reader = reader;
         this.terminal = terminal;
         this.out = out;
         this.spinner = spinner;
+        this.watcher = watcher;
     }
 
-    static RichUi open() throws IOException {
+    static RichUi open(Cancellation cancellation) throws IOException {
         Terminal terminal = TerminalBuilder.builder().system(true).build();
 
         Path history = Path.of(System.getProperty("user.home"), ".konacode", "chat_history");
@@ -53,13 +57,14 @@ final class RichUi implements Ui {
                 .get(LineReader.MAIN)
                 .bind(new Reference(LineReader.SELF_INSERT_UNMETA), KeyMap.alt("\r"));
 
-        return new RichUi(reader, terminal, System.out, new Spinner(System.out, "thinking"));
+        return new RichUi(reader, terminal, System.out, new Spinner(System.out, "thinking"),
+                new EscapeWatcher(terminal, cancellation));
     }
 
     @Override
     public void welcome() {
         out.println(Ansi.style(Banner.forWidth(terminal.getWidth()), Ansi.CYAN));
-        out.println(Ansi.style("ctrl-d quits, alt-enter adds a line, /help lists the commands",
+        out.println(Ansi.style("esc stops · ctrl-d quits · alt-enter adds a line · /help",
                 Ansi.DIM));
         out.println();
     }
@@ -78,6 +83,7 @@ final class RichUi implements Ui {
     @Override
     public void showAnswer(String text) {
         spinner.stop();
+        watcher.stop();
         out.println(Markdown.render(text, terminal.getWidth()));
         out.println();
     }
@@ -85,11 +91,13 @@ final class RichUi implements Ui {
     @Override
     public void showError(String message) {
         spinner.stop();
+        watcher.stop();
         out.println(Ansi.style(message, Ansi.RED));
     }
 
     @Override
     public void thinking() {
+        watcher.start();
         spinner.start();
     }
 
@@ -107,6 +115,7 @@ final class RichUi implements Ui {
     @Override
     public void close() {
         spinner.stop();
+        watcher.stop();
         try {
             reader.getHistory().save();
             terminal.close();

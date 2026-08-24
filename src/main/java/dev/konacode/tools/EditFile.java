@@ -18,10 +18,15 @@ public final class EditFile implements Tool {
     /** Files above this size are refused rather than edited. Source files are far below it. */
     static final int MAX_EDITABLE_BYTES = 1_000_000;
 
-    private final Workspace workspace;
+    private static final String STOPPED =
+            "Stopped by the user before the write. The file was not changed.";
 
-    public EditFile(Workspace workspace) {
+    private final Workspace workspace;
+    private final StopCheck stop;
+
+    public EditFile(Workspace workspace, StopCheck stop) {
         this.workspace = workspace;
+        this.stop = stop;
     }
 
     @Override
@@ -81,10 +86,18 @@ public final class EditFile implements Tool {
                 : create(file, rawPath, oldStr, newStr);
     }
 
+    @Override
+    public boolean stopsOnInterrupt() {
+        return false;
+    }
+
     private ToolResult create(Path file, String rawPath, String oldStr, String newStr) {
         if (!oldStr.isEmpty()) {
             return ToolResult.err(
                     "File does not exist. Use an empty old_str to create a new file.");
+        }
+        if (stop.stopped()) {
+            return ToolResult.err(STOPPED);
         }
         try {
             workspace.writeAtomic(file, newStr);
@@ -100,6 +113,9 @@ public final class EditFile implements Tool {
         }
         try {
             String original = workspace.readUtf8ForEditing(file, MAX_EDITABLE_BYTES);
+            if (stop.stopped()) {
+                return ToolResult.err(STOPPED);
+            }
             int matches = countOccurrences(original, oldStr);
 
             if (matches == 0) {
@@ -113,6 +129,9 @@ public final class EditFile implements Tool {
             // String.replace, never replaceAll: replaceAll would treat old_str as a regex and
             // new_str as a replacement template, so a $ or \ would corrupt the edit.
             String updated = original.replace(oldStr, newStr);
+            if (stop.stopped()) {
+                return ToolResult.err(STOPPED);
+            }
             workspace.writeAtomic(file, updated);
             return ToolResult.ok(success("updated file " + rawPath, updated));
         } catch (IOException e) {

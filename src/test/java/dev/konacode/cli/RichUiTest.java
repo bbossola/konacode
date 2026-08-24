@@ -52,6 +52,25 @@ class RichUiTest {
         }
     }
 
+    /** EscapeWatcher is our own type, so the double is hand-written. */
+    static final class RecordingEscapeWatcher extends EscapeWatcher {
+        final List<String> calls = new ArrayList<>();
+
+        RecordingEscapeWatcher(Terminal terminal) {
+            super(terminal, new dev.konacode.agent.Cancellation());
+        }
+
+        @Override
+        public void start() {
+            calls.add("start");
+        }
+
+        @Override
+        public void stop() {
+            calls.add("stop");
+        }
+    }
+
     @Mock
     LineReader reader;
 
@@ -68,7 +87,7 @@ class RichUiTest {
     private RichUi ui() {
         when(terminal.getWidth()).thenReturn(40);
         when(reader.getHistory()).thenReturn(history);
-        return new RichUi(reader, terminal, out, spinner);
+        return new RichUi(reader, terminal, out, spinner, new RecordingEscapeWatcher(terminal));
     }
 
     private String written() {
@@ -101,7 +120,7 @@ class RichUiTest {
         when(terminal.getWidth()).thenReturn(20);
         when(reader.getHistory()).thenReturn(history);
 
-        new RichUi(reader, terminal, out, spinner)
+        new RichUi(reader, terminal, out, spinner, new RecordingEscapeWatcher(terminal))
                 .showAnswer("alpha beta gamma delta epsilon zeta");
 
         assertTrue(written().contains("alpha beta gamma\ndelta epsilon zeta"), written());
@@ -172,5 +191,44 @@ class RichUiTest {
 
         verify(history).save();
         verify(terminal).close();
+    }
+
+    @Test
+    void thinkingStartsTheSpinnerAndTheWatcher() {
+        RecordingSpinner spinner = new RecordingSpinner();
+        RecordingEscapeWatcher watcher = new RecordingEscapeWatcher(terminal);
+        RichUi ui = new RichUi(reader, terminal, new PrintStream(new ByteArrayOutputStream()),
+                spinner, watcher);
+
+        ui.thinking();
+
+        assertEquals(List.of("start"), spinner.calls);
+        assertEquals(List.of("start"), watcher.calls);
+    }
+
+    @Test
+    void showAnswerStopsTheSpinnerAndTheWatcher() {
+        RecordingSpinner spinner = new RecordingSpinner();
+        RecordingEscapeWatcher watcher = new RecordingEscapeWatcher(terminal);
+        RichUi ui = new RichUi(reader, terminal, new PrintStream(new ByteArrayOutputStream()),
+                spinner, watcher);
+
+        ui.showAnswer("done");
+
+        assertEquals(List.of("stop"), spinner.calls);
+        assertEquals(List.of("stop"), watcher.calls);
+    }
+
+    @Test
+    void aToolCallStopsTheSpinnerAndLeavesTheWatcherRunning() {
+        RecordingSpinner spinner = new RecordingSpinner();
+        RecordingEscapeWatcher watcher = new RecordingEscapeWatcher(terminal);
+        RichUi ui = new RichUi(reader, terminal, new PrintStream(new ByteArrayOutputStream()),
+                spinner, watcher);
+
+        ui.onToolCall("read_file", "{}");
+
+        assertEquals(List.of("stop"), spinner.calls);
+        assertEquals(List.of(), watcher.calls);
     }
 }

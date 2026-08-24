@@ -15,9 +15,11 @@ public final class ListFiles implements Tool {
     static final int ENTRY_LIMIT = 200;
 
     private final Workspace workspace;
+    private final StopCheck stop;
 
-    public ListFiles(Workspace workspace) {
+    public ListFiles(Workspace workspace, StopCheck stop) {
         this.workspace = workspace;
+        this.stop = stop;
     }
 
     @Override
@@ -62,15 +64,23 @@ public final class ListFiles implements Tool {
         }
 
         try {
-            return ToolResult.ok(render(target));
+            List<Path> entries = workspace.listSorted(target, stop);
+            if (stop.stopped()) {
+                return ToolResult.err("Stopped by the user after " + entries.size()
+                        + " entries. Nothing was changed.");
+            }
+            return ToolResult.ok(render(target, entries));
         } catch (IOException e) {
             return ToolResult.err("Could not list path " + target + ". " + e);
         }
     }
 
-    private String render(Path directory) throws IOException {
-        List<Path> entries = workspace.listSorted(directory);
+    @Override
+    public boolean stopsOnInterrupt() {
+        return false;
+    }
 
+    private String render(Path directory, List<Path> entries) {
         List<String> lines = new ArrayList<>();
         lines.add("directory " + directory);
 

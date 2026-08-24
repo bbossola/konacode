@@ -103,8 +103,85 @@ produces an error that looks like a serialization bug and is miserable to diagno
 Conversation and is read by the model, which is how it recovers. Promoting one to an exception
 would take a situation the model can fix and hand it to the human instead.
 
-**Three ways a turn ends**, and all three return text: an AssistantMessage with no ToolCalls,
-an exhausted iteration budget, or a transport failure. None of them throws.
+**Four ways a turn ends**, and all four return text: an AssistantMessage with no ToolCalls, an
+exhausted iteration budget, a transport failure, or the user pressing ESC. None of them throws.
+
+A stopped turn stays in the history, so the model can read what it did and reverse it when the
+user asks. Every ToolCall that never ran is answered with an Err saying the user stopped the turn
+before it ran, so the dangling call invariant above holds with no special case.
+
+## Stopping a turn
+
+The user presses ESC. `EscapeWatcher` reads the byte from the terminal and calls
+`Cancellation.request()`. That does two things at once: it sets a flag the loop reads, and it
+interrupts the thread the loop armed.
+
+```
+User         Watcher    Cancellation      Agent     Conversation    LlmClient
+  │             │             │             │             │             │
+  │             │             │◄───clear()──│             │             │
+  │             │             │             │─add(user)──►│             │
+  │             │             │◄────arm()───│             │             │
+  │             │             │             │───chat(history, tools)───►│
+  │             │             │             │             │             ┃
+  │─────ESC────►│             │             │             │             ┃  blocked
+  │             │─request()──►│             │             │             ┃  in HTTP
+  │             │             │─interrupt()►│             │             ┃
+  │             │             │             │◄╌╌ LlmException ╌╌╌╌╌╌╌╌╌╌┃
+  │             │             │◄──disarm()──│             │             │
+  │             │             │◄─stopped()──│             │             │
+  │             │             │╌╌╌╌true╌╌╌╌►│             │             │
+  │             │             │             │  add(AssistantMessage)    │
+  │             │             │             │────────────►│             │
+  │◄╌╌╌╌╌╌╌╌╌╌ "Stopped." ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│             │             │
+```
+
+The loop arms the interrupt around the provider call and around a tool that answers
+`stopsOnInterrupt()` with true. Around nothing else. A tool that has not said an interrupt is safe
+is never interrupted, because arming every tool would rest the safety of the loop on every tool
+author writing correct cleanup, for ever.
+
+A tool that works in many steps stops itself instead. It reads a `StopCheck` between the steps and
+returns an `Err` that says what it changed. `EditFile` reads it on one side of `writeAtomic` and
+never inside, which is what makes its guarantee hold: the edit is fully applied and the model gets
+an `Ok`, or the file is untouched and the model gets an `Err` that says so.
+
+```
+User         Watcher    Cancellation      Agent     Conversation      Tool
+  │             │             │             │             │             │
+  │             │             │◄─stopped()──│             │             │
+  │             │             │╌╌╌╌false╌╌╌►│             │             │
+  │             │             │             │─────execute(args)────────►│
+  │             │             │             │             │             ┃
+  │─────ESC────►│             │             │             │             ┃  tool 1
+  │             │─request()──►│             │             │             ┃  runs on
+  │             │             │             │             │             ┃
+  │             │             │◄──── stopped() ─────────────────────────┃
+  │             │             │╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ true ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌►┃
+  │             │             │             │             │             ┃
+  │             │             │             │◄╌╌╌ ToolResult.Err ╌╌╌╌╌╌╌┃
+  │             │             │             │  add(ToolMessage)         │
+  │             │             │             │────────────►│             │
+  │             │             │◄─stopped()──│             │             │
+  │             │             │╌╌╌╌true╌╌╌╌►│             │             │
+  │             │             │             │             │             │
+  │             │             │        tool 2 never starts              │
+  │             │             │             │  add(ToolMessage) that    │
+  │             │             │             │  says it was stopped      │
+  │             │             │             │────────────►│             │
+  │             │             │             │  add(AssistantMessage)    │
+  │             │             │             │────────────►│             │
+  │◄╌╌╌╌╌╌╌╌╌╌ "Stopped." ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│             │             │
+```
+
+The loop asks `stopped()` **before** each tool call, never after. A tool that has already started
+therefore runs to the end and its real result is appended the normal way. The check that ends the
+turn happens where the next tool would have started.
+
+A thread interrupt stops none of the tools that ship today. This was measured on JDK 21.0.2:
+`Files.list`, `Files.newInputStream`, `Files.readAllBytes`, `Files.writeString`, `Files.move` and
+`Files.deleteIfExists` all run to the end with the interrupt status already set. So all four tools
+answer `stopsOnInterrupt()` with false, and asking is the only mechanism that works for them.
 
 ## A reply that lies about being finished
 

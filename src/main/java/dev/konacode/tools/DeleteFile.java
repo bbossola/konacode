@@ -5,38 +5,40 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 
-/** Returns a file's contents, capped so one large file cannot flood the context window. */
-public final class ReadFile implements Tool {
-
-    static final int MAX_BYTES = 100_000;
+/**
+ * Removes one file, so the model can reverse a file it created.
+ *
+ * <p>A directory is refused. A recursive delete is a different tool, and a far more dangerous
+ * one.
+ */
+public final class DeleteFile implements Tool {
 
     private final Workspace workspace;
-    private final StopCheck stop;
 
-    public ReadFile(Workspace workspace, StopCheck stop) {
+    public DeleteFile(Workspace workspace) {
         this.workspace = workspace;
-        this.stop = stop;
     }
 
     @Override
     public String name() {
-        return "read_file";
+        return "delete_file";
     }
 
     @Override
     public String description() {
         return """
-                Read the contents of a given relative file path. \
-                Use this when you want to see what's inside a file. \
-                Do not use this with directory names.""";
+                Delete the file at a given relative path. \
+                Use this to remove a file that is no longer wanted, for example one you created \
+                by mistake. The delete cannot be undone. Do not use this with a directory.""";
     }
 
     @Override
     public ObjectNode inputSchema() {
         return Schemas.object()
-                .requiredString("path", "The relative path of the file to read.")
+                .requiredString("path", "The relative path of the file to delete.")
                 .build();
     }
 
@@ -44,7 +46,8 @@ public final class ReadFile implements Tool {
     public ToolResult execute(JsonNode args) {
         JsonNode pathNode = args.path("path");
         if (!pathNode.isTextual() || pathNode.asText().isBlank()) {
-            return ToolResult.err("Invalid arguments for read_file. Expected: {\"path\": \"...\"}");
+            return ToolResult.err(
+                    "Invalid arguments for delete_file. Expected: {\"path\": \"...\"}");
         }
 
         Path file;
@@ -54,22 +57,19 @@ public final class ReadFile implements Tool {
             return ToolResult.err(e.getMessage());
         }
 
-        if (!Files.exists(file)) {
+        if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
             return ToolResult.err("Path not found: " + file);
         }
-        if (Files.isDirectory(file)) {
+        // NOFOLLOW_LINKS: a link to a directory is deleted as a link, and the target survives.
+        if (Files.isDirectory(file, LinkOption.NOFOLLOW_LINKS)) {
             return ToolResult.err("Path is a directory, not a file: " + file);
         }
 
         try {
-            String text = workspace.readUtf8Capped(file, MAX_BYTES, stop);
-            if (stop.stopped()) {
-                return ToolResult.err("Stopped by the user after " + text.length()
-                        + " characters. The file was not changed.");
-            }
-            return ToolResult.ok(text);
+            workspace.delete(file);
+            return ToolResult.ok("deleted file " + pathNode.asText());
         } catch (IOException e) {
-            return ToolResult.err("Could not read file at path: " + pathNode.asText() + ". " + e);
+            return ToolResult.err("Could not delete file at path: " + pathNode.asText() + ". " + e);
         }
     }
 

@@ -7,6 +7,7 @@ import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
 import dev.konacode.tools.ListFiles;
 import dev.konacode.tools.ReadFile;
+import dev.konacode.tools.StopCheck;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -26,7 +27,8 @@ class CommandsTest {
     private Commands commands(RecordingUi ui, Conversation conversation) {
         Workspace workspace = new Workspace(root);
         return new Commands(conversation, SYSTEM,
-                ToolRegistry.of(new ListFiles(workspace), new ReadFile(workspace)), ui);
+                ToolRegistry.of(new ListFiles(workspace, StopCheck.NEVER),
+                        new ReadFile(workspace, StopCheck.NEVER)), ui);
     }
 
     @Test
@@ -36,6 +38,16 @@ class CommandsTest {
         assertTrue(commands.handles("/help"));
         assertFalse(commands.handles("help"));
         assertFalse(commands.handles("what files are here?"));
+    }
+
+    @Test
+    void helpNamesTheStopKey() {
+        RecordingUi ui = new RecordingUi();
+        Commands commands = commands(ui, new Conversation(SYSTEM));
+
+        commands.run("/help");
+
+        assertTrue(ui.answers.get(0).contains("esc"), ui.answers.get(0));
     }
 
     @Test

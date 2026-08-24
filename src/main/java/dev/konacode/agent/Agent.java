@@ -38,6 +38,7 @@ public final class Agent {
     private final ToolPolicy policy;
     private final Conversation conversation;
     private final ToolCallListener listener;
+    private final Cancellation cancellation;
     private final int maxIterations;
 
     public Agent(LlmClient client,
@@ -45,12 +46,14 @@ public final class Agent {
                  ToolPolicy policy,
                  Conversation conversation,
                  ToolCallListener listener,
+                 Cancellation cancellation,
                  int maxIterations) {
         this.client = Objects.requireNonNull(client, "client");
         this.registry = Objects.requireNonNull(registry, "registry");
         this.policy = Objects.requireNonNull(policy, "policy");
         this.conversation = Objects.requireNonNull(conversation, "conversation");
         this.listener = Objects.requireNonNull(listener, "listener");
+        this.cancellation = Objects.requireNonNull(cancellation, "cancellation");
         if (maxIterations < 1) {
             throw new IllegalArgumentException("maxIterations must be at least 1.");
         }
@@ -78,11 +81,12 @@ public final class Agent {
     }
 
     public String respond(String userText) {
+        cancellation.clear();
         conversation.add(new UserMessage(userText));
         List<ToolSpec> tools = ToolSpecs.from(registry);
         try {
             for (int iteration = 0; iteration < maxIterations; iteration++) {
-                AssistantMessage reply = client.chat(conversation.messages(), tools);
+                AssistantMessage reply = chat(tools);
 
                 // Before running anything: providers reject a tool result whose originating
                 // assistant message is absent from the history.
@@ -92,13 +96,25 @@ public final class Agent {
                     return reply.text();
                 }
 
-                for (ToolCall call : reply.toolCalls()) {
+                List<ToolCall> calls = reply.toolCalls();
+                for (int index = 0; index < calls.size(); index++) {
+                    if (cancellation.stopped()) {
+                        return closeStoppedTurn(calls.subList(index, calls.size()));
+                    }
+                    ToolCall call = calls.get(index);
                     ToolResult result = perform(call);
                     conversation.add(new ToolMessage(call.id(), result.render()));
+                }
+
+                if (cancellation.stopped()) {
+                    return closeStoppedTurn(List.of());
                 }
             }
             return fail("<error> Exceeded maximum tool iterations.");
         } catch (LlmException e) {
+            if (cancellation.stopped()) {
+                return closeStoppedTurn(List.of());
+            }
             return fail("<error> " + e.getMessage());
         }
     }
@@ -114,6 +130,35 @@ public final class Agent {
     private String fail(String message) {
         conversation.add(new AssistantMessage(message, List.of()));
         return message;
+    }
+
+    /**
+     * The history keeps the whole turn, so the model can read what it did and reverse it when the
+     * user asks. Every tool call that never ran is answered here, because a provider rejects a
+     * conversation where a call has no result.
+     */
+    private String closeStoppedTurn(List<ToolCall> unanswered) {
+        for (ToolCall call : unanswered) {
+            conversation.add(new ToolMessage(call.id(),
+                    ToolResult.err("Stopped by the user before this tool ran.").render()));
+        }
+        conversation.add(new AssistantMessage("Stopped by the user.", List.of()));
+        return "Stopped.";
+    }
+
+    /**
+     * Arms the interrupt for the length of the provider call and no longer.
+     *
+     * <p>The finally makes the window exactly this call, whether it returns or throws. A tool
+     * that runs afterwards is never interrupted by accident.
+     */
+    private AssistantMessage chat(List<ToolSpec> tools) {
+        cancellation.arm();
+        try {
+            return client.chat(conversation.messages(), tools);
+        } finally {
+            cancellation.disarm();
+        }
     }
 
     private ToolResult perform(ToolCall call) {
@@ -151,10 +196,28 @@ public final class Agent {
         }
 
         try {
-            return tool.execute(args);
+            return executeUnderCancellation(tool, args);
         } catch (RuntimeException e) {
             // A misbehaving tool must not kill the session.
             return ToolResult.err("Tool " + call.name() + " failed: " + e);
+        }
+    }
+
+    /**
+     * Arms the interrupt only for a tool that says an interrupt is safe for it.
+     *
+     * <p>A tool that says nothing is never interrupted. Arming every tool would rest the safety
+     * of the loop on every tool author writing correct cleanup, for ever.
+     */
+    private ToolResult executeUnderCancellation(Tool tool, JsonNode args) {
+        if (!tool.stopsOnInterrupt()) {
+            return tool.execute(args);
+        }
+        cancellation.arm();
+        try {
+            return tool.execute(args);
+        } finally {
+            cancellation.disarm();
         }
     }
 

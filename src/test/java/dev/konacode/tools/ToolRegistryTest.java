@@ -28,6 +28,11 @@ class ToolRegistryTest {
         public ToolResult execute(JsonNode args) {
             return ToolResult.ok("stub");
         }
+
+        @Override
+        public boolean stopsOnInterrupt() {
+            return false;
+        }
     }
 
     @Test
