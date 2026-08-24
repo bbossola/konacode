@@ -81,6 +81,16 @@ timestamp. The file is `~/.konacode/traces/2026-08-24T14-03-11.jsonl`, beside th
 `chat_history`. konacode makes a new file for each session, so there is no rotation code, and one
 file holds one session that you can replay.
 
+**konacode keeps the last 100 files.** When it makes the file for a new session, it first counts
+the `*.jsonl` files in `~/.konacode/traces/` and deletes the oldest ones, until `maxFiles` files
+remain. The name of a file is the time it started, so a sort by name is a sort by age.
+
+The sweep runs once, at the start of the session, and never during a turn. It reads one
+directory and it touches no other file. If a delete fails, konacode prints one warning and
+continues: a trace that cannot be swept is not a reason to stop.
+
+`JsonlTrace` owns the sweep, because `JsonlTrace` owns the directory.
+
 **`Ui` shows the screen.** `Ui` extends `Trace` and reads the events with a pattern-matching
 switch. It renders `ToolCalled` and `ToolFinished` as it renders them today. It renders every
 other event as one line in a different colour. `Ui` is the live sink because `Ui` already owns the
@@ -117,9 +127,11 @@ for them. The gain is that `/trace full` works on a session that you started wit
 | Name | Kind | Values | Default |
 |---|---|---|---|
 | `konacode.trace` | property | `off`, `basic`, `full` | `off` |
+| `konacode.trace.maxFiles` | property | a whole number, 1 or more | `100` |
 
-The property sets the level of the file for the whole session. A wrong value prints one line and
-exits 1, as `konacode.maxIterations` does.
+`konacode.trace` sets the level of the file for the whole session. `konacode.trace.maxFiles` sets
+how many trace files konacode keeps. A wrong value prints one line and exits 1, as
+`konacode.maxIterations` does.
 
 | Command | Effect |
 |---|---|
@@ -144,7 +156,7 @@ header. It cannot reach the file.
 
 | Class | Change |
 |---|---|
-| `Trace`, `TraceEvent`, `Level`, `JsonlTrace` | New, in `dev.konacode.trace`. |
+| `Trace`, `TraceEvent`, `Level`, `JsonlTrace` | New, in `dev.konacode.trace`. `JsonlTrace` sweeps the directory when it opens the file, and reports the configured count with a static `configuredMaxFiles()`, as `Agent.configuredMaxIterations()` does. |
 | `ToolCallListener` | Deleted. |
 | `Agent` | Takes a `Trace` in place of the `ToolCallListener`. Emits the five loop events. |
 | `OpenAiClient` | Takes a `Trace`. Emits `RequestSent`, `ReplyReceived` and `RetryRequested`. |
@@ -152,7 +164,7 @@ header. It cannot reach the file.
 | `Ui` | Extends `Trace`. Gains `liveTrace(Level)`. |
 | `PlainUi`, `RichUi` | Implement `emit` with a switch. `PlainUi` prints a prefix, `RichUi` prints a colour. |
 | `Commands` | Gains `/trace`. |
-| `Main` | Reads `konacode.trace`, opens the file, builds the fan-out. |
+| `Main` | Reads `konacode.trace` and `konacode.trace.maxFiles`, opens the file, builds the fan-out. |
 | `RecordingToolCallListener` | Becomes `RecordingTrace`. |
 
 Two commits. The package and the loop first. The provider, the `/trace` command and the wiring
@@ -170,6 +182,9 @@ Test first, and offline. `RecordingTrace` is a hand-written double, as `FakeLlmC
 | `Level.OFF` on the screen | The `Ui` shows the tool call and shows no other event. |
 | `JsonlTrace` | One event makes one line, and the line matches a fixture. |
 | A file that cannot be opened | konacode warns once and the turn still completes. |
+| A directory with more files than the count | The oldest files go, the newest stay, and the count is exact. |
+| A delete that fails | konacode warns once and the session still starts. |
+| `konacode.trace.maxFiles=zero` | One line, and exit 1. |
 | `/trace basic` | The level of the screen changes. `/trace wrong` prints an error. |
 | `usage` in a reply | The codec reports the three counts. |
 
@@ -189,5 +204,7 @@ is half the value of the `full` level.
 never sees the iteration number, the tool timings or the outcome, so the questions that start this
 design stay unanswered.
 
-**Rotation, or one file for everything.** One file for each session answers the same need with no
-code. A session is the unit you want to read.
+**One file for everything, rotated by size.** A single `trace.jsonl` that konacode cuts at a size
+needs the size check on every write, and it can cut one session in two. One file for each
+session, swept by count at the start, keeps the session as the unit you read and keeps the check
+off the hot path.
