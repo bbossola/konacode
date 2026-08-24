@@ -19,12 +19,20 @@ record FrontMatter(String name, String description, String body) {
             throw new IllegalArgumentException("The file must start with a " + MARKER + " marker.");
         }
 
+        // The closing marker is found before any key is read. A file with no closing marker then
+        // reports the marker, and not the first line of the body that is not a key.
+        int close = 1;
+        while (close < lines.size() && !lines.get(close).strip().equals(MARKER)) {
+            close++;
+        }
+        if (close >= lines.size()) {
+            throw new IllegalArgumentException("The header has no closing " + MARKER + " marker.");
+        }
+
         String name = null;
         String description = null;
-        int index = 1;
-        while (index < lines.size() && !lines.get(index).strip().equals(MARKER)) {
+        for (int index = 1; index < close; index++) {
             String line = lines.get(index);
-            index++;
             if (line.isBlank()) {
                 continue;
             }
@@ -42,9 +50,6 @@ record FrontMatter(String name, String description, String body) {
             }
         }
 
-        if (index >= lines.size()) {
-            throw new IllegalArgumentException("The header has no closing " + MARKER + " marker.");
-        }
         if (name == null) {
             throw new IllegalArgumentException("The header has no name.");
         }
@@ -52,8 +57,8 @@ record FrontMatter(String name, String description, String body) {
             throw new IllegalArgumentException("The header has no description.");
         }
 
-        String body = String.join("\n", lines.subList(index + 1, lines.size()));
-        return new FrontMatter(name, description, body);
+        return new FrontMatter(name, description,
+                String.join("\n", lines.subList(close + 1, lines.size())));
     }
 
     /**
