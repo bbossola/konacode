@@ -207,4 +207,51 @@ class WorkspaceTest {
 
         assertThrows(IOException.class, () -> workspace.delete(missing));
     }
+
+    @Test
+    void aPathUnderTheRootIsInside() {
+        Workspace workspace = new Workspace(root);
+
+        assertTrue(workspace.insideRoot(root.resolve("src/Main.java")));
+        assertTrue(workspace.readable(root.resolve("src/Main.java")));
+    }
+
+    @Test
+    void aPathAboveTheRootIsOutside() {
+        Workspace workspace = new Workspace(root);
+
+        assertFalse(workspace.insideRoot(root.getParent().resolve("elsewhere.txt")));
+        assertFalse(workspace.readable(root.getParent().resolve("elsewhere.txt")));
+    }
+
+    @Test
+    void aReadableFolderIsReadableAndNotInside() throws IOException {
+        Path skills = Files.createDirectories(root.getParent().resolve("skills"));
+        Workspace workspace = new Workspace(root, List.of(skills));
+
+        assertTrue(workspace.readable(skills.resolve("one/SKILL.md")));
+        assertFalse(workspace.insideRoot(skills.resolve("one/SKILL.md")));
+    }
+
+    @Test
+    void aLinkThatLeavesTheRootIsOutside() throws IOException {
+        Path outside = Files.createDirectories(root.getParent().resolve("outside"));
+        Files.createSymbolicLink(root.resolve("escape"), outside);
+        Workspace workspace = new Workspace(root);
+
+        assertFalse(workspace.insideRoot(root.resolve("escape/secret.txt")));
+    }
+
+    @Test
+    void aFileThatDoesNotExistYetIsStillJudged() {
+        Workspace workspace = new Workspace(root);
+
+        assertTrue(workspace.insideRoot(root.resolve("new/deep/file.txt")));
+        assertFalse(workspace.insideRoot(root.getParent().resolve("new/deep/file.txt")));
+    }
+
+    @Test
+    void theRootItselfIsInside() {
+        assertTrue(new Workspace(root).insideRoot(root));
+    }
 }

@@ -29,9 +29,23 @@ public final class Workspace {
     private static final int CHUNK_BYTES = 8192;
 
     private final Path root;
+    private final List<Path> alsoReadable;
 
     public Workspace(Path root) {
+        this(root, List.of());
+    }
+
+    /**
+     * @param alsoReadable folders outside the root that a tool may read. konacode never writes
+     *     into one. The skills folder is the first of them.
+     */
+    public Workspace(Path root, List<Path> alsoReadable) {
         this.root = root.toAbsolutePath().normalize();
+        List<Path> folders = new ArrayList<>();
+        for (Path folder : alsoReadable) {
+            folders.add(folder.toAbsolutePath().normalize());
+        }
+        this.alsoReadable = List.copyOf(folders);
     }
 
     public static Workspace ofCurrentDirectory() {
@@ -66,6 +80,49 @@ public final class Workspace {
             path = root.resolve(path);
         }
         return path.normalize();
+    }
+
+    /** True when the path sits under the launch directory, with every link resolved. */
+    public boolean insideRoot(Path path) {
+        return under(root, path);
+    }
+
+    /** True when the path sits under the launch directory, or under a folder that may be read. */
+    public boolean readable(Path path) {
+        if (under(root, path)) {
+            return true;
+        }
+        for (Path folder : alsoReadable) {
+            if (under(folder, path)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean under(Path folder, Path path) {
+        return real(path).startsWith(real(folder));
+    }
+
+    /**
+     * Resolves every link that can be resolved. {@code toRealPath} fails for a file that does not
+     * exist, and {@code edit_file} creates files, so this resolves the nearest ancestor that does
+     * exist and keeps the rest of the path as written.
+     */
+    private static Path real(Path path) {
+        Path absolute = path.toAbsolutePath().normalize();
+        Path existing = absolute;
+        while (existing != null && !Files.exists(existing)) {
+            existing = existing.getParent();
+        }
+        if (existing == null) {
+            return absolute;
+        }
+        try {
+            return existing.toRealPath().resolve(existing.relativize(absolute));
+        } catch (IOException e) {
+            return absolute;
+        }
     }
 
     public String readUtf8Capped(Path file, int maxBytes) throws IOException {
