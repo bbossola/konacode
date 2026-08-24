@@ -39,6 +39,20 @@ descriptions alone.
 A tool is a name, a description the model reads, a JSON schema, and a function that runs when
 the model asks for it. Adding a fifth means writing one class and registering it.
 
+## Skills
+
+A skill is a folder inside `~/.konacode/skills/`, with a `SKILL.md` file that names it and
+describes it.
+
+```
+/skill                    list the skills
+/skill commit-message     load one into the conversation
+```
+
+`/skill` lists every skill, with its description. `/skill <name>` loads one skill into the
+conversation. You can load several skills at the same time, and `/clear` removes them all. The
+model reads a reference file in the skill folder with `read_file`, only when it needs it.
+
 ## Run it
 
 You will need Java 21 and an OpenAI API key.
