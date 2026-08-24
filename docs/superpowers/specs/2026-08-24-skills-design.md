@@ -134,10 +134,10 @@ downhill and adds no cycle.
 
 | Type | Kind | Definition |
 |---|---|---|
-| `Skill` | record `(String name, String description, Path folder)` | The front matter and the folder. It holds no body, so a list costs no read. |
-| `SkillRegistry` | final class | `all()` and `lookup(String)`, which is the shape of `ToolRegistry`. `body(Skill)` reads `SKILL.md` through a `Workspace` rooted at the skills folder, capped at 100 KB, with a `StopCheck`. |
+| `Skill` | record `(String name, String description, Path folder)` | The header and the folder. It holds no body, so konacode reads a body only when the user loads a skill. The folder is the real path, with every link resolved. |
+| `SkillRegistry` | final class | `all()` and `lookup(String)`, which is the shape of `ToolRegistry`. `body(Skill)` reads `SKILL.md` through a `Workspace` rooted at the skills folder, capped at 100 KB. It holds no `StopCheck`, because `/skill` runs at the prompt and not inside a turn. `lookup` refuses a name that is not one folder name. |
 | `FrontMatter` | record, package-private, pure | The two keys of the header, and the body below them. It reads the lines between the two `---` markers, and splits each one at the first `:`. It touches no filesystem. |
-| `SkillException` | RuntimeException | konacode found the folder and could not read the skill. The user fixes the file, and the message never reaches the model. |
+| `SkillException` | RuntimeException | konacode cannot give the user the skill they named. The name is not one folder name, or the folder holds no readable `SKILL.md`. The user corrects the name or the file, and the message never reaches the model. |
 
 `SkillRegistry` reads the folder on each call. A new skill therefore appears without a restart, and
 a missing folder gives an empty list instead of a failure at startup.
