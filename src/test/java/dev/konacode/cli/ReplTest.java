@@ -9,6 +9,7 @@ import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.ToolSpec;
 import dev.konacode.policy.AllowAllPolicy;
+import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
 import dev.konacode.tools.ListFiles;
@@ -34,9 +35,11 @@ class ReplTest {
         LlmClient client = (history, tools) -> new AssistantMessage("the answer", List.of());
         Conversation conversation = new Conversation(SYSTEM);
         ToolRegistry registry = ToolRegistry.of(new ListFiles(new Workspace(root), StopCheck.NEVER));
+        SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
         Agent agent = new Agent(client, registry, new AllowAllPolicy(), conversation, ui,
                 new Cancellation(), 8);
-        return new Repl(agent, ui, new Commands(conversation, SYSTEM, registry, ui, Level.OFF));
+        return new Repl(agent, ui,
+                new Commands(conversation, SYSTEM, registry, skills, ui, Level.OFF));
     }
 
     @Test

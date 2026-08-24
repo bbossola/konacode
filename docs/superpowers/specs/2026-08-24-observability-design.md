@@ -30,8 +30,8 @@ A new package, `dev.konacode.trace`. It depends on nothing.
 cli -> agent -> { llm, tools, policy } -> trace
 ```
 
-Every event carries strings, numbers and booleans only. No event carries a `Message`, a
-`ToolResult` or a `JsonNode`. That is what keeps the package free of dependencies, and it is what
+Every event carries plain values, and nothing from another konacode package. No event carries a
+`Message`, a `ToolResult` or a `JsonNode`. That is what keeps the package free of dependencies, and it is what
 lets `agent` and `llm` both emit into it without breaking the rule that `tools` must not depend on
 `llm`.
 

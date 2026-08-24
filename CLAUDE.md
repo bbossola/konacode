@@ -43,6 +43,7 @@ Dependencies run strictly downhill:
 
 ```
 cli -> agent -> { llm, tools, policy } -> trace
+cli -> skills -> tools
 ```
 
 **`tools` must not depend on `llm`.** A tool exposes a name, a description and a JSON schema
@@ -99,6 +100,15 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 | `Decision` | sealed interface | `Allow` or `Deny(String reason)`. Sealed on purpose: adding `Ask` later becomes a compile error at every handling site. |
 | `AllowAllPolicy` | implements `ToolPolicy` | The default. Always allows. The seam exists; the restriction does not, yet. |
 
+### `dev.konacode.skills`
+
+| Element | Kind | Definition |
+|---|---|---|
+| `Skill` | record `(String name, String description, Path folder)` | One skill, without its body. `name` is the folder name the user types after `/skill`. |
+| `SkillRegistry` | final class | Reads the skills folder on every call, so a new skill needs no restart, and a missing folder gives an empty list. Holds no `StopCheck`, because `/skill` runs at the prompt, not inside a turn, so there is no turn to stop. |
+| `FrontMatter` | record, package-private | The header of a `SKILL.md`, and the body after it. Not a YAML parser — it reads only a `name` key and a `description` key, each on one line. |
+| `SkillException` | RuntimeException | The name the user typed is not a folder name, or the folder holds no readable `SKILL.md`. Not a tool failure, and it never reaches the model. |
+
 ### `dev.konacode.trace` — what happened during a turn
 
 | Element | Kind | Definition |
@@ -125,7 +135,7 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 | `PlainUi` | implements `Ui` | The interface for a pipe. It reads with a `BufferedReader` and prints what konacode printed before there were two interfaces. It renders no markdown and shows no spinner. |
 | `RichUi` | implements `Ui` | The interface for a terminal. JLine gives the line editing, the history in `~/.konacode/chat_history`, and `alt-enter` for a second line. It renders markdown, and it owns the spinner and the `EscapeWatcher`. `emit` stops the spinner before it prints a line, and restarts it once a tool finishes; the watcher keeps running, so ESC still works while a tool runs. The constructor takes every collaborator, and `open()` builds the real ones, which is why the class can have tests. |
 | `Repl` | final class | The loop. Read a line, skip it when empty, run it as a command when it starts with `/`, otherwise ask the agent. Both interfaces share it. |
-| `Commands` | final class | `/help`, `/tools`, `/trace`, `/clear` and `/exit`. `run` returns false when the session must end, so every command lives in one class and `Repl` gains one line. A command writes markdown, so the rich interface renders it and needs no second output method. An unknown command prints an error and never reaches the model. |
+| `Commands` | final class | `/help`, `/tools`, `/skill`, `/trace`, `/clear` and `/exit`. `run` returns false when the session must end, so every command lives in one class and `Repl` gains one line. A command writes markdown, so the rich interface renders it and needs no second output method. An unknown command prints an error and never reaches the model. |
 | `EscapeWatcher` | class | Reads the terminal during a turn and calls `Cancellation.request()` on the byte `0x1B`. A sibling of `Spinner`: one daemon thread, `start` and `stop`, both idempotent, not final so a test can record. Raw mode keeps `ISIG` on, so ctrl-C still ends konacode. |
 | `Spinner` | class | One daemon thread that draws and erases a character while the agent works. `RichUi` stops it before every write of its own. It is not final, so a test can record the calls. |
 | `Banner` | final class | The art from the README, which reads `kona`. It is 41 columns wide, so a narrower terminal gets the plain name. Generated from `README.md`, not retyped. |
@@ -177,6 +187,7 @@ Write all documents and all replies in ASD-STE100 Simplified Technical English.
 - Start each paragraph with the topic sentence.
 - Write positive statements. Do not put two negatives in one sentence.
 - Use simple verb tenses.
+- Write literally. Do not use a metaphor or an idiom.
 
 ## Conventions
 

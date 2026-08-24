@@ -39,6 +39,20 @@ descriptions alone.
 A tool is a name, a description the model reads, a JSON schema, and a function that runs when
 the model asks for it. Adding a fifth means writing one class and registering it.
 
+## Skills
+
+A skill is a folder inside `~/.konacode/skills/`, with a `SKILL.md` file that names it and
+describes it.
+
+```
+/skill                    list the skills
+/skill commit-message     load one into the conversation
+```
+
+`/skill` lists every skill, with its description. `/skill <name>` loads one skill into the
+conversation. You can load several skills at the same time, and `/clear` removes them all. The
+model reads a reference file in the skill folder with `read_file`, only when it needs it.
+
 ## Run it
 
 You will need Java 21 and an OpenAI API key.
@@ -111,12 +125,13 @@ what it did.
 `ctrl-c` behaves as it always has, and `esc` did not change it: at the prompt it clears the line,
 and during a turn it ends konacode. `ctrl-d` quits.
 
-Five commands work in both interfaces.
+Six commands work in both interfaces.
 
 | Command | Action |
 |---|---|
 | `/help` | show the commands |
 | `/tools` | show the tools the model can call |
+| `/skill` | show the skills, or load one by name |
 | `/trace` | show or set how much the screen reports |
 | `/clear` | forget the conversation and start again |
 | `/exit` | end the session |

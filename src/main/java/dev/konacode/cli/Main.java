@@ -7,6 +7,7 @@ import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.openai.OpenAiClient;
 import dev.konacode.llm.openai.OpenAiConfig;
 import dev.konacode.policy.AllowAllPolicy;
+import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.DeleteFile;
 import dev.konacode.tools.EditFile;
 import dev.konacode.tools.ListFiles;
@@ -60,6 +61,7 @@ public final class Main {
                 new ReadFile(workspace, cancellation),
                 new EditFile(workspace, cancellation),
                 new DeleteFile(workspace));
+        SkillRegistry skills = new SkillRegistry(new Workspace(skillsRoot()));
         SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
         Conversation conversation = new Conversation(system);
 
@@ -67,11 +69,16 @@ public final class Main {
                 conversation, trace, cancellation, maxIterations);
 
         try (ui; file) {
-            new Repl(agent, ui, new Commands(conversation, system, registry, ui, fileLevel)).run();
+            new Repl(agent, ui,
+                    new Commands(conversation, system, registry, skills, ui, fileLevel)).run();
         } catch (Exception e) {
             System.err.println(e.getMessage());
             System.exit(1);
         }
+    }
+
+    static Path skillsRoot() {
+        return Path.of(System.getProperty("user.home"), ".konacode", "skills");
     }
 
     static Ui selectUi(Cancellation cancellation) throws IOException {
