@@ -28,3 +28,6 @@ samples/
 
 # Maven
 target/
+
+# Worktrees for feature branches.
+.worktree/
