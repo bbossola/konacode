@@ -284,7 +284,7 @@ No tool returns `true` yet. A web search tool will be the first.
 | Tool | Where it reads `stopped()` | What it reports |
 |---|---|---|
 | `ListFiles` | Between entries, while it builds the sorted list. | `Err`: "Stopped by the user after 1200 entries. Nothing was changed." An `Err` and not an `Ok`, so the model cannot read a part of a listing as the whole of it. |
-| `ReadFile` | Between chunks. `readNBytes(100_000)` becomes a loop over a buffer. | `Err`: "Stopped by the user after 40960 of 100000 bytes. The file was not changed." |
+| `ReadFile` | Between chunks. `readNBytes(100_000)` becomes a loop over a buffer. | `Err`: "Stopped by the user after 40960 characters. The file was not changed." |
 | `EditFile` | In the read phase, and once more immediately before `writeAtomic`. **Never inside it.** | `Err`: "Stopped by the user before the write. The file was not changed." |
 
 `EditFile` then carries a guarantee that fits in one line: **the edit is fully applied and the
