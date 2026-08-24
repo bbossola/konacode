@@ -52,7 +52,8 @@ public final class Main {
                 conversation, ui, cancellation, maxIterations);
 
         try (ui) {
-            new Repl(agent, ui, new Commands(conversation, system, registry, ui)).run();
+            new Repl(agent, ui, new Commands(conversation, system, registry, ui,
+                    dev.konacode.trace.Level.OFF)).run();
         } catch (Exception e) {
             System.err.println(e.getMessage());
             System.exit(1);
