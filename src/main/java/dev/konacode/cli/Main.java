@@ -7,6 +7,7 @@ import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.openai.OpenAiClient;
 import dev.konacode.llm.openai.OpenAiConfig;
 import dev.konacode.policy.AllowAllPolicy;
+import dev.konacode.tools.DeleteFile;
 import dev.konacode.tools.EditFile;
 import dev.konacode.tools.ListFiles;
 import dev.konacode.tools.ReadFile;
@@ -41,7 +42,8 @@ public final class Main {
         ToolRegistry registry = ToolRegistry.of(
                 new ListFiles(workspace, cancellation),
                 new ReadFile(workspace, cancellation),
-                new EditFile(workspace, cancellation));
+                new EditFile(workspace, cancellation),
+                new DeleteFile(workspace));
         SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
         Conversation conversation = new Conversation(system);
 
