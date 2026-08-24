@@ -62,9 +62,11 @@ Each one prints through `ui.showError`, and changes no message in the conversati
 
 | Error | Message |
 |---|---|
-| The name matches no folder | Unknown skill, and the list of known names |
+| The name matches no folder | Unknown skill, and a pointer to `/skill` |
 | The folder holds no `SKILL.md` | The path that konacode looked for |
-| The front matter has no `name` or no `description` | The file, and the missing key |
+| The header has no `name` or no `description` | The file, and the missing key |
+| The header has no text below it | The file, and that it holds no text |
+| The name is not one folder name | The name, and that a skill name is one folder name |
 
 ## Why konacode writes the second message
 
