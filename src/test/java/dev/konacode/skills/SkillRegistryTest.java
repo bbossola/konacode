@@ -108,7 +108,7 @@ class SkillRegistryTest {
         Files.createDirectories(root.resolve("empty"));
 
         SkillException e = assertThrows(SkillException.class, () -> registry().lookup("empty"));
-        assertTrue(e.getMessage().contains("SKILL.md"), e.getMessage());
+        assertTrue(e.getMessage().startsWith("No SKILL.md in"), e.getMessage());
     }
 
     @Test
