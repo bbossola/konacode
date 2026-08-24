@@ -1,9 +1,12 @@
 package dev.konacode.cli;
 
 import dev.konacode.agent.Cancellation;
+import org.jline.terminal.Attributes;
+import org.jline.terminal.Terminal;
 import org.jline.utils.NonBlockingReader;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -17,6 +20,54 @@ public class EscapeWatcher {
 
     static final int ESCAPE = 27;
     private static final long POLL_MILLIS = 100;
+
+    private final Terminal terminal;
+    private final Cancellation cancellation;
+    private final AtomicBoolean running = new AtomicBoolean();
+    private Thread thread;
+    private Attributes saved;
+
+    public EscapeWatcher(Terminal terminal, Cancellation cancellation) {
+        this.terminal = terminal;
+        this.cancellation = cancellation;
+    }
+
+    /**
+     * Enters raw mode so one keystroke arrives without a newline, and turns signal generation
+     * back on so ctrl-C still ends konacode.
+     */
+    public void start() {
+        if (!running.compareAndSet(false, true)) {
+            return;
+        }
+        saved = terminal.enterRawMode();
+        Attributes signals = terminal.getAttributes();
+        signals.setLocalFlag(Attributes.LocalFlag.ISIG, true);
+        terminal.setAttributes(signals);
+
+        thread = new Thread(() -> watch(terminal.reader(), cancellation, running::get),
+                "konacode-escape");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    /**
+     * Stops the watcher and restores the terminal's attributes.
+     *
+     * <p>The thread is never interrupted. It leaves within one poll, and interrupting it would
+     * risk the interrupt landing on work that follows.
+     */
+    public void stop() {
+        if (!running.compareAndSet(true, false)) {
+            return;
+        }
+        try {
+            thread.join(500);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        terminal.setAttributes(saved);
+    }
 
     /**
      * Reads until ESC arrives, the input ends, or the watcher is stopped.
