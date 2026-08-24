@@ -2,7 +2,6 @@ package dev.konacode.cli;
 
 import dev.konacode.agent.Cancellation;
 import dev.konacode.cli.markdown.Markdown;
-import dev.konacode.tools.ToolResult;
 import dev.konacode.trace.TraceEvent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.ToolFinished;
@@ -105,23 +104,14 @@ final class RichUi implements Ui {
     }
 
     @Override
-    public void onToolCall(String name, String argumentsJson) {
-        spinner.stop();
-        out.println(Ansi.style("tool: " + name + "(" + argumentsJson + ")", Ansi.GREEN));
-    }
-
-    @Override
-    public void onToolResult(String name, ToolResult result) {
-        spinner.start();
-    }
-
-    @Override
     public void emit(TraceEvent event) {
         switch (event) {
-            case ToolCalled called -> onToolCall(called.name(), called.argumentsJson());
-            case ToolFinished finished -> onToolResult(finished.name(), finished.ok()
-                    ? ToolResult.ok(finished.output())
-                    : ToolResult.err(finished.output()));
+            case ToolCalled called -> {
+                spinner.stop();
+                out.println(Ansi.style(
+                        "tool: " + called.name() + "(" + called.argumentsJson() + ")", Ansi.GREEN));
+            }
+            case ToolFinished ignored -> spinner.start();
             default -> {
             }
         }

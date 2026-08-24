@@ -1,6 +1,7 @@
 package dev.konacode.cli;
 
-import dev.konacode.tools.ToolResult;
+import dev.konacode.trace.TraceEvent.ToolCalled;
+import dev.konacode.trace.TraceEvent.ToolFinished;
 import org.junit.jupiter.api.Test;
 
 import java.io.BufferedReader;
@@ -53,14 +54,14 @@ class PlainUiTest {
 
     @Test
     void printsOneLineForEachToolCall() {
-        ui("").onToolCall("read_file", "{\"path\":\"pom.xml\"}");
+        ui("").emit(new ToolCalled(1, "read_file", "{\"path\":\"pom.xml\"}"));
 
         assertEquals("tool: read_file({\"path\":\"pom.xml\"})" + System.lineSeparator(), written());
     }
 
     @Test
     void printsNothingForAToolResult() {
-        ui("").onToolResult("read_file", ToolResult.ok("content"));
+        ui("").emit(new ToolFinished(1, "read_file", true, "content", 5));
 
         assertEquals("", written());
     }

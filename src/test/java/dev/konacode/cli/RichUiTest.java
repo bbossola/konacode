@@ -1,6 +1,7 @@
 package dev.konacode.cli;
 
-import dev.konacode.tools.ToolResult;
+import dev.konacode.trace.TraceEvent.ToolCalled;
+import dev.konacode.trace.TraceEvent.ToolFinished;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.History;
 import org.jline.reader.LineReader;
@@ -152,7 +153,7 @@ class RichUiTest {
 
     @Test
     void showsAToolCallInGreen() {
-        ui().onToolCall("read_file", "{}");
+        ui().emit(new ToolCalled(1, "read_file", "{}"));
 
         assertTrue(captured.toString(StandardCharsets.UTF_8).contains(Ansi.GREEN),
                 captured.toString(StandardCharsets.UTF_8));
@@ -178,8 +179,8 @@ class RichUiTest {
     void stopsTheSpinnerForAToolCallAndStartsItAfterTheResult() {
         RichUi ui = ui();
         ui.thinking();
-        ui.onToolCall("read_file", "{}");
-        ui.onToolResult("read_file", ToolResult.ok("content"));
+        ui.emit(new ToolCalled(1, "read_file", "{}"));
+        ui.emit(new ToolFinished(1, "read_file", true, "content", 5));
 
         assertEquals(List.of("start", "stop", "start"), spinner.calls);
         assertTrue(written().contains("tool: read_file({})"), written());
@@ -226,7 +227,7 @@ class RichUiTest {
         RichUi ui = new RichUi(reader, terminal, new PrintStream(new ByteArrayOutputStream()),
                 spinner, watcher);
 
-        ui.onToolCall("read_file", "{}");
+        ui.emit(new ToolCalled(1, "read_file", "{}"));
 
         assertEquals(List.of("stop"), spinner.calls);
         assertEquals(List.of(), watcher.calls);

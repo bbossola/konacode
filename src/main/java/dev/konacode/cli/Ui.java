@@ -1,6 +1,5 @@
 package dev.konacode.cli;
 
-import dev.konacode.agent.ToolCallListener;
 import dev.konacode.trace.Trace;
 
 import java.util.Optional;
@@ -8,11 +7,10 @@ import java.util.Optional;
 /**
  * Everything konacode shows the user, and the one thing it reads from them.
  *
- * <p>This extends {@link ToolCallListener} because showing a tool call is a user interface
- * concern. One object then owns the screen, and the agent loop still never touches
- * {@code System.out}.
+ * <p>This extends {@link Trace} because showing what the agent did is a user interface concern.
+ * One object then owns the screen, and the agent loop still never touches {@code System.out}.
  */
-public interface Ui extends ToolCallListener, Trace, AutoCloseable {
+public interface Ui extends Trace, AutoCloseable {
 
     void welcome();
 
