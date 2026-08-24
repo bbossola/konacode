@@ -169,6 +169,16 @@ public final class Workspace {
         }
     }
 
+    /**
+     * Removes one file. On a symbolic link it removes the link and never the target.
+     *
+     * <p>This is where path confinement will hook in, with the rest of the filesystem
+     * operations.
+     */
+    public void delete(Path file) throws IOException {
+        Files.delete(file);
+    }
+
     public List<Path> listSorted(Path directory) throws IOException {
         return listSorted(directory, StopCheck.NEVER);
     }

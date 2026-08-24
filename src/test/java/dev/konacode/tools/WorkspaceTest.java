@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -187,5 +188,23 @@ class WorkspaceTest {
         // Lenient decoding would substitute U+FFFD, and the edit would write that back over
         // the original bytes.
         assertThrows(IOException.class, () -> workspace.readUtf8ForEditing(file, 1_000_000));
+    }
+
+    @Test
+    void deletesAFile() throws IOException {
+        Path file = root.resolve("gone.txt");
+        Files.writeString(file, "bye");
+
+        new Workspace(root).delete(file);
+
+        assertFalse(Files.exists(file));
+    }
+
+    @Test
+    void deleteReportsAMissingFile() {
+        Workspace workspace = new Workspace(root);
+        Path missing = root.resolve("absent.txt");
+
+        assertThrows(IOException.class, () -> workspace.delete(missing));
     }
 }
