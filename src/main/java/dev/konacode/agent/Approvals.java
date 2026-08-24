@@ -4,6 +4,7 @@ import dev.konacode.policy.Decision;
 
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -20,12 +21,13 @@ public final class Approvals {
     private final Set<Allowed> allowed = new HashSet<>();
 
     public Approvals(ToolApproval approval) {
-        this.approval = approval;
+        this.approval = Objects.requireNonNull(approval, "approval");
     }
 
     /** True when the call may run. */
     public boolean approve(String toolName, Decision.Ask ask) {
-        Path folder = ask.alwaysFolder();
+        // Path.equals compares the spelling, so two spellings of one folder must be one memory.
+        Path folder = ask.alwaysFolder() == null ? null : ask.alwaysFolder().normalize();
         if (folder != null && allowed.contains(new Allowed(toolName, folder))) {
             return true;
         }

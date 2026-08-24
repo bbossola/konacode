@@ -1,5 +1,7 @@
 package dev.konacode.cli;
 
+import dev.konacode.agent.ToolApproval;
+import dev.konacode.policy.Decision;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.ToolFinished;
 import org.jline.reader.EndOfFileException;
@@ -18,6 +20,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -231,5 +234,14 @@ class RichUiTest {
 
         assertEquals(List.of("stop"), spinner.calls);
         assertEquals(List.of(), watcher.calls);
+    }
+
+    // Task 5 flips this to a real question. Writing the test now is deliberate: it must fail on
+    // the day this refuses less, not the day someone remembers to check.
+    @Test
+    void itCannotAskSoItRefuses() {
+        assertEquals(ToolApproval.Answer.NO,
+                ui().ask("edit_file", new Decision.Ask("write outside this project",
+                        "/etc/hosts", Path.of("/etc"))));
     }
 }

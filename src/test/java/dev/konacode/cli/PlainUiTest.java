@@ -1,5 +1,7 @@
 package dev.konacode.cli;
 
+import dev.konacode.agent.ToolApproval;
+import dev.konacode.policy.Decision;
 import dev.konacode.trace.Level;
 import dev.konacode.trace.TraceEvent.Outcome;
 import dev.konacode.trace.TraceEvent.ToolCalled;
@@ -12,6 +14,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -105,5 +108,12 @@ class PlainUiTest {
         ui("").emit(new ToolCalled(1, "read_file", "{}"));
 
         assertTrue(written().contains("tool: read_file({})"), written());
+    }
+
+    @Test
+    void itCannotAskSoItRefuses() {
+        assertEquals(ToolApproval.Answer.NO,
+                ui("").ask("edit_file", new Decision.Ask("write outside this project",
+                        "/etc/hosts", Path.of("/etc"))));
     }
 }

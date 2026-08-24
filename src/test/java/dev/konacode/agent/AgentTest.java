@@ -22,6 +22,7 @@ import dev.konacode.trace.TraceEvent.Outcome;
 import dev.konacode.trace.TraceEvent.TurnStarted;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -375,7 +376,7 @@ class AgentTest {
                 .findFirst()
                 .orElseThrow();
         assertEquals("<error> konacode did not get approval for echo to "
-                + "read outside this project.", result.content());
+                + "read outside this project: /etc/passwd.", result.content());
     }
 
     @Test
@@ -391,6 +392,24 @@ class AgentTest {
                 trace, 8).respond("do it");
 
         assertEquals(0, echo.calls(), "a refused call must not run");
+    }
+
+    @Test
+    void anApprovedAskRunsTheTool() {
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("1", "echo", "{}"))))
+                .replyText("done");
+        EchoTool echo = new EchoTool("echo");
+        Agent agent = new Agent(client, ToolRegistry.of(echo),
+                (tool, args) -> Decision.ask("write outside this project", "/etc/hosts",
+                        Path.of("/etc")),
+                new Approvals((toolName, ask) -> ToolApproval.Answer.YES),
+                new Conversation(new SystemMessage("You are konacode.")), new RecordingTrace(),
+                new Cancellation(), 8);
+
+        agent.respond("do it");
+
+        assertEquals(1, echo.calls(), "an approved call must run");
     }
 
     @Test

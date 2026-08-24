@@ -11,8 +11,20 @@ import dev.konacode.policy.Decision;
  */
 public interface ToolApproval {
 
-    enum Answer { YES, NO, ALWAYS }
+    enum Answer {
+        /** Runs this one call. */
+        YES,
+        /** Refuses this one call. */
+        NO,
+        /** Runs this call, and every later call the same tool makes inside the same folder. */
+        ALWAYS
+    }
 
-    /** {@code ALWAYS} is offered only when {@code ask.alwaysFolder()} is not null. */
+    /**
+     * @param toolName the tool the model wants to call
+     * @param ask what the policy needs decided. A caller that draws the question should offer
+     *     {@code ALWAYS} only when {@code ask.alwaysFolder()} is not null. An {@code ALWAYS} with
+     *     a null folder is legal, and it approves this call only.
+     */
     Answer ask(String toolName, Decision.Ask ask);
 }

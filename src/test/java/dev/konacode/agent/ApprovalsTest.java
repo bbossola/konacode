@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ApprovalsTest {
 
-    /** Answers from a script, and records every question. */
+    /** Answers from a script, and records every question. An empty script is a test bug. */
     private static final class ScriptedApproval implements ToolApproval {
         private final List<Answer> answers = new ArrayList<>();
         final List<String> asked = new ArrayList<>();
@@ -26,7 +26,12 @@ class ApprovalsTest {
         @Override
         public Answer ask(String toolName, Decision.Ask ask) {
             asked.add(toolName + " " + ask.subject());
-            return answers.isEmpty() ? Answer.NO : answers.remove(0);
+            if (answers.isEmpty()) {
+                throw new AssertionError(
+                        "asked a question the script did not expect: " + toolName + " "
+                                + ask.subject());
+            }
+            return answers.remove(0);
         }
     }
 
@@ -99,5 +104,18 @@ class ApprovalsTest {
 
         assertFalse(approvals.approve("run_command", noFolder));
         assertEquals(2, ui.asked.size());
+    }
+
+    @Test
+    void twoSpellingsOfOneFolderAreOneMemory() {
+        ScriptedApproval ui = new ScriptedApproval(ToolApproval.Answer.ALWAYS);
+        Approvals approvals = new Approvals(ui);
+
+        approvals.approve("edit_file", askAbout("/notes/a.txt"));
+
+        assertTrue(approvals.approve("edit_file",
+                new Decision.Ask("write outside this project", "/notes/./b.txt",
+                        Path.of("/notes/./"))));
+        assertEquals(1, ui.asked.size());
     }
 }
