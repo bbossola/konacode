@@ -28,7 +28,7 @@ class EditFileTest {
 
     @BeforeEach
     void setUp() {
-        tool = new EditFile(new Workspace(root));
+        tool = new EditFile(new Workspace(root), StopCheck.NEVER);
     }
 
     private static JsonNode args(String path, String oldStr, String newStr) {
@@ -172,6 +172,32 @@ class EditFileTest {
 
         assertInstanceOf(ToolResult.Err.class, result);
         assertArrayEquals(original, Files.readAllBytes(file));
+    }
+
+    @Test
+    void stopsBeforeTheWriteAndLeavesTheFileUnchanged() throws IOException {
+        Path file = root.resolve("notes.txt");
+        Files.writeString(file, "one two three", StandardCharsets.UTF_8);
+        EditFile stopping = new EditFile(new Workspace(root), () -> true);
+
+        ToolResult result = stopping.execute(args("notes.txt", "two", "TWO"));
+
+        ToolResult.Err error = assertInstanceOf(ToolResult.Err.class, result);
+        assertEquals("Stopped by the user before the write. The file was not changed.",
+                error.message());
+        assertEquals("one two three", Files.readString(file));
+    }
+
+    @Test
+    void stopsBeforeCreatingAFile() {
+        EditFile stopping = new EditFile(new Workspace(root), () -> true);
+
+        ToolResult result = stopping.execute(args("new.txt", "", "content"));
+
+        ToolResult.Err error = assertInstanceOf(ToolResult.Err.class, result);
+        assertEquals("Stopped by the user before the write. The file was not changed.",
+                error.message());
+        assertFalse(Files.exists(root.resolve("new.txt")));
     }
 
     @Test
