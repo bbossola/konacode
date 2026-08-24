@@ -306,4 +306,45 @@ class WorkspaceTest {
 
         assertEquals(Optional.empty(), workspace.tryResolve(""));
     }
+
+    @Test
+    void aWriteIsJudgedWhereTheEntrySits() throws IOException {
+        Path inside = Files.writeString(root.resolve("real.txt"), "hello");
+        Path link = Files.createSymbolicLink(outside.resolve("link.txt"), inside);
+        Workspace workspace = new Workspace(root);
+
+        try {
+            assertTrue(workspace.insideRoot(link), "the target is inside");
+            assertFalse(workspace.writable(link), "the entry the write replaces is outside");
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void aLinkInsideTheRootIsWritable() throws IOException {
+        Path target = Files.writeString(outside.resolve("target.txt"), "x");
+        Path link = Files.createSymbolicLink(root.resolve("link.txt"), target);
+        Workspace workspace = new Workspace(root);
+
+        try {
+            assertFalse(workspace.insideRoot(link), "the target is outside");
+            assertTrue(workspace.writable(link), "delete removes the link, which is inside");
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void aWriteUnderALinkedFolderIsJudgedInTheRealFolder() throws IOException {
+        Path elsewhere = Files.createDirectories(outside.resolve("elsewhere"));
+        Path folder = Files.createSymbolicLink(root.resolve("linked"), elsewhere);
+        Workspace workspace = new Workspace(root);
+
+        try {
+            assertFalse(workspace.writable(folder.resolve("new.txt")));
+        } finally {
+            Files.delete(folder);
+        }
+    }
 }

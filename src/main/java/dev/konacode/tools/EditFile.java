@@ -98,7 +98,7 @@ public final class EditFile implements Tool {
             return Effect.WRITES_OUTSIDE;
         }
         return workspace.tryResolve(pathNode.asText())
-                .filter(workspace::insideRoot)
+                .filter(workspace::writable)
                 .map(path -> Effect.WRITES_INSIDE)
                 .orElse(Effect.WRITES_OUTSIDE);
     }

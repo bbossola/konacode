@@ -121,6 +121,31 @@ public final class Workspace {
         return false;
     }
 
+    /**
+     * True when a write to this path stays inside the launch directory.
+     *
+     * <p>A write replaces the entry itself: {@code writeAtomic} moves a new file onto the path, and
+     * {@code delete} removes a link and never its target. So the place the entry sits decides, and
+     * not the file a link points to. The folders above the entry are resolved, because the write
+     * lands in the real folder.
+     */
+    public boolean writable(Path path) {
+        Path entry = entry(path);
+        Path realRoot = real(root);
+        return entry != null && realRoot != null && entry.startsWith(realRoot);
+    }
+
+    /** The place the entry sits: the folders above it resolved, and the entry left as written. */
+    private static Path entry(Path path) {
+        Path absolute = path.toAbsolutePath().normalize();
+        Path parent = absolute.getParent();
+        if (parent == null) {
+            return absolute;
+        }
+        Path realParent = real(parent);
+        return realParent == null ? null : realParent.resolve(absolute.getFileName());
+    }
+
     private static boolean under(Path folder, Path path) {
         Path resolvedPath = real(path);
         Path resolvedFolder = real(folder);

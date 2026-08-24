@@ -27,6 +27,9 @@ public interface Tool {
     /**
      * What this call does. Abstract and never a default, so a new tool must answer it, the way
      * {@link #stopsOnInterrupt()} already does.
+     *
+     * <p>The answer must name the file that {@link #execute} will touch. A tool that cannot name
+     * that file answers the {@code OUTSIDE} value of its kind, and konacode then asks the user.
      */
     Effect effect(JsonNode args);
 }

@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -42,9 +44,15 @@ class EffectTest {
     }
 
     @Test
-    void listFilesReadsOutsideForAPathAboveTheRoot() {
+    void listFilesReadsOutsideForASiblingFolder() {
         assertEquals(Effect.READS_OUTSIDE,
                 new ListFiles(workspace(), StopCheck.NEVER).effect(path(outside.toString())));
+    }
+
+    @Test
+    void listFilesReadsInsideForABlankPath() {
+        assertEquals(Effect.READS_INSIDE,
+                new ListFiles(workspace(), StopCheck.NEVER).effect(path("   ")));
     }
 
     @Test
@@ -97,6 +105,12 @@ class EffectTest {
     }
 
     @Test
+    void deleteFileWithNoPathWritesOutside() {
+        assertEquals(Effect.WRITES_OUTSIDE,
+                new DeleteFile(workspace()).effect(MAPPER.createObjectNode()));
+    }
+
+    @Test
     void aReadableFolderReadsInsideAndWritesOutside() {
         Path skills = outside.resolve("skills");
         Workspace workspace = new Workspace(root, List.of(skills));
@@ -104,8 +118,12 @@ class EffectTest {
 
         assertEquals(Effect.READS_INSIDE,
                 new ReadFile(workspace, StopCheck.NEVER).effect(path(file)));
+        assertEquals(Effect.READS_INSIDE,
+                new ListFiles(workspace, StopCheck.NEVER).effect(path(skills.toString())));
         assertEquals(Effect.WRITES_OUTSIDE,
                 new EditFile(workspace, StopCheck.NEVER).effect(path(file)));
+        assertEquals(Effect.WRITES_OUTSIDE,
+                new DeleteFile(workspace).effect(path(file)));
     }
 
     @Test
@@ -116,5 +134,28 @@ class EffectTest {
                 new ReadFile(workspace(), StopCheck.NEVER).effect(path(withNul)));
         assertEquals(Effect.WRITES_OUTSIDE,
                 new EditFile(workspace(), StopCheck.NEVER).effect(path(withNul)));
+    }
+
+    @Test
+    void aPathAboveTheRootIsOutsideForEveryTool() {
+        assertEquals(Effect.READS_OUTSIDE,
+                new ReadFile(workspace(), StopCheck.NEVER).effect(path("../secret.txt")));
+        assertEquals(Effect.WRITES_OUTSIDE,
+                new EditFile(workspace(), StopCheck.NEVER).effect(path("../secret.txt")));
+    }
+
+    @Test
+    void aWriteThroughALinkIntoTheRootAsks() throws IOException {
+        Path inside = Files.writeString(root.resolve("real.txt"), "hello");
+        Path link = Files.createSymbolicLink(outside.resolve("link.txt"), inside);
+
+        try {
+            assertEquals(Effect.WRITES_OUTSIDE,
+                    new EditFile(workspace(), StopCheck.NEVER).effect(path(link.toString())));
+            assertEquals(Effect.WRITES_OUTSIDE,
+                    new DeleteFile(workspace()).effect(path(link.toString())));
+        } finally {
+            Files.delete(link);
+        }
     }
 }
