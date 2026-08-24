@@ -15,6 +15,13 @@ import dev.konacode.policy.ToolPolicy;
 import dev.konacode.tools.Tool;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.ToolResult;
+import dev.konacode.trace.Trace;
+import dev.konacode.trace.TraceEvent.IterationStarted;
+import dev.konacode.trace.TraceEvent.Outcome;
+import dev.konacode.trace.TraceEvent.ToolCalled;
+import dev.konacode.trace.TraceEvent.ToolFinished;
+import dev.konacode.trace.TraceEvent.TurnEnded;
+import dev.konacode.trace.TraceEvent.TurnStarted;
 
 import java.util.List;
 import java.util.Objects;
@@ -37,22 +44,23 @@ public final class Agent {
     private final ToolRegistry registry;
     private final ToolPolicy policy;
     private final Conversation conversation;
-    private final ToolCallListener listener;
+    private final Trace trace;
     private final Cancellation cancellation;
     private final int maxIterations;
+    private int turn;
 
     public Agent(LlmClient client,
                  ToolRegistry registry,
                  ToolPolicy policy,
                  Conversation conversation,
-                 ToolCallListener listener,
+                 Trace trace,
                  Cancellation cancellation,
                  int maxIterations) {
         this.client = Objects.requireNonNull(client, "client");
         this.registry = Objects.requireNonNull(registry, "registry");
         this.policy = Objects.requireNonNull(policy, "policy");
         this.conversation = Objects.requireNonNull(conversation, "conversation");
-        this.listener = Objects.requireNonNull(listener, "listener");
+        this.trace = Objects.requireNonNull(trace, "trace");
         this.cancellation = Objects.requireNonNull(cancellation, "cancellation");
         if (maxIterations < 1) {
             throw new IllegalArgumentException("maxIterations must be at least 1.");
@@ -82,10 +90,16 @@ public final class Agent {
 
     public String respond(String userText) {
         cancellation.clear();
+        turn++;
+        long started = System.nanoTime();
+        trace.emit(new TurnStarted(turn, userText));
         conversation.add(new UserMessage(userText));
         List<ToolSpec> tools = ToolSpecs.from(registry);
+        int iterations = 0;
         try {
             for (int iteration = 0; iteration < maxIterations; iteration++) {
+                iterations = iteration + 1;
+                trace.emit(new IterationStarted(turn, iterations, maxIterations));
                 AssistantMessage reply = chat(tools);
 
                 // Before running anything: providers reject a tool result whose originating
@@ -93,13 +107,14 @@ public final class Agent {
                 conversation.add(reply);
 
                 if (!reply.hasToolCalls()) {
-                    return reply.text();
+                    return end(Outcome.ANSWERED, iterations, started, reply.text());
                 }
 
                 List<ToolCall> calls = reply.toolCalls();
                 for (int index = 0; index < calls.size(); index++) {
                     if (cancellation.stopped()) {
-                        return closeStoppedTurn(calls.subList(index, calls.size()));
+                        return end(Outcome.STOPPED, iterations, started,
+                                closeStoppedTurn(calls.subList(index, calls.size())));
                     }
                     ToolCall call = calls.get(index);
                     ToolResult result = perform(call);
@@ -107,16 +122,27 @@ public final class Agent {
                 }
 
                 if (cancellation.stopped()) {
-                    return closeStoppedTurn(List.of());
+                    return end(Outcome.STOPPED, iterations, started, closeStoppedTurn(List.of()));
                 }
             }
-            return fail("<error> Exceeded maximum tool iterations.");
+            return end(Outcome.EXHAUSTED, iterations, started,
+                    fail("<error> Exceeded maximum tool iterations."));
         } catch (LlmException e) {
             if (cancellation.stopped()) {
-                return closeStoppedTurn(List.of());
+                return end(Outcome.STOPPED, iterations, started, closeStoppedTurn(List.of()));
             }
-            return fail("<error> " + e.getMessage());
+            return end(Outcome.FAILED, iterations, started, fail("<error> " + e.getMessage()));
         }
+    }
+
+    /** Reports how the turn finished, and gives back the answer unchanged. */
+    private String end(Outcome outcome, int iterations, long started, String answer) {
+        trace.emit(new TurnEnded(turn, outcome, iterations, millisSince(started)));
+        return answer;
+    }
+
+    private static long millisSince(long startedNanos) {
+        return (System.nanoTime() - startedNanos) / 1_000_000;
     }
 
     /**
@@ -162,9 +188,18 @@ public final class Agent {
     }
 
     private ToolResult perform(ToolCall call) {
-        listener.onToolCall(call.name(), call.argumentsJson());
+        trace.emit(new ToolCalled(turn, call.name(), call.argumentsJson()));
+        long started = System.nanoTime();
         ToolResult result = run(call);
-        listener.onToolResult(call.name(), result);
+        long millis = millisSince(started);
+        // One switch derives both facts. A third result would then be a compile error here, and
+        // never a report that quietly says the tool failed.
+        trace.emit(switch (result) {
+            case ToolResult.Ok ok ->
+                    new ToolFinished(turn, call.name(), true, ok.text(), millis);
+            case ToolResult.Err err ->
+                    new ToolFinished(turn, call.name(), false, err.message(), millis);
+        });
         return result;
     }
 

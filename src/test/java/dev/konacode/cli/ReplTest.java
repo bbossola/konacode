@@ -14,6 +14,7 @@ import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
 import dev.konacode.tools.ListFiles;
 import dev.konacode.tools.StopCheck;
+import dev.konacode.trace.Level;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -37,7 +38,8 @@ class ReplTest {
         SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
         Agent agent = new Agent(client, registry, new AllowAllPolicy(), conversation, ui,
                 new Cancellation(), 8);
-        return new Repl(agent, ui, new Commands(conversation, SYSTEM, registry, skills, ui));
+        return new Repl(agent, ui,
+                new Commands(conversation, SYSTEM, registry, skills, ui, Level.OFF));
     }
 
     @Test

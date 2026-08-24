@@ -7,6 +7,11 @@ import dev.konacode.llm.LlmException;
 import dev.konacode.llm.Message;
 import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.ToolSpec;
+import dev.konacode.trace.Trace;
+import dev.konacode.trace.TraceEvent.ReplyReceived;
+import dev.konacode.trace.TraceEvent.RequestSent;
+import dev.konacode.trace.TraceEvent.RetryRequested;
+import dev.konacode.trace.TraceEvent.TokensUsed;
 
 import java.io.IOException;
 import java.net.http.HttpClient;
@@ -27,17 +32,21 @@ public final class OpenAiClient implements LlmClient {
     private final OpenAiConfig config;
     private final HttpClient http;
     private final ChatCompletionsCodec codec;
+    private final Trace trace;
 
-    public OpenAiClient(OpenAiConfig config) {
+    public OpenAiClient(OpenAiConfig config, Trace trace) {
         this(config,
                 HttpClient.newBuilder().connectTimeout(config.timeout()).build(),
-                new ChatCompletionsCodec(new ObjectMapper()));
+                new ChatCompletionsCodec(new ObjectMapper()),
+                trace);
     }
 
-    public OpenAiClient(OpenAiConfig config, HttpClient http, ChatCompletionsCodec codec) {
+    public OpenAiClient(OpenAiConfig config, HttpClient http, ChatCompletionsCodec codec,
+                        Trace trace) {
         this.config = config;
         this.http = http;
         this.codec = codec;
+        this.trace = trace;
     }
 
     @Override
@@ -45,7 +54,8 @@ public final class OpenAiClient implements LlmClient {
         ObjectNode body = codec.encodeRequest(config.model(), history, tools);
         ReplyValidator validator = ReplyValidator.create(config.model(), tools);
 
-        return sendUntilAccepted(validator, () -> sendOnce(body));
+        return sendUntilAccepted(validator,
+                () -> sendOnce(body, history.size(), tools.size()), trace);
     }
 
     /**
@@ -57,15 +67,16 @@ public final class OpenAiClient implements LlmClient {
      * unconditionally once its budget is spent.
      */
     static AssistantMessage sendUntilAccepted(
-            ReplyValidator validator, Supplier<AssistantMessage> send) {
+            ReplyValidator validator, Supplier<AssistantMessage> send, Trace trace) {
         AssistantMessage reply = send.get();
         while (!validator.accepts(reply)) {
+            trace.emit(new RetryRequested("The reply carried a tool call written as prose."));
             reply = send.get();
         }
         return reply;
     }
 
-    private AssistantMessage sendOnce(ObjectNode body) {
+    private AssistantMessage sendOnce(ObjectNode body, int messageCount, int toolCount) {
         HttpRequest request;
         try {
             request = HttpRequest.newBuilder(config.chatCompletionsUri())
@@ -81,6 +92,11 @@ public final class OpenAiClient implements LlmClient {
             throw new LlmException("Could not build the request: " + e.getMessage(), e);
         }
 
+        // The body and never the headers. The API key is a header, so it cannot reach a sink.
+        trace.emit(new RequestSent(config.chatCompletionsUri().toString(), config.model(),
+                messageCount, toolCount, body.toString()));
+
+        long started = System.nanoTime();
         HttpResponse<String> response;
         try {
             response = http.send(request,
@@ -92,11 +108,16 @@ public final class OpenAiClient implements LlmClient {
             Thread.currentThread().interrupt();
             throw new LlmException("Request was interrupted.", e);
         }
+        trace.emit(new ReplyReceived(response.statusCode(),
+                (System.nanoTime() - started) / 1_000_000, response.body()));
 
         if (response.statusCode() / 100 != 2) {
             throw new LlmException(
                     "HTTP " + response.statusCode() + ": " + truncate(response.body()));
         }
+
+        codec.decodeUsage(response.body()).ifPresent(usage ->
+                trace.emit(new TokensUsed(usage.prompt(), usage.completion(), usage.total())));
 
         return codec.decodeResponse(response.body());
     }

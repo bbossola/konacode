@@ -9,24 +9,32 @@ import dev.konacode.skills.SkillException;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.Tool;
 import dev.konacode.tools.ToolRegistry;
+import dev.konacode.trace.Level;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 final class Commands {
+
+    /** The commands that read a word after the name. Every other one refuses it. */
+    private static final Set<String> TAKES_AN_ARGUMENT = Set.of("/skill", "/trace");
 
     private final Conversation conversation;
     private final Message systemMessage;
     private final ToolRegistry registry;
     private final SkillRegistry skills;
     private final Ui ui;
+    private final Level fileLevel;
 
     Commands(Conversation conversation, Message systemMessage, ToolRegistry registry,
-             SkillRegistry skills, Ui ui) {
+             SkillRegistry skills, Ui ui, Level fileLevel) {
         this.conversation = conversation;
         this.systemMessage = systemMessage;
         this.registry = registry;
         this.skills = skills;
         this.ui = ui;
+        this.fileLevel = fileLevel;
     }
 
     boolean handles(String line) {
@@ -35,13 +43,12 @@ final class Commands {
 
     /** Returns false when the session must end. */
     boolean run(String line) {
-        String trimmed = line.trim();
-        String[] parts = trimmed.split("\\s+", 2);
+        String[] parts = line.trim().split("\\s+", 2);
         String command = parts[0];
-        String argument = parts.length > 1 ? parts[1] : "";
+        String argument = parts.length > 1 ? parts[1].trim() : "";
 
         // A word after a command that takes none stays an unknown command, as it was before.
-        if (!argument.isEmpty() && !command.equals("/skill")) {
+        if (!argument.isEmpty() && !TAKES_AN_ARGUMENT.contains(command)) {
             unknown(line);
             return true;
         }
@@ -51,6 +58,7 @@ final class Commands {
             case "/tools" -> tools();
             case "/skill" -> skill(argument);
             case "/clear" -> clear();
+            case "/trace" -> trace(argument);
             case "/exit" -> {
                 return false;
             }
@@ -70,9 +78,25 @@ final class Commands {
                 /help    show this list
                 /tools   show the tools the model can call
                 /skill   show the skills, or load one by name
+                /trace   show or set how much the screen reports
                 /clear   forget the conversation and start again
                 /exit    end the session
                 ```""");
+    }
+
+    private void trace(String argument) {
+        if (argument.isEmpty()) {
+            ui.showAnswer("The screen shows `" + ui.liveTrace().label()
+                    + "`. The file records `" + fileLevel.label() + "`.");
+            return;
+        }
+        Optional<Level> level = Level.parse(argument);
+        if (level.isEmpty()) {
+            ui.showError("Unknown level: " + argument + ". Use off, basic or full.");
+            return;
+        }
+        ui.liveTrace(level.get());
+        ui.showAnswer("The screen now shows `" + level.get().label() + "`.");
     }
 
     private void tools() {

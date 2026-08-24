@@ -1,6 +1,10 @@
 package dev.konacode.cli;
 
-import dev.konacode.tools.ToolResult;
+import dev.konacode.trace.Level;
+import dev.konacode.trace.TraceEvent.Outcome;
+import dev.konacode.trace.TraceEvent.ToolCalled;
+import dev.konacode.trace.TraceEvent.ToolFinished;
+import dev.konacode.trace.TraceEvent.TurnEnded;
 import org.junit.jupiter.api.Test;
 
 import java.io.BufferedReader;
@@ -53,14 +57,14 @@ class PlainUiTest {
 
     @Test
     void printsOneLineForEachToolCall() {
-        ui("").onToolCall("read_file", "{\"path\":\"pom.xml\"}");
+        ui("").emit(new ToolCalled(1, "read_file", "{\"path\":\"pom.xml\"}"));
 
         assertEquals("tool: read_file({\"path\":\"pom.xml\"})" + System.lineSeparator(), written());
     }
 
     @Test
     void printsNothingForAToolResult() {
-        ui("").onToolResult("read_file", ToolResult.ok("content"));
+        ui("").emit(new ToolFinished(1, "read_file", true, "content", 5));
 
         assertEquals("", written());
     }
@@ -77,5 +81,29 @@ class PlainUiTest {
         ui("").showAnswer("# not a heading");
 
         assertTrue(Ansi.strip(written()).contains("# not a heading"), written());
+    }
+
+    @Test
+    void showsNoTraceEventWhenTheScreenIsOff() {
+        ui("").emit(new TurnEnded(1, Outcome.ANSWERED, 2, 30));
+
+        assertEquals("", written());
+    }
+
+    @Test
+    void showsATraceEventWhenTheScreenIsOn() {
+        PlainUi ui = ui("");
+        ui.liveTrace(Level.BASIC);
+
+        ui.emit(new TurnEnded(1, Outcome.ANSWERED, 2, 30));
+
+        assertTrue(written().contains("ANSWERED"), written());
+    }
+
+    @Test
+    void alwaysShowsTheToolCall() {
+        ui("").emit(new ToolCalled(1, "read_file", "{}"));
+
+        assertTrue(written().contains("tool: read_file({})"), written());
     }
 }

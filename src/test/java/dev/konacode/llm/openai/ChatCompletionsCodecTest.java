@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -139,5 +140,25 @@ class ChatCompletionsCodecTest {
         LlmException thrown = assertThrows(LlmException.class, () -> codec.decodeResponse(body));
 
         assertTrue(thrown.getMessage().contains("no id"), thrown.getMessage());
+    }
+
+    @Test
+    void readsTheTokenCounts() {
+        String body = """
+                {"choices":[{"message":{"content":"hi"}}],
+                 "usage":{"prompt_tokens":11,"completion_tokens":22,"total_tokens":33}}""";
+
+        assertEquals(Optional.of(new Usage(11, 22, 33)), codec.decodeUsage(body));
+    }
+
+    @Test
+    void reportsNoTokenCountsWhenTheReplyHasNone() {
+        assertEquals(Optional.empty(),
+                codec.decodeUsage("{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}"));
+    }
+
+    @Test
+    void reportsNoTokenCountsForABodyThatIsNotJson() {
+        assertEquals(Optional.empty(), codec.decodeUsage("not json"));
     }
 }
