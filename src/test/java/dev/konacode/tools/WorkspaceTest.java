@@ -24,6 +24,9 @@ class WorkspaceTest {
     @TempDir
     Path root;
 
+    @TempDir
+    Path outside;
+
     @Test
     void resolvesRelativePathsAgainstTheRoot() {
         Workspace workspace = new Workspace(root);
@@ -220,13 +223,13 @@ class WorkspaceTest {
     void aPathAboveTheRootIsOutside() {
         Workspace workspace = new Workspace(root);
 
-        assertFalse(workspace.insideRoot(root.getParent().resolve("elsewhere.txt")));
-        assertFalse(workspace.readable(root.getParent().resolve("elsewhere.txt")));
+        assertFalse(workspace.insideRoot(outside.resolve("elsewhere.txt")));
+        assertFalse(workspace.readable(outside.resolve("elsewhere.txt")));
     }
 
     @Test
     void aReadableFolderIsReadableAndNotInside() throws IOException {
-        Path skills = Files.createDirectories(root.getParent().resolve("skills"));
+        Path skills = Files.createDirectories(outside.resolve("skills"));
         Workspace workspace = new Workspace(root, List.of(skills));
 
         assertTrue(workspace.readable(skills.resolve("one/SKILL.md")));
@@ -235,8 +238,8 @@ class WorkspaceTest {
 
     @Test
     void aLinkThatLeavesTheRootIsOutside() throws IOException {
-        Path outside = Files.createDirectories(root.getParent().resolve("outside"));
-        Files.createSymbolicLink(root.resolve("escape"), outside);
+        Path target = Files.createDirectories(outside.resolve("target"));
+        Files.createSymbolicLink(root.resolve("escape"), target);
         Workspace workspace = new Workspace(root);
 
         assertFalse(workspace.insideRoot(root.resolve("escape/secret.txt")));
@@ -247,7 +250,7 @@ class WorkspaceTest {
         Workspace workspace = new Workspace(root);
 
         assertTrue(workspace.insideRoot(root.resolve("new/deep/file.txt")));
-        assertFalse(workspace.insideRoot(root.getParent().resolve("new/deep/file.txt")));
+        assertFalse(workspace.insideRoot(outside.resolve("new/deep/file.txt")));
     }
 
     @Test
