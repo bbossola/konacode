@@ -108,7 +108,41 @@ class FrontMatterTest {
 
         IllegalArgumentException e =
                 assertThrows(IllegalArgumentException.class, () -> FrontMatter.parse(text));
+        assertTrue(e.getMessage().contains("folded"), e.getMessage());
+    }
+
+    @Test
+    void reportsAValueFoldedWithAPipe() {
+        String text = "---\nname: commit\ndescription: |\n  Use it.\n---\nbody\n";
+
+        IllegalArgumentException e =
+                assertThrows(IllegalArgumentException.class, () -> FrontMatter.parse(text));
+        assertTrue(e.getMessage().contains("folded"), e.getMessage());
+    }
+
+    @Test
+    void reportsASingleQuotedValue() {
+        String text = "---\nname: commit\ndescription: 'Use it.'\n---\nbody\n";
+
+        IllegalArgumentException e =
+                assertThrows(IllegalArgumentException.class, () -> FrontMatter.parse(text));
+        assertTrue(e.getMessage().contains("quot"), e.getMessage());
+    }
+
+    @Test
+    void reportsAContinuationLineThatHoldsAColon() {
+        String text = "---\nname: commit\ndescription: See the guide at\n  https://example.com/x\n---\nbody\n";
+
+        IllegalArgumentException e =
+                assertThrows(IllegalArgumentException.class, () -> FrontMatter.parse(text));
         assertTrue(e.getMessage().contains("one line"), e.getMessage());
+    }
+
+    @Test
+    void allowsABlankLineInsideTheHeader() {
+        String text = "---\nname: commit\n\ndescription: Use it.\n---\nbody\n";
+
+        assertEquals("Use it.", FrontMatter.parse(text).description());
     }
 
     @Test

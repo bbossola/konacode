@@ -19,8 +19,8 @@ record FrontMatter(String name, String description, String body) {
             throw new IllegalArgumentException("The file must start with a " + MARKER + " marker.");
         }
 
-        // The closing marker is found before any key is read. A file with no closing marker then
-        // reports the marker, and not the first line of the body that is not a key.
+        // konacode finds the closing marker first, so a file with no closing marker reports the
+        // marker, and not the first line of the body that is not a key.
         int close = 1;
         while (close < lines.size() && !lines.get(close).strip().equals(MARKER)) {
             close++;
@@ -35,6 +35,10 @@ record FrontMatter(String name, String description, String body) {
             String line = lines.get(index);
             if (line.isBlank()) {
                 continue;
+            }
+            if (Character.isWhitespace(line.charAt(0))) {
+                throw new IllegalArgumentException("The header line \"" + line.strip()
+                        + "\" is indented. Write each key and its value on one line.");
             }
             int colon = line.indexOf(':');
             if (colon <= 0) {
@@ -61,10 +65,6 @@ record FrontMatter(String name, String description, String body) {
                 String.join("\n", lines.subList(close + 1, lines.size())));
     }
 
-    /**
-     * konacode reads a value that is on one line and is not quoted. A quoted value and a folded
-     * value are YAML features. konacode reports them rather than read them wrongly.
-     */
     private static String readable(String key, String value) {
         if (value.isEmpty()) {
             throw new IllegalArgumentException("The value of " + key + " is empty.");
