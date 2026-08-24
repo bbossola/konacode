@@ -196,10 +196,28 @@ public final class Agent {
         }
 
         try {
-            return tool.execute(args);
+            return execute(tool, args);
         } catch (RuntimeException e) {
             // A misbehaving tool must not kill the session.
             return ToolResult.err("Tool " + call.name() + " failed: " + e);
+        }
+    }
+
+    /**
+     * Arms the interrupt only for a tool that says an interrupt is safe for it.
+     *
+     * <p>A tool that says nothing is never interrupted. Arming every tool would rest the safety
+     * of the loop on every tool author writing correct cleanup, for ever.
+     */
+    private ToolResult execute(Tool tool, JsonNode args) {
+        if (!tool.stopsOnInterrupt()) {
+            return tool.execute(args);
+        }
+        cancellation.arm();
+        try {
+            return tool.execute(args);
+        } finally {
+            cancellation.disarm();
         }
     }
 

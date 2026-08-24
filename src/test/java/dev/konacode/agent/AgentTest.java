@@ -75,6 +75,45 @@ class AgentTest {
         }
     }
 
+    /** Declares that an interrupt is safe, and records whether the loop delivered one. */
+    private static final class InterruptibleTool implements Tool {
+        private final Cancellation cancellation;
+        private final boolean declares;
+        boolean sawInterrupt;
+
+        InterruptibleTool(Cancellation cancellation, boolean declares) {
+            this.cancellation = cancellation;
+            this.declares = declares;
+        }
+
+        @Override
+        public String name() {
+            return "blocking";
+        }
+
+        @Override
+        public String description() {
+            return "Waits.";
+        }
+
+        @Override
+        public ObjectNode inputSchema() {
+            return Schemas.object().build();
+        }
+
+        @Override
+        public ToolResult execute(JsonNode args) {
+            cancellation.request();
+            sawInterrupt = Thread.currentThread().isInterrupted();
+            return ToolResult.err("Stopped by the user. Nothing was changed.");
+        }
+
+        @Override
+        public boolean stopsOnInterrupt() {
+            return declares;
+        }
+    }
+
     private record ExplodingTool(String name) implements Tool {
         @Override
         public String description() {
@@ -496,5 +535,36 @@ class AgentTest {
         agent.respond("hello");
 
         assertFalse(Thread.interrupted(), "disarm must clear the interrupt status");
+    }
+
+    @Test
+    void armsAroundAToolThatStopsOnInterrupt() {
+        Cancellation cancellation = new Cancellation();
+        InterruptibleTool tool = new InterruptibleTool(cancellation, true);
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("c1", "blocking", "{}"))));
+        Agent agent = new Agent(client, ToolRegistry.of(tool), new AllowAllPolicy(),
+                new Conversation(new SystemMessage("You are konacode.")),
+                new RecordingToolCallListener(), cancellation, 8);
+
+        agent.respond("fetch it");
+
+        assertTrue(tool.sawInterrupt, "a tool that declares stopsOnInterrupt must be armed");
+        assertFalse(Thread.interrupted(), "disarm must clear the interrupt status");
+    }
+
+    @Test
+    void doesNotArmAroundAToolThatDoesNotStopOnInterrupt() {
+        Cancellation cancellation = new Cancellation();
+        InterruptibleTool tool = new InterruptibleTool(cancellation, false);
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("c1", "blocking", "{}"))));
+        Agent agent = new Agent(client, ToolRegistry.of(tool), new AllowAllPolicy(),
+                new Conversation(new SystemMessage("You are konacode.")),
+                new RecordingToolCallListener(), cancellation, 8);
+
+        agent.respond("fetch it");
+
+        assertFalse(tool.sawInterrupt, "a tool that does not declare it must never be interrupted");
     }
 }
