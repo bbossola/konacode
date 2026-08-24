@@ -122,6 +122,18 @@ public final class Workspace {
     }
 
     /**
+     * The folder that holds this path, with the links above it resolved. Empty when konacode
+     * cannot resolve it.
+     *
+     * <p>An approval is remembered against this folder, so two paths that name one folder through
+     * different links must give one answer.
+     */
+    public Optional<Path> folderOf(Path path) {
+        Path parent = path.toAbsolutePath().normalize().getParent();
+        return parent == null ? Optional.empty() : Optional.ofNullable(real(parent));
+    }
+
+    /**
      * True when a write to this path stays inside the launch directory.
      *
      * <p>A write replaces the entry itself: {@code writeAtomic} moves a new file onto the path, and

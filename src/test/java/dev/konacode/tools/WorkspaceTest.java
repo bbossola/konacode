@@ -375,4 +375,40 @@ class WorkspaceTest {
             Files.delete(root.resolve("b"));
         }
     }
+
+    @Test
+    void twoPathsInOneFolderGiveOneFolder() throws IOException {
+        Files.createDirectories(root.resolve("src"));
+        Workspace workspace = new Workspace(root);
+
+        assertEquals(workspace.folderOf(root.resolve("src/A.java")),
+                workspace.folderOf(root.resolve("src/B.java")));
+    }
+
+    @Test
+    void aFolderReachedThroughALinkIsOneFolder() throws IOException {
+        Path real = Files.createDirectories(outside.resolve("shared"));
+        Path link = Files.createSymbolicLink(root.resolve("alias"), real);
+
+        try {
+            Workspace workspace = new Workspace(root);
+
+            assertEquals(workspace.folderOf(real.resolve("a.txt")),
+                    workspace.folderOf(link.resolve("a.txt")));
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void theRootHasAFolderAboveIt() {
+        assertTrue(new Workspace(root).folderOf(root).isPresent());
+    }
+
+    @Test
+    void theFilesystemRootHasNoFolderAboveIt() {
+        Path filesystemRoot = root.getRoot();
+
+        assertEquals(Optional.empty(), new Workspace(root).folderOf(filesystemRoot));
+    }
 }
