@@ -282,4 +282,17 @@ class CommandsTest {
         assertTrue(ui.errors.get(0).contains("description"), ui.errors.toString());
         assertEquals(1, conversation.messages().size());
     }
+
+    @Test
+    void oneBlankLineSeparatesTheHeaderFromTheBody() throws IOException {
+        Path directory = Files.createDirectories(root.resolve("skills").resolve("spaced"));
+        Files.writeString(directory.resolve("SKILL.md"),
+                "---\nname: spaced\ndescription: Use it.\n---\n\n\n  The body.\n\n\n");
+        Conversation conversation = new Conversation(SYSTEM);
+
+        commands(new RecordingUi(), conversation).run("/skill spaced");
+
+        String text = ((UserMessage) conversation.messages().get(1)).text();
+        assertTrue(text.endsWith("that folder.\n\nThe body."), text);
+    }
 }
