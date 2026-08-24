@@ -401,14 +401,14 @@ class WorkspaceTest {
     }
 
     @Test
-    void theRootHasAFolderAboveIt() {
-        assertTrue(new Workspace(root).folderOf(root).isPresent());
+    void aFolderIsItsOwnFolder() {
+        assertEquals(Optional.of(root), new Workspace(root).folderOf(root));
     }
 
     @Test
-    void theFilesystemRootHasNoFolderAboveIt() {
+    void theFilesystemRootIsItsOwnFolder() {
         Path filesystemRoot = root.getRoot();
 
-        assertEquals(Optional.empty(), new Workspace(root).folderOf(filesystemRoot));
+        assertTrue(new Workspace(root).folderOf(filesystemRoot).isPresent());
     }
 }

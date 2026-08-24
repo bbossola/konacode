@@ -1,5 +1,7 @@
 package dev.konacode.tools;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -90,6 +92,11 @@ public final class Workspace {
         }
     }
 
+    /** Empty when the node does not name a path konacode can use. */
+    public Optional<Path> tryResolve(JsonNode pathNode) {
+        return pathNode.isTextual() ? tryResolve(pathNode.asText()) : Optional.empty();
+    }
+
     /**
      * True when the path is under the launch directory.
      *
@@ -122,15 +129,16 @@ public final class Workspace {
     }
 
     /**
-     * The folder that holds this path, with the links above it resolved. Empty when konacode
-     * cannot resolve it.
+     * The folder an approval covers for this path, with the links above it resolved. A folder
+     * covers itself, and a file is covered by the folder that holds it.
      *
      * <p>An approval is remembered against this folder, so two paths that name one folder through
      * different links must give one answer.
      */
     public Optional<Path> folderOf(Path path) {
-        Path parent = path.toAbsolutePath().normalize().getParent();
-        return parent == null ? Optional.empty() : Optional.ofNullable(real(parent));
+        Path absolute = path.toAbsolutePath().normalize();
+        Path folder = Files.isDirectory(absolute) ? absolute : absolute.getParent();
+        return folder == null ? Optional.empty() : Optional.ofNullable(real(folder));
     }
 
     /**

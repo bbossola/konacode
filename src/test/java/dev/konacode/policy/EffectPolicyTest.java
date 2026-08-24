@@ -16,6 +16,8 @@ import dev.konacode.tools.Workspace;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -152,6 +154,29 @@ class EffectPolicyTest {
 
         assertEquals("edit_file", ask.subject());
         assertNull(ask.alwaysFolder());
+    }
+
+    @Test
+    void aPathThatIsNotTextIsNotAPath() {
+        ObjectNode args = MAPPER.createObjectNode();
+        args.put("path", 123);
+
+        Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
+                policy().check(new EditFile(workspace(), StopCheck.NEVER), args));
+
+        assertEquals("edit_file", ask.subject());
+        assertNull(ask.alwaysFolder());
+    }
+
+    @Test
+    void listingAFolderRemembersThatFolderAndNotItsParent() throws IOException {
+        Path folder = Files.createDirectories(outside.resolve("logs"));
+
+        Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
+                policy().check(new ListFiles(workspace(), StopCheck.NEVER),
+                        path(folder.toString())));
+
+        assertEquals(folder, ask.alwaysFolder(), "always must cover the folder the user listed");
     }
 
     /**

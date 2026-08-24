@@ -88,7 +88,7 @@ public final class ListFiles implements Tool {
             // place through resolve("."), so the two agree while a Workspace has one root.
             return Effect.READS_INSIDE;
         }
-        return workspace.tryResolve(pathNode.asText())
+        return workspace.tryResolve(pathNode)
                 .filter(workspace::readable)
                 .map(path -> Effect.READS_INSIDE)
                 .orElse(Effect.READS_OUTSIDE);

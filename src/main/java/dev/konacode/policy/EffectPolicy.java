@@ -32,7 +32,7 @@ public final class EffectPolicy implements ToolPolicy {
     }
 
     private Decision ask(String action, Tool tool, JsonNode args) {
-        Path path = workspace.tryResolve(args.path("path").asText("")).orElse(null);
+        Path path = workspace.tryResolve(args.path("path")).orElse(null);
         if (path == null) {
             return Decision.ask(action, tool.name(), null);
         }

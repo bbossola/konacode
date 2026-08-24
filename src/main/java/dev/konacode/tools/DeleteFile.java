@@ -80,11 +80,7 @@ public final class DeleteFile implements Tool {
 
     @Override
     public Effect effect(JsonNode args) {
-        JsonNode pathNode = args.path("path");
-        if (!pathNode.isTextual()) {
-            return Effect.WRITES_OUTSIDE;
-        }
-        return workspace.tryResolve(pathNode.asText())
+        return workspace.tryResolve(args.path("path"))
                 .filter(workspace::writable)
                 .map(path -> Effect.WRITES_INSIDE)
                 .orElse(Effect.WRITES_OUTSIDE);
