@@ -1,5 +1,6 @@
 package dev.konacode.cli;
 
+import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.ToolApproval;
 import dev.konacode.policy.Decision;
 import dev.konacode.trace.TraceEvent.ToolCalled;
@@ -9,6 +10,7 @@ import org.jline.reader.History;
 import org.jline.reader.LineReader;
 import org.jline.reader.UserInterruptException;
 import org.jline.terminal.Terminal;
+import org.jline.utils.NonBlockingReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -17,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -30,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -87,11 +91,13 @@ class RichUiTest {
     private final ByteArrayOutputStream captured = new ByteArrayOutputStream();
     private final PrintStream out = new PrintStream(captured, true, StandardCharsets.UTF_8);
     private final RecordingSpinner spinner = new RecordingSpinner();
+    private final Cancellation cancellation = new Cancellation();
 
     private RichUi ui() {
         when(terminal.getWidth()).thenReturn(40);
         when(reader.getHistory()).thenReturn(history);
-        return new RichUi(reader, terminal, out, spinner, new RecordingEscapeWatcher(terminal));
+        return new RichUi(reader, terminal, out, spinner, new RecordingEscapeWatcher(terminal),
+                cancellation);
     }
 
     private String written() {
@@ -124,8 +130,8 @@ class RichUiTest {
         when(terminal.getWidth()).thenReturn(20);
         when(reader.getHistory()).thenReturn(history);
 
-        new RichUi(reader, terminal, out, spinner, new RecordingEscapeWatcher(terminal))
-                .showAnswer("alpha beta gamma delta epsilon zeta");
+        new RichUi(reader, terminal, out, spinner, new RecordingEscapeWatcher(terminal),
+                cancellation).showAnswer("alpha beta gamma delta epsilon zeta");
 
         assertTrue(written().contains("alpha beta gamma\ndelta epsilon zeta"), written());
     }
@@ -202,7 +208,7 @@ class RichUiTest {
         RecordingSpinner spinner = new RecordingSpinner();
         RecordingEscapeWatcher watcher = new RecordingEscapeWatcher(terminal);
         RichUi ui = new RichUi(reader, terminal, new PrintStream(new ByteArrayOutputStream()),
-                spinner, watcher);
+                spinner, watcher, cancellation);
 
         ui.thinking();
 
@@ -215,7 +221,7 @@ class RichUiTest {
         RecordingSpinner spinner = new RecordingSpinner();
         RecordingEscapeWatcher watcher = new RecordingEscapeWatcher(terminal);
         RichUi ui = new RichUi(reader, terminal, new PrintStream(new ByteArrayOutputStream()),
-                spinner, watcher);
+                spinner, watcher, cancellation);
 
         ui.showAnswer("done");
 
@@ -228,7 +234,7 @@ class RichUiTest {
         RecordingSpinner spinner = new RecordingSpinner();
         RecordingEscapeWatcher watcher = new RecordingEscapeWatcher(terminal);
         RichUi ui = new RichUi(reader, terminal, new PrintStream(new ByteArrayOutputStream()),
-                spinner, watcher);
+                spinner, watcher, cancellation);
 
         ui.emit(new ToolCalled(1, "read_file", "{}"));
 
@@ -236,12 +242,92 @@ class RichUiTest {
         assertEquals(List.of(), watcher.calls);
     }
 
-    // Task 5 flips this to a real question. Writing the test now is deliberate: it must fail on
-    // the day this refuses less, not the day someone remembers to check.
+    private static Decision.Ask askAbout(String file) {
+        return new Decision.Ask("write outside this project", file, Path.of(file).getParent());
+    }
+
+    private NonBlockingReader keys(int key) throws IOException {
+        NonBlockingReader keys = mock(NonBlockingReader.class);
+        when(keys.read()).thenReturn(key);
+        return keys;
+    }
+
     @Test
-    void itCannotAskSoItRefuses() {
+    void yMeansYes() throws IOException {
+        NonBlockingReader input = keys('y');
+        when(terminal.reader()).thenReturn(input);
+
+        assertEquals(ToolApproval.Answer.YES, ui().ask("edit_file", askAbout("/notes/a.txt")));
+    }
+
+    @Test
+    void aMeansAlways() throws IOException {
+        NonBlockingReader input = keys('a');
+        when(terminal.reader()).thenReturn(input);
+
+        assertEquals(ToolApproval.Answer.ALWAYS, ui().ask("edit_file", askAbout("/notes/a.txt")));
+    }
+
+    @Test
+    void anyOtherKeyMeansNo() throws IOException {
+        NonBlockingReader input = keys('q');
+        when(terminal.reader()).thenReturn(input);
+
+        assertEquals(ToolApproval.Answer.NO, ui().ask("edit_file", askAbout("/notes/a.txt")));
+    }
+
+    @Test
+    void escapeMeansNoAndStopsTheTurn() throws IOException {
+        NonBlockingReader input = keys(27);
+        when(terminal.reader()).thenReturn(input);
+
+        assertEquals(ToolApproval.Answer.NO, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertTrue(cancellation.stopped(), "esc must stop the turn");
+    }
+
+    @Test
+    void aIsRefusedWhenNoFolderIsOffered() throws IOException {
+        NonBlockingReader input = keys('a');
+        when(terminal.reader()).thenReturn(input);
+
         assertEquals(ToolApproval.Answer.NO,
-                ui().ask("edit_file", new Decision.Ask("write outside this project",
-                        "/etc/hosts", Path.of("/etc"))));
+                ui().ask("run_command", new Decision.Ask("run a command", "run_command", null)));
+    }
+
+    @Test
+    void theQuestionNamesTheToolThePathAndTheFolder() throws IOException {
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+
+        ui().ask("edit_file", askAbout("/notes/a.txt"));
+
+        String shown = written();
+        assertTrue(shown.contains("edit_file"), shown);
+        assertTrue(shown.contains("/notes/a.txt"), shown);
+        assertTrue(shown.contains("always, for edit_file under /notes"), shown);
+    }
+
+    @Test
+    void noAlwaysLineWithoutAFolder() throws IOException {
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+
+        ui().ask("run_command", new Decision.Ask("run a command", "run_command", null));
+
+        assertFalse(written().contains("always"), written());
+    }
+
+    @Test
+    void theWatcherStopsForTheAnswerAndStartsAgain() throws IOException {
+        NonBlockingReader input = keys('y');
+        when(terminal.reader()).thenReturn(input);
+        when(terminal.getWidth()).thenReturn(40);
+        when(reader.getHistory()).thenReturn(history);
+        RecordingEscapeWatcher watcher = new RecordingEscapeWatcher(terminal);
+        RichUi ui = new RichUi(reader, terminal, out, spinner, watcher, cancellation);
+
+        ui.ask("edit_file", askAbout("/notes/a.txt"));
+
+        assertEquals(List.of("stop", "start"), watcher.calls);
     }
 }
