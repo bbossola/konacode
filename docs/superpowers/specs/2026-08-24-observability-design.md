@@ -39,7 +39,7 @@ lets `agent` and `llm` both emit into it without breaking the rule that `tools` 
 |---|---|---|
 | `Trace` | interface | `void emit(TraceEvent event)`. The whole sink SPI. `NONE` discards. `fanOut(Trace...)` combines. |
 | `TraceEvent` | sealed interface | One thing that happened. A record for each case. Sealed, so a new case is a compile error at every sink. |
-| `Level` | enum | `OFF`, `BASIC`, `FULL`. It answers `allows(TraceEvent)` and `cap(String)`. |
+| `Level` | enum | `OFF`, `BASIC`, `FULL`. It answers one question: `Optional<TraceEvent> keep(TraceEvent)`. |
 
 ## The events
 
@@ -77,7 +77,7 @@ today.
 ## The sinks
 
 **`JsonlTrace` writes the file.** One JSON object for each event, one line for each object, with a
-timestamp. The file is `~/.konacode/traces/2026-08-24T14-03-11.jsonl`, beside the existing
+timestamp. The file is `~/.konacode/traces/2026-08-24T14-03-11-482.jsonl`, beside the existing
 `chat_history`. konacode makes a new file for each session, so there is no rotation code, and one
 file holds one session that you can replay.
 
@@ -86,7 +86,8 @@ the `*.jsonl` files in `~/.konacode/traces/` and deletes the oldest ones, until 
 remain. The name of a file is the time it started, so a sort by name is a sort by age.
 
 The sweep runs once, at the start of the session, and never during a turn. It reads one
-directory and it touches no other file. If a delete fails, konacode prints one warning and
+directory and it touches no other file. The name carries milliseconds, so two sessions that start
+in the same second still get two files. If a delete fails, konacode prints one warning and
 continues: a trace that cannot be swept is not a reason to stop.
 
 `JsonlTrace` owns the sweep, because `JsonlTrace` owns the directory.
@@ -115,8 +116,9 @@ gives you the screen you have today.
 The level is in each sink and not in front of both, because the screen can be `full` while the
 file is `basic`. One filter for both sinks cannot do that.
 
-The rule lives in `Level` and not in the sinks. A sink asks the level two questions and then
-renders. The sinks stay short.
+The rule lives in `Level` and not in the sinks. A sink asks the level one question and renders
+what comes back. An empty answer means the sink writes nothing. A `BASIC` answer is a new event
+with the payloads already cut, so a sink never cuts a string itself. The sinks stay short.
 
 Events are built even when no sink keeps them. The cost is a few small records for each
 iteration. The JSON bodies already exist as strings inside the client, so nothing extra is built
