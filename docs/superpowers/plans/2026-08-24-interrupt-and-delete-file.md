@@ -954,14 +954,14 @@ with
 
 ```java
         try {
-            return execute(tool, args);
+            return executeUnderCancellation(tool, args);
         } catch (RuntimeException e) {
             // A misbehaving tool must not kill the session.
             return ToolResult.err("Tool " + call.name() + " failed: " + e);
         }
 ```
 
-and add this method beside `chat`:
+and add this method beside `run`, which is its one caller:
 
 ```java
     /**
@@ -970,7 +970,7 @@ and add this method beside `chat`:
      * <p>A tool that says nothing is never interrupted. Arming every tool would rest the safety
      * of the loop on every tool author writing correct cleanup, for ever.
      */
-    private ToolResult execute(Tool tool, JsonNode args) {
+    private ToolResult executeUnderCancellation(Tool tool, JsonNode args) {
         if (!tool.stopsOnInterrupt()) {
             return tool.execute(args);
         }
