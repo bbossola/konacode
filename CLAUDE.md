@@ -165,6 +165,7 @@ Write all documents and all replies in ASD-STE100 Simplified Technical English.
 - Start each paragraph with the topic sentence.
 - Write positive statements. Do not put two negatives in one sentence.
 - Use simple verb tenses.
+- Write literally. Do not use a metaphor or an idiom.
 
 ## Conventions
 

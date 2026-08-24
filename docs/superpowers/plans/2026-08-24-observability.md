@@ -145,9 +145,10 @@ package dev.konacode.trace;
 /**
  * One thing that happened during a turn.
  *
- * <p>Every case carries strings, numbers and booleans only. No case carries a {@code Message}, a
- * {@code ToolResult} or a {@code JsonNode}. That is what keeps this package free of every other
- * konacode package, and it is what lets the agent loop and the provider both emit into it.
+ * <p>Every case carries plain values, and nothing from another konacode package. No case carries a
+ * {@code Message}, a {@code ToolResult} or a {@code JsonNode}. That is what keeps this package free
+ * of every other konacode package, and it is what lets the agent loop and the provider both emit
+ * into it.
  *
  * <p>Sealed, so a new case is a compile error at every sink.
  */
@@ -2113,7 +2114,7 @@ before `dev.konacode.agent`:
 
 | Element | Kind | Definition |
 |---|---|---|
-| `TraceEvent` | sealed interface | One thing that happened. Nine records. Each carries strings, numbers and booleans only, so this package depends on no other konacode package and both `agent` and `llm` can emit into it. |
+| `TraceEvent` | sealed interface | One thing that happened. Nine records. Each carries plain values and nothing from another konacode package, so `agent` and `llm` can both emit into it. |
 | `Trace` | interface | `void emit(TraceEvent)`. `NONE` discards, `fanOut` combines. A sink never throws into the caller. |
 | `Level` | enum | `OFF`, `BASIC`, `FULL`. `keep(TraceEvent)` gives back the event a level keeps, with the payloads already cut. The rule lives here, because each sink holds its own level. |
 | `JsonlTrace` | implements `Trace` | The file sink. One JSON line for each event, in `~/.konacode/traces/`, one file for each session. It sweeps the oldest files when it opens, and it flushes every line. |
