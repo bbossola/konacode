@@ -121,10 +121,11 @@ Five commands work in both interfaces.
 | `/clear` | forget the conversation and start again |
 | `/exit` | end the session |
 
-konacode writes a trace of each session to `~/.konacode/traces/`, one JSON line for each event.
-`konacode.trace=basic` records the loop, the times, the outcome of each turn and the token
-counts. `konacode.trace=full` adds the request and the reply, so you can replay a call. `/trace
-basic` shows the same events on the screen while the session runs.
+Set `konacode.trace=basic` or `konacode.trace=full` and konacode writes a trace of the session
+to `~/.konacode/traces/`, one JSON line for each event. The default is `off`, and konacode then
+writes no file. `basic` records the loop, the times, the outcome of each turn and the token
+counts. `full` adds the request and the reply, so you can replay a call. `/trace basic` shows the
+same events on the screen while the session runs, whether or not the file is on.
 
 ### Running without an API key
 
