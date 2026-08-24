@@ -191,12 +191,15 @@ public final class Agent {
         trace.emit(new ToolCalled(turn, call.name(), call.argumentsJson()));
         long started = System.nanoTime();
         ToolResult result = run(call);
-        String output = switch (result) {
-            case ToolResult.Ok ok -> ok.text();
-            case ToolResult.Err err -> err.message();
-        };
-        trace.emit(new ToolFinished(turn, call.name(), result instanceof ToolResult.Ok, output,
-                millisSince(started)));
+        long millis = millisSince(started);
+        // One switch derives both facts. A third result would then be a compile error here, and
+        // never a report that quietly says the tool failed.
+        trace.emit(switch (result) {
+            case ToolResult.Ok ok ->
+                    new ToolFinished(turn, call.name(), true, ok.text(), millis);
+            case ToolResult.Err err ->
+                    new ToolFinished(turn, call.name(), false, err.message(), millis);
+        });
         return result;
     }
 
