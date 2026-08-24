@@ -69,6 +69,7 @@ final class Commands {
                 esc      stop the turn
                 /help    show this list
                 /tools   show the tools the model can call
+                /skill   show the skills, or load one by name
                 /clear   forget the conversation and start again
                 /exit    end the session
                 ```""");

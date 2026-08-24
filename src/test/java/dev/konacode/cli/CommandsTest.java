@@ -74,6 +74,7 @@ class CommandsTest {
         String shown = String.join("\n", ui.answers);
         assertTrue(shown.contains("/help"), shown);
         assertTrue(shown.contains("/tools"), shown);
+        assertTrue(shown.contains("/skill"), shown);
         assertTrue(shown.contains("/clear"), shown);
         assertTrue(shown.contains("/exit"), shown);
     }
