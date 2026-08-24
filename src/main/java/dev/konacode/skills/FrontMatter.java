@@ -31,12 +31,19 @@ record FrontMatter(String name, String description, String body) {
 
         String name = null;
         String description = null;
+        boolean insideABlock = false;
         for (int index = 1; index < close; index++) {
             String line = lines.get(index);
             if (line.isBlank()) {
                 continue;
             }
             if (Character.isWhitespace(line.charAt(0))) {
+                // A key with no value opens a block, and konacode reads no key inside one. A key
+                // that has a value cannot continue, so an indented line below it is a wrapped
+                // value, and a wrapped value loses its tail.
+                if (insideABlock) {
+                    continue;
+                }
                 throw new IllegalArgumentException("The header line \"" + line.strip()
                         + "\" is indented. Write each key and its value on one line.");
             }
@@ -47,6 +54,7 @@ record FrontMatter(String name, String description, String body) {
             }
             String key = line.substring(0, colon).strip();
             String value = line.substring(colon + 1).strip();
+            insideABlock = value.isEmpty();
             if (key.equals("name")) {
                 name = readable(key, value);
             } else if (key.equals("description")) {

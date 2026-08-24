@@ -85,6 +85,25 @@ class FrontMatterTest {
     }
 
     @Test
+    void skipsANestedBlockUnderAKeyWithNoValue() {
+        String text = """
+                ---
+                name: security-audit
+                description: Use it.
+                metadata:
+                  short-description: Audit the dependencies.
+                  version: 1.0.2
+                ---
+                The body.
+                """;
+
+        FrontMatter parsed = FrontMatter.parse(text);
+
+        assertEquals("security-audit", parsed.name());
+        assertEquals("Use it.", parsed.description());
+    }
+
+    @Test
     void reportsAValueThatContinuesOnASecondLine() {
         String text = "---\nname: commit\ndescription: Use when writing\n  a commit message.\n---\nbody\n";
 

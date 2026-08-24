@@ -105,6 +105,10 @@ Write the subject in the imperative...
 The reason is reuse. The format already holds many skills on the machine, and a format nobody else
 writes gives the user an empty folder.
 
+A header can hold a key beside `name` and `description`, and the two skills at
+`MeterianHQ/ai-skills` both hold a nested `metadata:` block. konacode reads the two keys it needs
+and steps over the rest.
+
 The front matter is YAML, and konacode has no YAML parser. `jackson-databind` is the only Jackson
 module, and a new dependency is a conversation. A real skill file uses two keys with single-line
 values, so `FrontMatter` reads them without YAML. It is not a YAML parser, and it reports an error
