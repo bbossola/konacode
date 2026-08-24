@@ -43,8 +43,9 @@ model whose history was erased cannot.
 
 konacode therefore keeps the record and adds no undo machinery. There is one limit, and it is
 accepted: `EditFile` creates a file when `old_str` is empty, and no tool deletes a file. The model
-cannot undo a file that it created. A `DeleteFile` tool and a `/revert` command with a write
-journal were both considered and both left out. See "Out of scope".
+cannot undo a file that it created. `DeleteFile` closes that gap, and it has its own design: see
+[the DeleteFile design](2026-08-24-delete-file-design.md). A `/revert` command with a write journal
+was considered and left out. See "Out of scope".
 
 ## `Cancellation` — a new class in `dev.konacode.agent`
 
@@ -403,9 +404,6 @@ to catch the key. That is a larger change, and it needs a new decision before an
 - `README.md`: the key.
 
 ## Out of scope
-
-**A `DeleteFile` tool.** It would let the model undo a file that it created. Whether an agent may
-delete a file is a policy question, and it belongs with the work on `ToolPolicy`.
 
 **A `/revert` command with a write journal.** konacode would record every write and undo the
 writes itself, without the model. This is exact and fast, and it is a separate subsystem: a
