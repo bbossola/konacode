@@ -28,7 +28,7 @@ class CommandsTest {
         Workspace workspace = new Workspace(root);
         return new Commands(conversation, SYSTEM,
                 ToolRegistry.of(new ListFiles(workspace, StopCheck.NEVER),
-                        new ReadFile(workspace)), ui);
+                        new ReadFile(workspace, StopCheck.NEVER)), ui);
     }
 
     @Test

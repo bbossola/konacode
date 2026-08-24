@@ -13,9 +13,11 @@ public final class ReadFile implements Tool {
     static final int MAX_BYTES = 100_000;
 
     private final Workspace workspace;
+    private final StopCheck stop;
 
-    public ReadFile(Workspace workspace) {
+    public ReadFile(Workspace workspace, StopCheck stop) {
         this.workspace = workspace;
+        this.stop = stop;
     }
 
     @Override
@@ -60,7 +62,12 @@ public final class ReadFile implements Tool {
         }
 
         try {
-            return ToolResult.ok(workspace.readUtf8Capped(file, MAX_BYTES));
+            String text = workspace.readUtf8Capped(file, MAX_BYTES, stop);
+            if (stop.stopped()) {
+                return ToolResult.err("Stopped by the user after " + text.length()
+                        + " characters. The file was not changed.");
+            }
+            return ToolResult.ok(text);
         } catch (IOException e) {
             return ToolResult.err("Could not read file at path: " + pathNode.asText() + ". " + e);
         }

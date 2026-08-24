@@ -26,7 +26,7 @@ class ReadFileTest {
 
     @BeforeEach
     void setUp() {
-        tool = new ReadFile(new Workspace(root));
+        tool = new ReadFile(new Workspace(root), StopCheck.NEVER);
     }
 
     private static JsonNode args(String path) {
@@ -69,6 +69,19 @@ class ReadFileTest {
 
         ToolResult.Ok ok = assertInstanceOf(ToolResult.Ok.class, result);
         assertEquals(ReadFile.MAX_BYTES, ok.text().length());
+    }
+
+    @Test
+    void stopsBetweenChunksAndReportsThatTheFileIsUnchanged() throws IOException {
+        Files.writeString(root.resolve("big.txt"), "x".repeat(50_000), StandardCharsets.UTF_8);
+        ReadFile stopping = new ReadFile(new Workspace(root), () -> true);
+
+        ToolResult result = stopping.execute(args("big.txt"));
+
+        ToolResult.Err error = assertInstanceOf(ToolResult.Err.class, result);
+        assertTrue(error.message().startsWith("Stopped by the user"), error.message());
+        assertTrue(error.message().contains("The file was not changed."), error.message());
+        assertEquals(50_000, Files.size(root.resolve("big.txt")));
     }
 
     @Test

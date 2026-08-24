@@ -1,5 +1,6 @@
 package dev.konacode.tools;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -24,6 +25,8 @@ import java.util.stream.Stream;
  * implementation, and gives path confinement a single place to hook in later.
  */
 public final class Workspace {
+
+    private static final int CHUNK_BYTES = 8192;
 
     private final Path root;
 
@@ -65,19 +68,34 @@ public final class Workspace {
         return path.normalize();
     }
 
+    public String readUtf8Capped(Path file, int maxBytes) throws IOException {
+        return readUtf8Capped(file, maxBytes, StopCheck.NEVER);
+    }
+
     /**
      * Reads at most {@code maxBytes} and decodes UTF-8 leniently. Decoding strictly would fail
      * outright whenever the cap lands mid-codepoint, and report a truncated text file as binary.
+     *
+     * <p>The read happens in chunks so the user can stop it. A stopped read returns what it has,
+     * and the caller asks the {@link StopCheck} itself to know that the text is short.
      */
-    public String readUtf8Capped(Path file, int maxBytes) throws IOException {
-        byte[] bytes;
+    public String readUtf8Capped(Path file, int maxBytes, StopCheck stop) throws IOException {
+        ByteArrayOutputStream collected = new ByteArrayOutputStream();
+        byte[] chunk = new byte[CHUNK_BYTES];
         try (InputStream in = Files.newInputStream(file)) {
-            bytes = in.readNBytes(maxBytes);
+            while (collected.size() < maxBytes && !stop.stopped()) {
+                int wanted = Math.min(chunk.length, maxBytes - collected.size());
+                int read = in.read(chunk, 0, wanted);
+                if (read < 0) {
+                    break;
+                }
+                collected.write(chunk, 0, read);
+            }
         }
         CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder()
                 .onMalformedInput(CodingErrorAction.REPLACE)
                 .onUnmappableCharacter(CodingErrorAction.REPLACE);
-        return decoder.decode(ByteBuffer.wrap(bytes)).toString();
+        return decoder.decode(ByteBuffer.wrap(collected.toByteArray())).toString();
     }
 
     /**

@@ -39,7 +39,7 @@ public final class Main {
 
         Workspace workspace = Workspace.ofCurrentDirectory();
         ToolRegistry registry = ToolRegistry.of(
-                new ListFiles(workspace, StopCheck.NEVER), new ReadFile(workspace),
+                new ListFiles(workspace, StopCheck.NEVER), new ReadFile(workspace, StopCheck.NEVER),
                 new EditFile(workspace));
         SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
         Conversation conversation = new Conversation(system);
