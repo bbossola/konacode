@@ -66,7 +66,7 @@ final class PlainUi implements Ui {
     public void thinking() {
     }
 
-    /** A pipe has no user to answer, so konacode refuses rather than guess. */
+    /** This interface cannot ask a question, so konacode refuses rather than guess. */
     @Override
     public Answer ask(String toolName, Decision.Ask ask) {
         return Answer.NO;

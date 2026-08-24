@@ -236,8 +236,8 @@ public final class Agent {
             }
             case Decision.Ask ask -> {
                 if (!approvals.approve(call.name(), ask)) {
-                    return ToolResult.err(
-                            "The user refused to let " + call.name() + " " + ask.action() + ".");
+                    return ToolResult.err("konacode did not get approval for " + call.name()
+                            + " to " + ask.action() + ".");
                 }
             }
         }

@@ -374,8 +374,8 @@ class AgentTest {
                 .map(ToolMessage.class::cast)
                 .findFirst()
                 .orElseThrow();
-        assertEquals("<error> The user refused to let echo read outside this project.",
-                result.content());
+        assertEquals("<error> konacode did not get approval for echo to "
+                + "read outside this project.", result.content());
     }
 
     @Test
