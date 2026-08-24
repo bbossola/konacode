@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -242,11 +243,41 @@ class WorkspaceTest {
         Path link = Files.createSymbolicLink(root.resolve("escape"), target);
         Workspace workspace = new Workspace(root);
 
-        assertFalse(workspace.insideRoot(root.resolve("escape/secret.txt")));
+        try {
+            assertFalse(workspace.insideRoot(root.resolve("escape/secret.txt")));
+        } finally {
+            // JUnit declines to follow a link out of the temporary folder, and says so on every
+            // run. The test made the link, so the test removes it.
+            Files.delete(link);
+        }
+    }
 
-        // JUnit declines to follow a link out of the temporary folder, and says so on every run.
-        // The test made the link, so the test removes it.
-        Files.delete(link);
+    @Test
+    void aBrokenLinkIsOutside() throws IOException {
+        Path link = Files.createSymbolicLink(root.resolve("escape"), outside.resolve("missing"));
+        Workspace workspace = new Workspace(root);
+
+        try {
+            assertFalse(workspace.insideRoot(link));
+            assertFalse(workspace.readable(link.resolve("child.txt")));
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void aRootReachedThroughALinkIsStillTheRoot() throws IOException {
+        Path real = Files.createDirectories(outside.resolve("realroot"));
+        Path alias = Files.createSymbolicLink(root.resolve("alias"), real);
+        Files.writeString(real.resolve("a.txt"), "x");
+        Workspace workspace = new Workspace(alias);
+
+        try {
+            assertTrue(workspace.insideRoot(alias.resolve("a.txt")));
+            assertTrue(workspace.insideRoot(real.resolve("a.txt")));
+        } finally {
+            Files.delete(alias);
+        }
     }
 
     @Test
@@ -260,5 +291,19 @@ class WorkspaceTest {
     @Test
     void theRootItselfIsInside() {
         assertTrue(new Workspace(root).insideRoot(root));
+    }
+
+    @Test
+    void tryResolveReturnsTheResolvedPath() {
+        Workspace workspace = new Workspace(root);
+
+        assertEquals(Optional.of(root.resolve("src/Main.java")), workspace.tryResolve("src/Main.java"));
+    }
+
+    @Test
+    void tryResolveIsEmptyForAnEmptyPath() {
+        Workspace workspace = new Workspace(root);
+
+        assertEquals(Optional.empty(), workspace.tryResolve(""));
     }
 }

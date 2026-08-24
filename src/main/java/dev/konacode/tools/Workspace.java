@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.text.Collator;
@@ -17,6 +18,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -40,6 +43,7 @@ public final class Workspace {
      *     outside the project. No policy reads this list yet, and {@code EffectPolicy} will.
      */
     public Workspace(Path root, List<Path> alsoReadable) {
+        Objects.requireNonNull(alsoReadable, "alsoReadable");
         this.root = root.toAbsolutePath().normalize();
         List<Path> folders = new ArrayList<>();
         for (Path folder : alsoReadable) {
@@ -82,12 +86,34 @@ public final class Workspace {
         return path.normalize();
     }
 
-    /** True when the path sits under the launch directory, with every link resolved. */
+    /** Empty when the path is missing, blank, or a string this filesystem refuses. */
+    public Optional<Path> tryResolve(String rawPath) {
+        try {
+            return Optional.of(resolve(rawPath));
+        } catch (RuntimeException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * True when the path is under the launch directory.
+     *
+     * <p>False when konacode cannot resolve the path. A path konacode cannot resolve is a path it
+     * must ask about.
+     *
+     * <p>The path is normalized before the links in it are resolved, so {@code a/link/../b} is
+     * judged as {@code a/b}. Every caller uses the path that {@link #resolve} returned, which is
+     * normalized the same way, so the judgement and the operation agree. A caller that builds a
+     * path some other way breaks that agreement.
+     */
     public boolean insideRoot(Path path) {
         return under(root, path);
     }
 
-    /** True when the path sits under the launch directory, or under a folder that may be read. */
+    /**
+     * True when the path is under the launch directory, or under a folder that may be read without
+     * a question. This is not a file permission.
+     */
     public boolean readable(Path path) {
         if (under(root, path)) {
             return true;
@@ -101,7 +127,11 @@ public final class Workspace {
     }
 
     private static boolean under(Path folder, Path path) {
-        return real(path).startsWith(real(folder));
+        Path resolvedPath = real(path);
+        Path resolvedFolder = real(folder);
+        // konacode must ask about a path it cannot resolve, so an unresolved path is outside.
+        return resolvedPath != null && resolvedFolder != null
+                && resolvedPath.startsWith(resolvedFolder);
     }
 
     /**
@@ -109,13 +139,14 @@ public final class Workspace {
      * exist, and {@code edit_file} creates files, so this resolves the nearest ancestor that does
      * exist and keeps the rest of the path as written.
      *
-     * <p>The walk earns its place through a link, and not through a missing file. A file under a
-     * link that leaves the root would otherwise read as inside.
+     * <p>Without the walk, a missing file under a link out of the root is judged inside the root.
+     *
+     * <p>Null when konacode cannot resolve the path.
      */
     private static Path real(Path path) {
         Path absolute = path.toAbsolutePath().normalize();
         Path existing = absolute;
-        while (existing != null && !Files.exists(existing)) {
+        while (existing != null && !Files.exists(existing, LinkOption.NOFOLLOW_LINKS)) {
             existing = existing.getParent();
         }
         if (existing == null) {
@@ -124,7 +155,7 @@ public final class Workspace {
         try {
             return existing.toRealPath().resolve(existing.relativize(absolute));
         } catch (IOException e) {
-            return absolute;
+            return null;
         }
     }
 
