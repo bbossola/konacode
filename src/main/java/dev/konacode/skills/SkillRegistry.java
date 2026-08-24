@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * The skills on disk. It reads the folder on every call, so a new skill appears without a
@@ -47,6 +48,47 @@ public final class SkillRegistry {
             }
         }
         return List.copyOf(skills);
+    }
+
+    /**
+     * @return empty when no folder has that name
+     * @throws SkillException when the name is not a plain folder name, or when the folder exists
+     *     and konacode cannot read the skill
+     */
+    public Optional<Skill> lookup(String name) {
+        Path folder = workspace.root().resolve(plainName(name));
+        if (!Files.isDirectory(folder)) {
+            return Optional.empty();
+        }
+        return Optional.of(new Skill(name, readOrReport(folder).description(), folder));
+    }
+
+    /** The text below the header. */
+    public String body(Skill skill) {
+        return readOrReport(skill.folder()).body();
+    }
+
+    /**
+     * A skill is one folder directly inside the skills folder. konacode refuses any other name,
+     * so that {@code /skill ../../etc} cannot read a file outside the skills folder.
+     */
+    private static String plainName(String name) {
+        if (name.contains("/") || name.contains("\\") || name.equals("..") || name.equals(".")) {
+            throw new SkillException("A skill name is one folder name: " + name);
+        }
+        return name;
+    }
+
+    private FrontMatter readOrReport(Path folder) {
+        Path file = folder.resolve(FILE_NAME);
+        if (!Files.isRegularFile(file)) {
+            throw new SkillException("No " + FILE_NAME + " in " + folder + ".");
+        }
+        try {
+            return read(file);
+        } catch (IOException | IllegalArgumentException e) {
+            throw new SkillException("Could not read " + file + ": " + e.getMessage());
+        }
     }
 
     private FrontMatter read(Path file) throws IOException {

@@ -8,8 +8,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SkillRegistryTest {
@@ -83,5 +86,65 @@ class SkillRegistryTest {
         SkillRegistry registry = new SkillRegistry(new Workspace(root.resolve("absent")));
 
         assertTrue(registry.all().isEmpty());
+    }
+
+    @Test
+    void findsOneSkillByName() throws IOException {
+        writeSkill("commit-message", file("commit-message", "Use for a commit."));
+
+        Optional<Skill> found = registry().lookup("commit-message");
+
+        assertTrue(found.isPresent());
+        assertEquals(root.resolve("commit-message"), found.get().folder());
+    }
+
+    @Test
+    void returnsEmptyForAnUnknownName() {
+        assertFalse(registry().lookup("absent").isPresent());
+    }
+
+    @Test
+    void reportsAFolderWithNoSkillFile() throws IOException {
+        Files.createDirectories(root.resolve("empty"));
+
+        SkillException e = assertThrows(SkillException.class, () -> registry().lookup("empty"));
+        assertTrue(e.getMessage().contains("SKILL.md"), e.getMessage());
+    }
+
+    @Test
+    void reportsABrokenHeaderAndNamesTheFile() throws IOException {
+        writeSkill("broken", "---\nname: broken\n---\nbody\n");
+
+        SkillException e = assertThrows(SkillException.class, () -> registry().lookup("broken"));
+        assertTrue(e.getMessage().contains("description"), e.getMessage());
+        assertTrue(e.getMessage().contains("SKILL.md"), e.getMessage());
+    }
+
+    @Test
+    void readsTheBodyAndNotTheHeader() throws IOException {
+        writeSkill("commit-message", file("commit-message", "Use for a commit."));
+
+        String body = registry().body(registry().lookup("commit-message").orElseThrow());
+
+        assertEquals("The body.", body.strip());
+    }
+
+    @Test
+    void readsTheBodyOfAFileThatStartsWithAByteOrderMark() throws IOException {
+        writeSkill("commit-message", "﻿" + file("commit-message", "Use for a commit."));
+
+        String body = registry().body(registry().lookup("commit-message").orElseThrow());
+
+        assertEquals("The body.", body.strip());
+    }
+
+    @Test
+    void refusesANameThatLeavesTheSkillsFolder() {
+        assertThrows(SkillException.class, () -> registry().lookup("../secrets"));
+    }
+
+    @Test
+    void refusesANameThatHoldsASeparator() {
+        assertThrows(SkillException.class, () -> registry().lookup("a/b"));
     }
 }
