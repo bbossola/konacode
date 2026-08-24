@@ -28,6 +28,11 @@ public final class SkillRegistry {
         this.workspace = workspace;
     }
 
+    /** The folder that holds the skills. A message names it, so it must be the real one. */
+    public Path root() {
+        return workspace.root();
+    }
+
     /** Folder order, sorted. A folder that konacode cannot read is skipped. */
     public List<Skill> all() {
         List<Skill> skills = new ArrayList<>();

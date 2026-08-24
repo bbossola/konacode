@@ -146,6 +146,26 @@ class CommandsTest {
     }
 
     @Test
+    void theEmptyListNamesTheRealSkillsFolder() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/skill");
+
+        assertTrue(ui.answers.get(0).contains(root.resolve("skills").toString()),
+                ui.answers.toString());
+    }
+
+    @Test
+    void skillWithNoNameSaysWhenTheFolderIsEmpty() throws IOException {
+        Files.createDirectories(root.resolve("skills"));
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/skill");
+
+        assertTrue(String.join("\n", ui.answers).contains("No skill"), ui.answers.toString());
+    }
+
+    @Test
     void aCommandThatTakesNoArgumentStaysUnknownWithOne() {
         RecordingUi ui = new RecordingUi();
 

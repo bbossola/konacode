@@ -33,13 +33,14 @@ final class Commands {
     /** Returns false when the session must end. */
     boolean run(String line) {
         String trimmed = line.trim();
-        int space = trimmed.indexOf(' ');
-        String command = space < 0 ? trimmed : trimmed.substring(0, space);
-        String argument = space < 0 ? "" : trimmed.substring(space + 1).trim();
+        String[] parts = trimmed.split("\\s+", 2);
+        String command = parts[0];
+        String argument = parts.length > 1 ? parts[1] : "";
 
-        // Only /skill takes an argument. A word after any other command keeps today's answer.
+        // A word after a command that takes none stays an unknown command, as it was before.
         if (!argument.isEmpty() && !command.equals("/skill")) {
-            return unknown(line);
+            unknown(line);
+            return true;
         }
 
         switch (command) {
@@ -55,9 +56,8 @@ final class Commands {
         return true;
     }
 
-    private boolean unknown(String line) {
+    private void unknown(String line) {
         ui.showError("Unknown command: " + line + ". Type /help for the list.");
-        return true;
     }
 
     private void help() {
@@ -89,7 +89,7 @@ final class Commands {
     private void list() {
         List<Skill> all = skills.all();
         if (all.isEmpty()) {
-            ui.showAnswer("No skill is available. Put one in `~/.konacode/skills/`.");
+            ui.showAnswer("No skill is available. Put one in `" + skills.root() + "`.");
             return;
         }
         StringBuilder text = new StringBuilder();

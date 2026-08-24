@@ -46,8 +46,7 @@ public final class Main {
                 new ReadFile(workspace, cancellation),
                 new EditFile(workspace, cancellation),
                 new DeleteFile(workspace));
-        SkillRegistry skills = new SkillRegistry(
-                new Workspace(Path.of(System.getProperty("user.home"), ".konacode", "skills")));
+        SkillRegistry skills = new SkillRegistry(new Workspace(skillsRoot()));
         SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
         Conversation conversation = new Conversation(system);
 
@@ -60,6 +59,10 @@ public final class Main {
             System.err.println(e.getMessage());
             System.exit(1);
         }
+    }
+
+    static Path skillsRoot() {
+        return Path.of(System.getProperty("user.home"), ".konacode", "skills");
     }
 
     static Ui selectUi(Cancellation cancellation) throws IOException {

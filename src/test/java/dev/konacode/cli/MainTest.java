@@ -4,6 +4,8 @@ import dev.konacode.agent.Cancellation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Path;
+
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -13,6 +15,12 @@ class MainTest {
     @AfterEach
     void clearTheProperty() {
         System.clearProperty("konacode.ui");
+    }
+
+    @Test
+    void theSkillsRootSitsUnderTheHomeFolder() {
+        assertTrue(Main.skillsRoot().endsWith(Path.of(".konacode", "skills")),
+                Main.skillsRoot().toString());
     }
 
     @Test
