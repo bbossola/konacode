@@ -127,7 +127,8 @@ The spinner then goes away. It exists because nothing appears while the model wo
 
 ### Interrupting a turn — **done**
 
-Built. `esc` stops a turn, and `ctrl-c` still ends konacode. See
+Built. `esc` stops a turn. `ctrl-c` is untouched: it clears the line at the prompt, and it ends
+konacode during a turn. See
 [the design](docs/superpowers/specs/2026-08-23-interrupt-design.md).
 
 Two notes for anyone reading the original entry, because the built design differs from what this

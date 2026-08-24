@@ -104,7 +104,10 @@ line, and `enter` to send. It renders markdown, and it turns a spinner while the
 
 Press `esc` to stop a turn. konacode stops at the next safe point, prints `Stopped.`, and gives
 you the prompt back. The conversation keeps what happened, so you can then ask konacode to undo
-what it did. `ctrl-c` still ends konacode, as it always has.
+what it did.
+
+`ctrl-c` behaves as it always has, and `esc` did not change it: at the prompt it clears the line,
+and during a turn it ends konacode. `ctrl-d` quits.
 
 Three commands work in both interfaces.
 
