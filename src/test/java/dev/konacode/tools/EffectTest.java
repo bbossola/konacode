@@ -110,9 +110,11 @@ class EffectTest {
 
     @Test
     void aPathThisFilesystemRefusesIsOutside() {
+        String withNul = "a" + (char) 0 + "b";
+
         assertEquals(Effect.READS_OUTSIDE,
-                new ReadFile(workspace(), StopCheck.NEVER).effect(path("a b")));
+                new ReadFile(workspace(), StopCheck.NEVER).effect(path(withNul)));
         assertEquals(Effect.WRITES_OUTSIDE,
-                new EditFile(workspace(), StopCheck.NEVER).effect(path("a b")));
+                new EditFile(workspace(), StopCheck.NEVER).effect(path(withNul)));
     }
 }
