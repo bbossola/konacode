@@ -15,7 +15,14 @@ import dev.konacode.trace.TraceEvent.TurnStarted;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * The file sink. One JSON object for each event, one line for each object.
@@ -38,6 +45,77 @@ public final class JsonlTrace implements Trace {
         this.level = level;
         this.out = out;
         this.warnings = warnings;
+    }
+
+    public static final int DEFAULT_MAX_FILES = 100;
+
+    private static final DateTimeFormatter NAME =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss-SSS").withZone(ZoneId.systemDefault());
+
+    /**
+     * Opens the file for this session, after it removes the oldest files.
+     *
+     * <p>A failure here is a warning and never an exception. konacode then runs with
+     * {@link Trace#NONE}.
+     */
+    public static Trace open(Level level, Path directory, int maxFiles, PrintStream warnings) {
+        if (level == Level.OFF) {
+            return Trace.NONE;
+        }
+        try {
+            Files.createDirectories(directory);
+            sweep(directory, maxFiles, warnings);
+            Path file = directory.resolve(NAME.format(Instant.now()) + ".jsonl");
+            return new JsonlTrace(level,
+                    Files.newBufferedWriter(file, StandardCharsets.UTF_8), warnings);
+        } catch (IOException e) {
+            warnings.println("Could not open the trace file: " + e.getMessage());
+            return Trace.NONE;
+        }
+    }
+
+    /**
+     * Removes the oldest trace files, and leaves room for the file this session is about to make.
+     *
+     * <p>The name of a file is the time it started, so a sort by name is a sort by age.
+     */
+    static void sweep(Path directory, int maxFiles, PrintStream warnings) {
+        try (Stream<Path> files = Files.list(directory)) {
+            List<Path> traces = files
+                    .filter(path -> path.getFileName().toString().endsWith(".jsonl"))
+                    .sorted()
+                    .toList();
+            int excess = traces.size() - (maxFiles - 1);
+            for (int index = 0; index < excess; index++) {
+                Files.delete(traces.get(index));
+            }
+        } catch (IOException e) {
+            warnings.println("Could not sweep the trace directory: " + e.getMessage());
+        }
+    }
+
+    /**
+     * How many trace files konacode keeps.
+     *
+     * <p>A wrong value is an error, for the reason {@code konacode.maxIterations} gives.
+     */
+    public static int configuredMaxFiles() {
+        String configured = System.getProperty("konacode.trace.maxFiles");
+        if (configured == null) {
+            return DEFAULT_MAX_FILES;
+        }
+        int value;
+        try {
+            value = Integer.parseInt(configured.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                    "konacode.trace.maxFiles must be a whole number, but was: " + configured);
+        }
+        if (value < 1) {
+            throw new IllegalArgumentException(
+                    "konacode.trace.maxFiles must be 1 or more, but was: " + configured);
+        }
+        return value;
     }
 
     @Override
