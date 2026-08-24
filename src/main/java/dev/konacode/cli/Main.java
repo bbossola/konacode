@@ -23,20 +23,20 @@ public final class Main {
     }
 
     public static void main(String[] args) {
+        Cancellation cancellation = new Cancellation();
         OpenAiConfig config;
         int maxIterations;
         Ui ui;
         try {
             config = OpenAiConfig.fromEnvironment(System.getenv());
             maxIterations = Agent.configuredMaxIterations();
-            ui = selectUi();
+            ui = selectUi(cancellation);
         } catch (IllegalArgumentException | IOException e) {
             System.err.println(e.getMessage());
             System.exit(1);
             return;
         }
 
-        Cancellation cancellation = new Cancellation();
         Workspace workspace = Workspace.ofCurrentDirectory();
         ToolRegistry registry = ToolRegistry.of(
                 new ListFiles(workspace, cancellation),
@@ -56,20 +56,22 @@ public final class Main {
         }
     }
 
-    static Ui selectUi() throws IOException {
+    static Ui selectUi(Cancellation cancellation) throws IOException {
         String choice = System.getProperty("konacode.ui", "auto");
         return switch (choice) {
             case "plain" -> PlainUi.open();
-            case "rich" -> RichUi.open();
-            case "auto" -> System.console() == null ? PlainUi.open() : openRichOrFallBack();
+            case "rich" -> RichUi.open(cancellation);
+            case "auto" -> System.console() == null
+                    ? PlainUi.open()
+                    : openRichOrFallBack(cancellation);
             default -> throw new IllegalArgumentException(
                     "konacode.ui must be auto, plain or rich, but was: " + choice);
         };
     }
 
-    private static Ui openRichOrFallBack() {
+    private static Ui openRichOrFallBack(Cancellation cancellation) {
         try {
-            return RichUi.open();
+            return RichUi.open(cancellation);
         } catch (IOException e) {
             return PlainUi.open();
         }

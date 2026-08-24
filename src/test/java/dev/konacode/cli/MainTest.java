@@ -1,5 +1,6 @@
 package dev.konacode.cli;
 
+import dev.konacode.agent.Cancellation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -18,27 +19,27 @@ class MainTest {
     void choosesThePlainInterfaceWhenAsked() throws Exception {
         System.setProperty("konacode.ui", "plain");
 
-        assertInstanceOf(PlainUi.class, Main.selectUi());
+        assertInstanceOf(PlainUi.class, Main.selectUi(new Cancellation()));
     }
 
     @Test
     void choosesThePlainInterfaceForAPipe() throws Exception {
         System.setProperty("konacode.ui", "auto");
 
-        assertInstanceOf(PlainUi.class, Main.selectUi());
+        assertInstanceOf(PlainUi.class, Main.selectUi(new Cancellation()));
     }
 
     @Test
     void defaultsToAuto() throws Exception {
-        assertInstanceOf(PlainUi.class, Main.selectUi());
+        assertInstanceOf(PlainUi.class, Main.selectUi(new Cancellation()));
     }
 
     @Test
     void refusesAValueItCannotRead() {
         System.setProperty("konacode.ui", "rihc");
 
-        IllegalArgumentException thrown =
-                assertThrows(IllegalArgumentException.class, Main::selectUi);
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+                () -> Main.selectUi(new Cancellation()));
 
         assertTrue(thrown.getMessage().contains("rihc"), thrown.getMessage());
     }

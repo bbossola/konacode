@@ -41,6 +41,16 @@ class CommandsTest {
     }
 
     @Test
+    void helpNamesTheStopKey() {
+        RecordingUi ui = new RecordingUi();
+        Commands commands = commands(ui, new Conversation(SYSTEM));
+
+        commands.run("/help");
+
+        assertTrue(ui.answers.get(0).contains("esc"), ui.answers.get(0));
+    }
+
+    @Test
     void helpNamesEveryCommand() {
         RecordingUi ui = new RecordingUi();
 
