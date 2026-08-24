@@ -4,22 +4,28 @@ import dev.konacode.llm.LlmException;
 import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.ToolSpec;
 import dev.konacode.tools.Schemas;
+import dev.konacode.trace.Trace;
+import dev.konacode.trace.TraceEvent;
+import dev.konacode.trace.TraceEvent.RetryRequested;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class OpenAiClientTest {
 
     private static OpenAiClient clientWith(String apiKey, String baseUrl) {
-        return new OpenAiClient(new OpenAiConfig(apiKey, "gpt-5-mini", baseUrl, Duration.ofSeconds(1)));
+        return new OpenAiClient(
+                new OpenAiConfig(apiKey, "gpt-5-mini", baseUrl, Duration.ofSeconds(1)), Trace.NONE);
     }
 
     @Test
@@ -75,7 +81,7 @@ class OpenAiClientTest {
     void sendsOnceWhenTheFirstReplyIsAccepted() {
         ScriptedSender sender = new ScriptedSender(plain("Two files here."));
 
-        AssistantMessage reply = OpenAiClient.sendUntilAccepted(validator(), sender);
+        AssistantMessage reply = OpenAiClient.sendUntilAccepted(validator(), sender, Trace.NONE);
 
         assertEquals("Two files here.", reply.text());
         assertEquals(1, sender.sends);
@@ -85,7 +91,7 @@ class OpenAiClientTest {
     void asksAgainWhenTheFirstReplyIsAGarbledToolCall() {
         ScriptedSender sender = new ScriptedSender(garbled(), plain("Two files here."));
 
-        AssistantMessage reply = OpenAiClient.sendUntilAccepted(validator(), sender);
+        AssistantMessage reply = OpenAiClient.sendUntilAccepted(validator(), sender, Trace.NONE);
 
         assertEquals("Two files here.", reply.text());
         assertEquals(2, sender.sends);
@@ -95,9 +101,30 @@ class OpenAiClientTest {
     void returnsTheSecondGarbledReplyAsItCameRatherThanRetryingForever() {
         ScriptedSender sender = new ScriptedSender(garbled(), garbled());
 
-        AssistantMessage reply = OpenAiClient.sendUntilAccepted(validator(), sender);
+        AssistantMessage reply = OpenAiClient.sendUntilAccepted(validator(), sender, Trace.NONE);
 
         assertEquals(garbled().text(), reply.text());
         assertEquals(2, sender.sends);
+    }
+
+    @Test
+    void reportsEveryRetry() {
+        List<TraceEvent> events = new ArrayList<>();
+        ScriptedSender sender = new ScriptedSender(garbled(), plain("Two files here."));
+
+        OpenAiClient.sendUntilAccepted(validator(), sender, events::add);
+
+        assertEquals(1, events.size(), events.toString());
+        assertInstanceOf(RetryRequested.class, events.get(0));
+    }
+
+    @Test
+    void reportsNoRetryWhenTheFirstReplyIsAccepted() {
+        List<TraceEvent> events = new ArrayList<>();
+
+        OpenAiClient.sendUntilAccepted(validator(), new ScriptedSender(plain("Done.")),
+                events::add);
+
+        assertEquals(List.of(), events);
     }
 }

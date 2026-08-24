@@ -13,6 +13,7 @@ import dev.konacode.tools.ListFiles;
 import dev.konacode.tools.ReadFile;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
+import dev.konacode.trace.Trace;
 
 import java.io.IOException;
 
@@ -47,7 +48,7 @@ public final class Main {
         SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
         Conversation conversation = new Conversation(system);
 
-        Agent agent = new Agent(new OpenAiClient(config), registry, new AllowAllPolicy(),
+        Agent agent = new Agent(new OpenAiClient(config, Trace.NONE), registry, new AllowAllPolicy(),
                 conversation, ui, cancellation, maxIterations);
 
         try (ui) {
