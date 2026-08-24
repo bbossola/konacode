@@ -3,6 +3,7 @@ package dev.konacode.cli;
 import dev.konacode.agent.Conversation;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.Message.UserMessage;
+import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
 import dev.konacode.tools.ListFiles;
@@ -11,6 +12,8 @@ import dev.konacode.tools.StopCheck;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,9 +29,18 @@ class CommandsTest {
 
     private Commands commands(RecordingUi ui, Conversation conversation) {
         Workspace workspace = new Workspace(root);
+        Workspace skillRoot = new Workspace(root.resolve("skills"));
         return new Commands(conversation, SYSTEM,
                 ToolRegistry.of(new ListFiles(workspace, StopCheck.NEVER),
-                        new ReadFile(workspace, StopCheck.NEVER)), ui);
+                        new ReadFile(workspace, StopCheck.NEVER)),
+                new SkillRegistry(skillRoot), ui);
+    }
+
+    private void writeSkill(String name, String description) throws IOException {
+        Path directory = Files.createDirectories(root.resolve("skills").resolve(name));
+        Files.writeString(directory.resolve("SKILL.md"),
+                "---\nname: " + name + "\ndescription: " + description + "\n---\nThe body of "
+                        + name + ".\n");
     }
 
     @Test
@@ -109,5 +121,37 @@ class CommandsTest {
 
         assertEquals(1, ui.errors.size());
         assertTrue(ui.errors.get(0).contains("/tolos"), ui.errors.get(0));
+    }
+
+    @Test
+    void skillWithNoNameListsEverySkill() throws IOException {
+        writeSkill("commit-message", "Use for a commit.");
+        writeSkill("review", "Use for a review.");
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/skill");
+
+        String shown = String.join("\n", ui.answers);
+        assertTrue(shown.contains("commit-message"), shown);
+        assertTrue(shown.contains("Use for a review."), shown);
+    }
+
+    @Test
+    void skillWithNoNameSaysWhenThereAreNoSkills() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/skill");
+
+        assertTrue(String.join("\n", ui.answers).contains("No skill"), ui.answers.toString());
+    }
+
+    @Test
+    void aCommandThatTakesNoArgumentStaysUnknownWithOne() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/help me");
+
+        assertTrue(ui.errors.get(0).contains("/help me"), ui.errors.toString());
+        assertTrue(ui.answers.isEmpty(), ui.answers.toString());
     }
 }
