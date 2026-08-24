@@ -8,6 +8,7 @@ import dev.konacode.tools.Workspace;
 import dev.konacode.tools.ListFiles;
 import dev.konacode.tools.ReadFile;
 import dev.konacode.tools.StopCheck;
+import dev.konacode.trace.Level;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -28,7 +29,7 @@ class CommandsTest {
         Workspace workspace = new Workspace(root);
         return new Commands(conversation, SYSTEM,
                 ToolRegistry.of(new ListFiles(workspace, StopCheck.NEVER),
-                        new ReadFile(workspace, StopCheck.NEVER)), ui);
+                        new ReadFile(workspace, StopCheck.NEVER)), ui, Level.BASIC);
     }
 
     @Test
@@ -109,5 +110,45 @@ class CommandsTest {
 
         assertEquals(1, ui.errors.size());
         assertTrue(ui.errors.get(0).contains("/tolos"), ui.errors.get(0));
+    }
+
+    @Test
+    void traceWithNoLevelShowsBothLevels() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/trace");
+
+        String shown = String.join("\n", ui.answers);
+        assertTrue(shown.contains("off"), shown);
+        assertTrue(shown.contains("basic"), shown);
+    }
+
+    @Test
+    void traceSetsTheLevelOfTheScreen() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/trace full");
+
+        assertEquals(Level.FULL, ui.liveTrace());
+    }
+
+    @Test
+    void traceRefusesAnUnknownLevel() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/trace loud");
+
+        assertEquals(1, ui.errors.size());
+        assertTrue(ui.errors.get(0).contains("loud"), ui.errors.get(0));
+        assertEquals(Level.OFF, ui.liveTrace());
+    }
+
+    @Test
+    void helpNamesTrace() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/help");
+
+        assertTrue(String.join("\n", ui.answers).contains("/trace"), ui.answers.toString());
     }
 }

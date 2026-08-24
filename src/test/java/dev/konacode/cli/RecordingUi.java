@@ -1,6 +1,8 @@
 package dev.konacode.cli;
 
-import dev.konacode.tools.ToolResult;
+import dev.konacode.trace.Level;
+import dev.konacode.trace.TraceEvent;
+import dev.konacode.trace.TraceEvent.ToolCalled;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -15,6 +17,7 @@ final class RecordingUi implements Ui {
     final List<String> answers = new ArrayList<>();
     final List<String> errors = new ArrayList<>();
     final List<String> events = new ArrayList<>();
+    Level live = Level.OFF;
 
     RecordingUi(String... input) {
         Collections.addAll(lines, input);
@@ -48,11 +51,19 @@ final class RecordingUi implements Ui {
     }
 
     @Override
-    public void onToolCall(String name, String argumentsJson) {
-        events.add("tool:" + name);
+    public void liveTrace(Level level) {
+        this.live = level;
     }
 
     @Override
-    public void onToolResult(String name, ToolResult result) {
+    public Level liveTrace() {
+        return live;
+    }
+
+    @Override
+    public void emit(TraceEvent event) {
+        if (event instanceof ToolCalled called) {
+            events.add("tool:" + called.name());
+        }
     }
 }

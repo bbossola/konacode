@@ -13,6 +13,7 @@ import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
 import dev.konacode.tools.ListFiles;
 import dev.konacode.tools.StopCheck;
+import dev.konacode.trace.Level;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -35,7 +36,7 @@ class ReplTest {
         ToolRegistry registry = ToolRegistry.of(new ListFiles(new Workspace(root), StopCheck.NEVER));
         Agent agent = new Agent(client, registry, new AllowAllPolicy(), conversation, ui,
                 new Cancellation(), 8);
-        return new Repl(agent, ui, new Commands(conversation, SYSTEM, registry, ui));
+        return new Repl(agent, ui, new Commands(conversation, SYSTEM, registry, ui, Level.OFF));
     }
 
     @Test

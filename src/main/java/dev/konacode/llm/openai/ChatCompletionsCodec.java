@@ -16,6 +16,7 @@ import dev.konacode.llm.ToolSpec;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Translation between konacode's message model and the OpenAI Chat Completions wire format.
@@ -128,5 +129,34 @@ public final class ChatCompletionsCodec {
         }
 
         return new AssistantMessage(text, toolCalls);
+    }
+
+    /**
+     * The token counts of a reply, when the provider reported them.
+     *
+     * <p>It never throws. The counts are a diagnostic, so a reply konacode cannot read here is a
+     * reply with no counts, and never a failed turn. This is why it differs from
+     * {@link #decodeResponse}, which throws: a reply with no choices carries no answer.
+     *
+     * <p>It parses the body a second time on purpose. This class stays free of state, and each
+     * method is testable alone.
+     */
+    public Optional<Usage> decodeUsage(String body) {
+        if (body == null) {
+            return Optional.empty();
+        }
+        JsonNode usage;
+        try {
+            usage = mapper.readTree(body).path("usage");
+        } catch (JsonProcessingException e) {
+            return Optional.empty();
+        }
+        if (!usage.isObject()) {
+            return Optional.empty();
+        }
+        return Optional.of(new Usage(
+                usage.path("prompt_tokens").asInt(0),
+                usage.path("completion_tokens").asInt(0),
+                usage.path("total_tokens").asInt(0)));
     }
 }

@@ -16,6 +16,9 @@ import dev.konacode.tools.Schemas;
 import dev.konacode.tools.Tool;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.ToolResult;
+import dev.konacode.trace.TraceEvent.IterationStarted;
+import dev.konacode.trace.TraceEvent.Outcome;
+import dev.konacode.trace.TraceEvent.TurnStarted;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -141,27 +144,78 @@ class AgentTest {
     }
 
     private Agent agent(FakeLlmClient client, ToolRegistry registry, ToolPolicy policy,
-                        RecordingToolCallListener listener, int maxIterations) {
+                        RecordingTrace trace, int maxIterations) {
         return new Agent(
                 client,
                 registry,
                 policy,
                 new Conversation(new SystemMessage("You are konacode.")),
-                listener,
+                trace,
                 new Cancellation(),
                 maxIterations);
     }
 
     @Test
+    void reportsAnAnsweredTurn() {
+        FakeLlmClient client = new FakeLlmClient().replyText("Hello.");
+        RecordingTrace trace = new RecordingTrace();
+
+        agent(client, ToolRegistry.of(new EchoTool("echo")), new AllowAllPolicy(), trace, 8)
+                .respond("hi");
+
+        assertEquals(List.of(Outcome.ANSWERED), trace.outcomes());
+        assertEquals(new TurnStarted(1, "hi"), trace.events().get(0));
+        assertEquals(new IterationStarted(1, 1, 8), trace.events().get(1));
+    }
+
+    @Test
+    void reportsATurnThatRanOutOfIterations() {
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
+                .reply(new AssistantMessage("", List.of(call("c2", "echo", "{}"))));
+        RecordingTrace trace = new RecordingTrace();
+
+        agent(client, ToolRegistry.of(new EchoTool("echo")), new AllowAllPolicy(), trace, 2)
+                .respond("go");
+
+        assertEquals(List.of(Outcome.EXHAUSTED), trace.outcomes());
+    }
+
+    @Test
+    void reportsATurnThatFailed() {
+        FakeLlmClient client = new FakeLlmClient().failWith(new LlmException("HTTP 401"));
+        RecordingTrace trace = new RecordingTrace();
+
+        agent(client, ToolRegistry.of(new EchoTool("echo")), new AllowAllPolicy(), trace, 8)
+                .respond("go");
+
+        assertEquals(List.of(Outcome.FAILED), trace.outcomes());
+    }
+
+    @Test
+    void countsTheTurns() {
+        FakeLlmClient client = new FakeLlmClient().replyText("One.").replyText("Two.");
+        RecordingTrace trace = new RecordingTrace();
+        Agent agent = agent(client, ToolRegistry.of(new EchoTool("echo")), new AllowAllPolicy(),
+                trace, 8);
+
+        agent.respond("first");
+        agent.respond("second");
+
+        assertEquals(new TurnStarted(1, "first"), trace.events().get(0));
+        assertEquals(new TurnStarted(2, "second"), trace.events().get(3));
+    }
+
+    @Test
     void returnsTextWhenTheModelDoesNotCallATool() {
         FakeLlmClient client = new FakeLlmClient().replyText("Hello.");
-        RecordingToolCallListener listener = new RecordingToolCallListener();
+        RecordingTrace trace = new RecordingTrace();
 
         String answer = agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), listener, 8).respond("hi");
+                new AllowAllPolicy(), trace, 8).respond("hi");
 
         assertEquals("Hello.", answer);
-        assertEquals(List.of(), listener.calls());
+        assertEquals(List.of(), trace.calls());
     }
 
     @Test
@@ -169,14 +223,14 @@ class AgentTest {
         FakeLlmClient client = new FakeLlmClient()
                 .reply(new AssistantMessage("", List.of(call("c1", "echo", "{\"value\":\"hi\"}"))))
                 .replyText("Done.");
-        RecordingToolCallListener listener = new RecordingToolCallListener();
+        RecordingTrace trace = new RecordingTrace();
 
         String answer = agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), listener, 8).respond("go");
+                new AllowAllPolicy(), trace, 8).respond("go");
 
         assertEquals("Done.", answer);
-        assertEquals(List.of("echo({\"value\":\"hi\"})"), listener.calls());
-        assertEquals(List.of(ToolResult.ok("echo:hi")), listener.results());
+        assertEquals(List.of("echo({\"value\":\"hi\"})"), trace.calls());
+        assertEquals(List.of(ToolResult.ok("echo:hi")), trace.results());
     }
 
     @Test
@@ -186,7 +240,7 @@ class AgentTest {
                 .replyText("Done.");
 
         agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), new RecordingToolCallListener(), 8).respond("go");
+                new AllowAllPolicy(), new RecordingTrace(), 8).respond("go");
 
         // The history sent on the second request must carry the assistant message that made the
         // call, immediately before its result. Providers reject the result otherwise.
@@ -204,13 +258,13 @@ class AgentTest {
                         call("c1", "echo", "{\"value\":\"one\"}"),
                         call("c2", "echo", "{\"value\":\"two\"}"))))
                 .replyText("Both done.");
-        RecordingToolCallListener listener = new RecordingToolCallListener();
+        RecordingTrace trace = new RecordingTrace();
 
         agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), listener, 8).respond("go");
+                new AllowAllPolicy(), trace, 8).respond("go");
 
         assertEquals(List.of(ToolResult.ok("echo:one"), ToolResult.ok("echo:two")),
-                listener.results());
+                trace.results());
     }
 
     @Test
@@ -218,13 +272,13 @@ class AgentTest {
         FakeLlmClient client = new FakeLlmClient()
                 .reply(new AssistantMessage("", List.of(call("c1", "nonexistent", "{}"))))
                 .replyText("Understood.");
-        RecordingToolCallListener listener = new RecordingToolCallListener();
+        RecordingTrace trace = new RecordingTrace();
 
         String answer = agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), listener, 8).respond("go");
+                new AllowAllPolicy(), trace, 8).respond("go");
 
         assertEquals("Understood.", answer);
-        assertTrue(assertInstanceOf(ToolResult.Err.class, listener.results().get(0))
+        assertTrue(assertInstanceOf(ToolResult.Err.class, trace.results().get(0))
                 .message().contains("Unknown tool"));
     }
 
@@ -233,12 +287,12 @@ class AgentTest {
         FakeLlmClient client = new FakeLlmClient()
                 .reply(new AssistantMessage("", List.of(call("c1", "echo", "{not json"))))
                 .replyText("Understood.");
-        RecordingToolCallListener listener = new RecordingToolCallListener();
+        RecordingTrace trace = new RecordingTrace();
 
         agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), listener, 8).respond("go");
+                new AllowAllPolicy(), trace, 8).respond("go");
 
-        assertTrue(assertInstanceOf(ToolResult.Err.class, listener.results().get(0))
+        assertTrue(assertInstanceOf(ToolResult.Err.class, trace.results().get(0))
                 .message().contains("parse"));
     }
 
@@ -248,12 +302,12 @@ class AgentTest {
         FakeLlmClient client = new FakeLlmClient()
                 .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
                 .replyText("Understood.");
-        RecordingToolCallListener listener = new RecordingToolCallListener();
+        RecordingTrace trace = new RecordingTrace();
 
-        agent(client, ToolRegistry.of(new EchoTool("echo")), denyEverything, listener, 8)
+        agent(client, ToolRegistry.of(new EchoTool("echo")), denyEverything, trace, 8)
                 .respond("go");
 
-        assertEquals(ToolResult.err("not permitted here"), listener.results().get(0));
+        assertEquals(ToolResult.err("not permitted here"), trace.results().get(0));
     }
 
     @Test
@@ -261,13 +315,13 @@ class AgentTest {
         FakeLlmClient client = new FakeLlmClient()
                 .reply(new AssistantMessage("", List.of(call("c1", "explode", "{}"))))
                 .replyText("Recovered.");
-        RecordingToolCallListener listener = new RecordingToolCallListener();
+        RecordingTrace trace = new RecordingTrace();
 
         String answer = agent(client, ToolRegistry.of(new ExplodingTool("explode")),
-                new AllowAllPolicy(), listener, 8).respond("go");
+                new AllowAllPolicy(), trace, 8).respond("go");
 
         assertEquals("Recovered.", answer);
-        assertTrue(assertInstanceOf(ToolResult.Err.class, listener.results().get(0))
+        assertTrue(assertInstanceOf(ToolResult.Err.class, trace.results().get(0))
                 .message().contains("boom"));
     }
 
@@ -279,7 +333,7 @@ class AgentTest {
         }
 
         String answer = agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), new RecordingToolCallListener(), 3).respond("go");
+                new AllowAllPolicy(), new RecordingTrace(), 3).respond("go");
 
         assertTrue(answer.startsWith("<error> Exceeded maximum tool iterations"), answer);
         assertEquals(3, client.receivedHistories().size());
@@ -290,7 +344,7 @@ class AgentTest {
         FakeLlmClient client = new FakeLlmClient().failWith(new LlmException("HTTP 401: bad key"));
 
         String answer = agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), new RecordingToolCallListener(), 8).respond("go");
+                new AllowAllPolicy(), new RecordingTrace(), 8).respond("go");
 
         assertEquals("<error> HTTP 401: bad key", answer);
     }
@@ -318,13 +372,13 @@ class AgentTest {
         FakeLlmClient client = new FakeLlmClient()
                 .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
                 .replyText("Recovered.");
-        RecordingToolCallListener listener = new RecordingToolCallListener();
+        RecordingTrace trace = new RecordingTrace();
 
         String answer = agent(client, ToolRegistry.of(new EchoTool("echo")),
-                brokenPolicy, listener, 8).respond("go");
+                brokenPolicy, trace, 8).respond("go");
 
         assertEquals("Recovered.", answer);
-        assertTrue(assertInstanceOf(ToolResult.Err.class, listener.results().get(0))
+        assertTrue(assertInstanceOf(ToolResult.Err.class, trace.results().get(0))
                 .message().contains("policy bug"));
     }
 
@@ -334,7 +388,7 @@ class AgentTest {
         Conversation conversation =
                 new Conversation(new SystemMessage("You are konacode."));
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), conversation, new RecordingToolCallListener(),
+                new AllowAllPolicy(), conversation, new RecordingTrace(),
                 new Cancellation(), 8);
 
         agent.respond("first");
@@ -358,7 +412,7 @@ class AgentTest {
         Conversation conversation =
                 new Conversation(new SystemMessage("You are konacode."));
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), conversation, new RecordingToolCallListener(),
+                new AllowAllPolicy(), conversation, new RecordingTrace(),
                 new Cancellation(), 2);
 
         agent.respond("go");
@@ -376,14 +430,14 @@ class AgentTest {
                         call("c1", "explode", "{}"),
                         call("c2", "echo", "{\"value\":\"still ran\"}"))))
                 .replyText("Done.");
-        RecordingToolCallListener listener = new RecordingToolCallListener();
+        RecordingTrace trace = new RecordingTrace();
 
         agent(client, ToolRegistry.of(new EchoTool("echo"), new ExplodingTool("explode")),
-                new AllowAllPolicy(), listener, 8).respond("go");
+                new AllowAllPolicy(), trace, 8).respond("go");
 
-        assertEquals(2, listener.results().size());
-        assertInstanceOf(ToolResult.Err.class, listener.results().get(0));
-        assertEquals(ToolResult.ok("echo:still ran"), listener.results().get(1));
+        assertEquals(2, trace.results().size());
+        assertInstanceOf(ToolResult.Err.class, trace.results().get(0));
+        assertEquals(ToolResult.ok("echo:still ran"), trace.results().get(1));
     }
 
     @Test
@@ -392,7 +446,7 @@ class AgentTest {
                 () -> new Agent(new FakeLlmClient(), ToolRegistry.of(new EchoTool("echo")),
                         new AllowAllPolicy(),
                         new Conversation(new SystemMessage("s")),
-                        new RecordingToolCallListener(), new Cancellation(), 0));
+                        new RecordingTrace(), new Cancellation(), 0));
     }
 
     @Test
@@ -418,7 +472,7 @@ class AgentTest {
                 .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))));
         Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), conversation, new RecordingToolCallListener(),
+                new AllowAllPolicy(), conversation, new RecordingTrace(),
                 cancellation, 8);
 
         String answer = agent.respond("list the files");
@@ -439,7 +493,7 @@ class AgentTest {
                         List.of(call("c1", "echo", "{}"), call("c2", "echo", "{}"))));
         Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), conversation, new RecordingToolCallListener(),
+                new AllowAllPolicy(), conversation, new RecordingTrace(),
                 cancellation, 8);
 
         agent.respond("do two things");
@@ -460,13 +514,14 @@ class AgentTest {
                 .reply(new AssistantMessage("",
                         List.of(call("c1", "stop", "{}"), call("c2", "echo", "{}"))));
         Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
-        RecordingToolCallListener listener = new RecordingToolCallListener();
+        RecordingTrace trace = new RecordingTrace();
         Agent agent = new Agent(client,
                 ToolRegistry.of(new StoppingTool("stop", cancellation), new EchoTool("echo")),
-                new AllowAllPolicy(), conversation, listener, cancellation, 8);
+                new AllowAllPolicy(), conversation, trace, cancellation, 8);
 
         assertEquals("Stopped.", agent.respond("do two things"));
 
+        assertEquals(List.of(Outcome.STOPPED), trace.outcomes());
         List<String> toolMessages = conversation.messages().stream()
                 .filter(ToolMessage.class::isInstance)
                 .map(message -> ((ToolMessage) message).content())
@@ -484,7 +539,7 @@ class AgentTest {
                 .failWith(new LlmException("Request was interrupted."));
         Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), conversation, new RecordingToolCallListener(),
+                new AllowAllPolicy(), conversation, new RecordingTrace(),
                 cancellation, 8);
 
         assertEquals("Stopped.", agent.respond("hello"));
@@ -497,7 +552,7 @@ class AgentTest {
         FakeLlmClient client = new FakeLlmClient().replyText("hello");
         Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), conversation, new RecordingToolCallListener(),
+                new AllowAllPolicy(), conversation, new RecordingTrace(),
                 cancellation, 8);
 
         assertEquals("hello", agent.respond("hello"));
@@ -515,7 +570,7 @@ class AgentTest {
                 .replyText("hello");
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
                 new AllowAllPolicy(), new Conversation(new SystemMessage("You are konacode.")),
-                new RecordingToolCallListener(), cancellation, 8);
+                new RecordingTrace(), cancellation, 8);
 
         agent.respond("hello");
 
@@ -530,7 +585,7 @@ class AgentTest {
                 .replyText("hello");
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
                 new AllowAllPolicy(), new Conversation(new SystemMessage("You are konacode.")),
-                new RecordingToolCallListener(), cancellation, 8);
+                new RecordingTrace(), cancellation, 8);
 
         agent.respond("hello");
 
@@ -545,7 +600,7 @@ class AgentTest {
                 .reply(new AssistantMessage("", List.of(call("c1", "blocking", "{}"))));
         Agent agent = new Agent(client, ToolRegistry.of(tool), new AllowAllPolicy(),
                 new Conversation(new SystemMessage("You are konacode.")),
-                new RecordingToolCallListener(), cancellation, 8);
+                new RecordingTrace(), cancellation, 8);
 
         agent.respond("fetch it");
 
@@ -561,7 +616,7 @@ class AgentTest {
                 .reply(new AssistantMessage("", List.of(call("c1", "blocking", "{}"))));
         Agent agent = new Agent(client, ToolRegistry.of(tool), new AllowAllPolicy(),
                 new Conversation(new SystemMessage("You are konacode.")),
-                new RecordingToolCallListener(), cancellation, 8);
+                new RecordingTrace(), cancellation, 8);
 
         agent.respond("fetch it");
 

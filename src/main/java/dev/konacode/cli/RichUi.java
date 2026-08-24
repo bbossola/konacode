@@ -2,7 +2,10 @@ package dev.konacode.cli;
 
 import dev.konacode.agent.Cancellation;
 import dev.konacode.cli.markdown.Markdown;
-import dev.konacode.tools.ToolResult;
+import dev.konacode.trace.Level;
+import dev.konacode.trace.TraceEvent;
+import dev.konacode.trace.TraceEvent.ToolCalled;
+import dev.konacode.trace.TraceEvent.ToolFinished;
 import org.jline.keymap.KeyMap;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
@@ -32,6 +35,7 @@ final class RichUi implements Ui {
     private final PrintStream out;
     private final Spinner spinner;
     private final EscapeWatcher watcher;
+    private Level live = Level.OFF;
 
     RichUi(LineReader reader, Terminal terminal, PrintStream out, Spinner spinner,
            EscapeWatcher watcher) {
@@ -102,14 +106,30 @@ final class RichUi implements Ui {
     }
 
     @Override
-    public void onToolCall(String name, String argumentsJson) {
-        spinner.stop();
-        out.println(Ansi.style("tool: " + name + "(" + argumentsJson + ")", Ansi.GREEN));
+    public void liveTrace(Level level) {
+        this.live = level;
     }
 
     @Override
-    public void onToolResult(String name, ToolResult result) {
-        spinner.start();
+    public Level liveTrace() {
+        return live;
+    }
+
+    @Override
+    public void emit(TraceEvent event) {
+        if (event instanceof ToolCalled called) {
+            spinner.stop();
+            out.println(Ansi.style(
+                    "tool: " + called.name() + "(" + called.argumentsJson() + ")", Ansi.GREEN));
+            return;
+        }
+        live.keep(event).ifPresent(kept -> {
+            spinner.stop();
+            out.println(Ansi.style("trace: " + TraceLine.of(kept), Ansi.MAGENTA));
+        });
+        if (event instanceof ToolFinished) {
+            spinner.start();
+        }
     }
 
     @Override

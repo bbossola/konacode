@@ -1,6 +1,8 @@
 package dev.konacode.cli;
 
-import dev.konacode.tools.ToolResult;
+import dev.konacode.trace.Level;
+import dev.konacode.trace.TraceEvent;
+import dev.konacode.trace.TraceEvent.ToolCalled;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -19,6 +21,7 @@ final class PlainUi implements Ui {
 
     private final BufferedReader in;
     private final PrintStream out;
+    private Level live = Level.OFF;
 
     PlainUi(BufferedReader in, PrintStream out) {
         this.in = in;
@@ -63,11 +66,21 @@ final class PlainUi implements Ui {
     }
 
     @Override
-    public void onToolCall(String name, String argumentsJson) {
-        out.println("tool: " + name + "(" + argumentsJson + ")");
+    public void liveTrace(Level level) {
+        this.live = level;
     }
 
     @Override
-    public void onToolResult(String name, ToolResult result) {
+    public Level liveTrace() {
+        return live;
+    }
+
+    @Override
+    public void emit(TraceEvent event) {
+        if (event instanceof ToolCalled called) {
+            out.println("tool: " + called.name() + "(" + called.argumentsJson() + ")");
+            return;
+        }
+        live.keep(event).ifPresent(kept -> out.println("trace: " + TraceLine.of(kept)));
     }
 }

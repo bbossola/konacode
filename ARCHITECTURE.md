@@ -23,9 +23,9 @@ For what each element *is*, see [CLAUDE.md](CLAUDE.md). For why it is shaped thi
                               │
           ┌───────────────────┼────────────────────┐
           ▼                   ▼                    ▼
-      ToolPolicy            Tool             ToolCallListener
-      ──────────            ────             ────────────────
-      → Decision            → ToolResult     observes; changes nothing
+      ToolPolicy            Tool                  Trace
+      ──────────            ────                  ─────
+      → Decision            → ToolResult     emit(TraceEvent); changes nothing
         Allow | Deny          Ok | Err
 ```
 
@@ -84,6 +84,20 @@ does.
 Nothing in that picture teaches the model to list a directory before reading a file, or to
 re-read a file after a failed edit. That behaviour emerges from the loop and the tool
 descriptions alone.
+
+## The trace
+
+Every turn reports itself into one event stream. `Trace` carries each `TraceEvent` to two
+sinks: a JSON-lines file, and the screen. Each sink holds its own level. The file can show more
+than the screen, or less.
+
+- `TurnStarted` — the loop starts a turn.
+- `IterationStarted` — one for each round of the loop.
+- `ToolCalled` and `ToolFinished` — one pair for each tool the model calls.
+- `TurnEnded` — the loop ends a turn, with the outcome.
+- `RequestSent` and `ReplyReceived` — the provider sends the request and reads the reply.
+- `TokensUsed` — the provider reports the token counts of the reply.
+- `RetryRequested` — the provider asks the model again, because it wrote a tool call as prose.
 
 ## Invariants
 
