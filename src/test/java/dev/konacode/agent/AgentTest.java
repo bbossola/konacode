@@ -44,6 +44,11 @@ class AgentTest {
         public ToolResult execute(JsonNode args) {
             return ToolResult.ok("echo:" + args.path("value").asText(""));
         }
+
+        @Override
+        public boolean stopsOnInterrupt() {
+            return false;
+        }
     }
 
     private record ExplodingTool(String name) implements Tool {
@@ -60,6 +65,11 @@ class AgentTest {
         @Override
         public ToolResult execute(JsonNode args) {
             throw new IllegalStateException("boom");
+        }
+
+        @Override
+        public boolean stopsOnInterrupt() {
+            return false;
         }
     }
 

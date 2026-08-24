@@ -68,6 +68,11 @@ public final class ListFiles implements Tool {
         }
     }
 
+    @Override
+    public boolean stopsOnInterrupt() {
+        return false;
+    }
+
     private String render(Path directory) throws IOException {
         List<Path> entries = workspace.listSorted(directory);
 

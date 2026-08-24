@@ -81,6 +81,11 @@ public final class EditFile implements Tool {
                 : create(file, rawPath, oldStr, newStr);
     }
 
+    @Override
+    public boolean stopsOnInterrupt() {
+        return false;
+    }
+
     private ToolResult create(Path file, String rawPath, String oldStr, String newStr) {
         if (!oldStr.isEmpty()) {
             return ToolResult.err(

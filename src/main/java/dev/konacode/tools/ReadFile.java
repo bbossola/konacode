@@ -65,4 +65,9 @@ public final class ReadFile implements Tool {
             return ToolResult.err("Could not read file at path: " + pathNode.asText() + ". " + e);
         }
     }
+
+    @Override
+    public boolean stopsOnInterrupt() {
+        return false;
+    }
 }
