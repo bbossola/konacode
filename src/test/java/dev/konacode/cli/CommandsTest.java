@@ -197,17 +197,17 @@ class CommandsTest {
     }
 
     @Test
-    void skillNamesTheFolderSoTheModelCanReadAReferenceFile() throws IOException {
+    void skillFramesTheBodyForTheModel() throws IOException {
         writeSkill("commit-message", "Use for a commit.");
         Conversation conversation = new Conversation(SYSTEM);
 
         commands(new RecordingUi(), conversation).run("/skill commit-message");
 
-        UserMessage loaded = (UserMessage) conversation.messages().get(1);
-        assertTrue(loaded.text().contains(
-                root.resolve("skills").resolve("commit-message").toRealPath().toString()),
-                loaded.text());
-        assertTrue(loaded.text().contains("read_file"), loaded.text());
+        String folder = root.resolve("skills").resolve("commit-message").toRealPath().toString();
+        assertEquals("The skill `commit-message` is loaded. Its folder is `" + folder
+                        + "`. Use read_file to read a file inside that folder.\n\n"
+                        + "The body of commit-message.",
+                ((UserMessage) conversation.messages().get(1)).text());
     }
 
     @Test
@@ -285,7 +285,7 @@ class CommandsTest {
     }
 
     @Test
-    void oneBlankLineSeparatesTheHeaderFromTheBody() throws IOException {
+    void oneBlankLineSitsAboveTheBody() throws IOException {
         Path directory = Files.createDirectories(root.resolve("skills").resolve("spaced"));
         Files.writeString(directory.resolve("SKILL.md"),
                 "---\nname: spaced\ndescription: Use it.\n---\n\n\n  The body.\n\n\n");
@@ -294,6 +294,6 @@ class CommandsTest {
         commands(new RecordingUi(), conversation).run("/skill spaced");
 
         String text = ((UserMessage) conversation.messages().get(1)).text();
-        assertTrue(text.endsWith("that folder.\n\nThe body."), text);
+        assertTrue(text.endsWith("that folder.\n\n  The body."), text);
     }
 }

@@ -61,8 +61,16 @@ record FrontMatter(String name, String description, String body) {
             throw new IllegalArgumentException("The header has no description.");
         }
 
-        return new FrontMatter(name, description,
-                String.join("\n", lines.subList(close + 1, lines.size())));
+        String body = trimmed(String.join("\n", lines.subList(close + 1, lines.size())));
+        if (body.isEmpty()) {
+            throw new IllegalArgumentException("The file has no text below the header.");
+        }
+        return new FrontMatter(name, description, body);
+    }
+
+    /** Removes a blank line above the body, and keeps the indent of the first line that follows. */
+    private static String trimmed(String body) {
+        return body.replaceFirst("^(?:[ \\t]*\\R)+", "").stripTrailing();
     }
 
     private static String readable(String key, String value) {

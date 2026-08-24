@@ -85,11 +85,11 @@ final class Commands {
     }
 
     private void skill(String name) {
-        if (name.isEmpty()) {
-            list();
-            return;
-        }
         try {
+            if (name.isEmpty()) {
+                list();
+                return;
+            }
             Skill skill = skills.lookup(name).orElse(null);
             if (skill == null) {
                 ui.showError("Unknown skill: " + name + ". Type /skill for the list.");
@@ -113,7 +113,7 @@ final class Commands {
      */
     private static String load(Skill skill, String body) {
         return loaded(skill) + " Its folder is `" + skill.folder()
-                + "`. Use read_file to read a file inside that folder.\n\n" + body.strip();
+                + "`. Use read_file to read a file inside that folder.\n\n" + body;
     }
 
     private void list() {

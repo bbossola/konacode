@@ -29,7 +29,7 @@ class FrontMatterTest {
     void returnsTheBodyThatFollowsTheSecondMarker() {
         FrontMatter parsed = FrontMatter.parse(GOOD);
 
-        assertEquals("\nWrite the subject in the imperative.", parsed.body());
+        assertEquals("Write the subject in the imperative.", parsed.body());
     }
 
     @Test
@@ -166,10 +166,19 @@ class FrontMatterTest {
     }
 
     @Test
-    void returnsAnEmptyBodyWhenNothingFollowsTheMarker() {
+    void reportsAFileWithNoTextBelowTheHeader() {
         String text = "---\nname: commit\ndescription: Use it.\n---\n";
 
-        assertEquals("", FrontMatter.parse(text).body());
+        IllegalArgumentException e =
+                assertThrows(IllegalArgumentException.class, () -> FrontMatter.parse(text));
+        assertTrue(e.getMessage().contains("no text"), e.getMessage());
+    }
+
+    @Test
+    void keepsTheIndentOfTheFirstLineOfTheBody() {
+        String text = "---\nname: a\ndescription: b\n---\n\n    def build():\n        return 1\n";
+
+        assertEquals("    def build():\n        return 1", FrontMatter.parse(text).body());
     }
 
     @Test

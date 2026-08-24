@@ -100,7 +100,7 @@ public final class SkillRegistry {
         try {
             return folder.toRealPath();
         } catch (IOException e) {
-            throw new SkillException("Could not read " + folder + ".", e);
+            throw new SkillException("Could not read " + folder + ": " + e.getMessage(), e);
         }
     }
 
