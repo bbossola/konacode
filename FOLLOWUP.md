@@ -105,7 +105,8 @@ adds planning, and expect to revisit the default.
 ## 4. Streaming, and interrupting a turn
 
 The user interface work left both of these out on purpose. Both change an interface outside the
-`cli` package, so neither is a detail of the interface.
+`cli` package, so neither is a detail of the interface. Interrupting a turn is now built;
+streaming is not.
 
 ### Streaming
 
@@ -124,21 +125,38 @@ render nothing until the answer is complete. The second choice gives up most of 
 
 The spinner then goes away. It exists because nothing appears while the model works.
 
-### Interrupting a turn
+### Interrupting a turn — **done**
 
-Today `ctrl-c` clears the line at the prompt. During a turn it kills the process.
+Built. `esc` stops a turn, and `ctrl-c` still ends konacode. See
+[the design](docs/superpowers/specs/2026-08-23-interrupt-design.md).
 
-`Agent.respond` must become cancellable. It must read a flag between iterations, and the request
-must stop. `HttpClient.send` blocks, and `sendAsync` returns a `CompletableFuture` that cancels.
+Two notes for anyone reading the original entry, because the built design differs from what this
+document proposed.
 
-The conversation is the hard part. ARCHITECTURE.md records the invariant: every `ToolCall` is
-answered by exactly one `ToolMessage`. A turn cut in the middle can leave a call with no result,
-and the next request then carries a history that a provider rejects. So the cancel path must
-either finish the results it owes, or remove the assistant message that asked for them.
+**The abort is a thread interrupt, not `sendAsync`.** `OpenAiClient` already translated
+`InterruptedException`, so `LlmClient` did not change and no future provider inherits a
+cancellation contract. `Cancellation` arms the interrupt around the provider call and around a
+tool that answers `stopsOnInterrupt()` with true, and around nothing else.
 
-This is the same class of fault as the unanswered user message that a review found earlier. A
-failure path left the conversation in a shape a provider refuses, and no test noticed, because
-every test ran to the end.
+**The cancel path finishes the results it owes.** This entry offered two options. They are not
+equal. Removing the assistant message also removes the model's only record of what it did, and the
+first thing a user says after a stop is often "undo that". So a tool call that never ran is
+answered with an `Err` saying the user stopped the turn before it ran, and the whole turn stays in
+the history.
+
+Two things the built feature leans on, which are worth knowing before changing either:
+
+- **`esc` needs a native JLine terminal provider.** The spike ran on `JniUnixSysTerminal`, where
+  `terminal.reader().read(timeout)` delivers a keystroke while `readLine` is not running, and
+  `ISIG` can be turned back on. If JLine ever falls back to a provider without that,
+  `EscapeWatcher` fails quietly by design — it must not corrupt the screen the agent is writing —
+  and the user loses `esc` with no message. Nobody has asked for a fallback yet.
+- **`EditFile`'s guarantee leans on `writeAtomic`.** The guarantee is that the edit is fully
+  applied or the file is untouched. It holds because the stop check sits on one side of
+  `writeAtomic` and never inside. `writeAtomic` itself has two pre-existing paths that predate the
+  guarantee and are not covered by it: a non-atomic fallback move that fails part way, and a
+  `deleteIfExists` on the temporary file that fails after a successful move. Both are unlikely on
+  a real filesystem, where the move is a same-directory rename.
 
 ## 5. A native Anthropic provider
 

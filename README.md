@@ -27,16 +27,17 @@ That is `Agent.respond()`. Nobody taught the model to list a directory before re
 to re-read a file after a failed edit. That behavior emerges from the loop and the tool
 descriptions alone.
 
-## The three tools
+## The four tools
 
 | Tool | What it does | Guardrail |
 |---|---|---|
 | `list_files` | Snapshot of a directory | Capped at 200 entries |
 | `read_file` | Return a file's contents | Capped at 100 KB |
 | `edit_file` | Exact-match string replacement (creates the file when `old_str` is empty) | Refuses ambiguous matches |
+| `delete_file` | Remove a file | Refuses a directory |
 
 A tool is a name, a description the model reads, a JSON schema, and a function that runs when
-the model asks for it. Adding a fourth means writing one class and registering it.
+the model asks for it. Adding a fifth means writing one class and registering it.
 
 ## Run it
 
@@ -100,6 +101,10 @@ interface otherwise. A pipe therefore gets the plain interface.
 The rich interface gives line editing and history, with the arrow keys, `ctrl-a`, `ctrl-e` and
 `ctrl-r`. It saves the history in `~/.konacode/chat_history`. Press `alt-enter` to add a second
 line, and `enter` to send. It renders markdown, and it turns a spinner while the model thinks.
+
+Press `esc` to stop a turn. konacode stops at the next safe point, prints `Stopped.`, and gives
+you the prompt back. The conversation keeps what happened, so you can then ask konacode to undo
+what it did. `ctrl-c` still ends konacode, as it always has.
 
 Three commands work in both interfaces.
 
