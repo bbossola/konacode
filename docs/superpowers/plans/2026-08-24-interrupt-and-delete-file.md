@@ -670,7 +670,7 @@ Add the parameter to the constructor, before `maxIterations`, and assign it:
     }
 ```
 
-Replace `respond` with this, and add `stopped` beside `fail`:
+Replace `respond` with this, and add `closeStoppedTurn` beside `fail`:
 
 ```java
     public String respond(String userText) {
@@ -692,7 +692,7 @@ Replace `respond` with this, and add `stopped` beside `fail`:
                 List<ToolCall> calls = reply.toolCalls();
                 for (int index = 0; index < calls.size(); index++) {
                     if (cancellation.stopped()) {
-                        return stopped(calls.subList(index, calls.size()));
+                        return closeStoppedTurn(calls.subList(index, calls.size()));
                     }
                     ToolCall call = calls.get(index);
                     ToolResult result = perform(call);
@@ -700,26 +700,24 @@ Replace `respond` with this, and add `stopped` beside `fail`:
                 }
 
                 if (cancellation.stopped()) {
-                    return stopped(List.of());
+                    return closeStoppedTurn(List.of());
                 }
             }
             return fail("<error> Exceeded maximum tool iterations.");
         } catch (LlmException e) {
             if (cancellation.stopped()) {
-                return stopped(List.of());
+                return closeStoppedTurn(List.of());
             }
             return fail("<error> " + e.getMessage());
         }
     }
 
     /**
-     * Closes a stopped turn.
-     *
-     * <p>The history keeps the whole turn, so the model can read what it did and reverse it when
-     * the user asks. Every tool call that never ran is answered here, because a provider rejects
-     * a conversation where a call has no result.
+     * The history keeps the whole turn, so the model can read what it did and reverse it when the
+     * user asks. Every tool call that never ran is answered here, because a provider rejects a
+     * conversation where a call has no result.
      */
-    private String stopped(List<ToolCall> unanswered) {
+    private String closeStoppedTurn(List<ToolCall> unanswered) {
         for (ToolCall call : unanswered) {
             conversation.add(new ToolMessage(call.id(),
                     ToolResult.err("Stopped by the user before this tool ran.").render()));
@@ -817,7 +815,7 @@ with
                 AssistantMessage reply = chat(tools);
 ```
 
-and add this private method beside `stopped`:
+and add this private method beside `closeStoppedTurn`:
 
 ```java
     /**
