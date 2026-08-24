@@ -1,6 +1,7 @@
 package dev.konacode.cli;
 
 import dev.konacode.agent.Agent;
+import dev.konacode.agent.Approvals;
 import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.Conversation;
 import dev.konacode.llm.Message.SystemMessage;
@@ -66,7 +67,7 @@ public final class Main {
         Conversation conversation = new Conversation(system);
 
         Agent agent = new Agent(new OpenAiClient(config, trace), registry, new AllowAllPolicy(),
-                conversation, trace, cancellation, maxIterations);
+                new Approvals(ui), conversation, trace, cancellation, maxIterations);
 
         try (ui; file) {
             new Repl(agent, ui,

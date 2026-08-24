@@ -1,6 +1,7 @@
 package dev.konacode.cli;
 
 import dev.konacode.agent.Agent;
+import dev.konacode.agent.Approvals;
 import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.Conversation;
 import dev.konacode.llm.LlmClient;
@@ -36,8 +37,8 @@ class ReplTest {
         Conversation conversation = new Conversation(SYSTEM);
         ToolRegistry registry = ToolRegistry.of(new ListFiles(new Workspace(root), StopCheck.NEVER));
         SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
-        Agent agent = new Agent(client, registry, new AllowAllPolicy(), conversation, ui,
-                new Cancellation(), 8);
+        Agent agent = new Agent(client, registry, new AllowAllPolicy(), new Approvals(ui),
+                conversation, ui, new Cancellation(), 8);
         return new Repl(agent, ui,
                 new Commands(conversation, SYSTEM, registry, skills, ui, Level.OFF));
     }

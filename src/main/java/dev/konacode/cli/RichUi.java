@@ -2,6 +2,7 @@ package dev.konacode.cli;
 
 import dev.konacode.agent.Cancellation;
 import dev.konacode.cli.markdown.Markdown;
+import dev.konacode.policy.Decision;
 import dev.konacode.trace.Level;
 import dev.konacode.trace.TraceEvent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
@@ -103,6 +104,12 @@ final class RichUi implements Ui {
     public void thinking() {
         watcher.start();
         spinner.start();
+    }
+
+    /** Task 5 asks the user. Until then konacode refuses rather than guess. */
+    @Override
+    public Answer ask(String toolName, Decision.Ask ask) {
+        return Answer.NO;
     }
 
     @Override

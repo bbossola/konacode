@@ -1,5 +1,6 @@
 package dev.konacode.cli;
 
+import dev.konacode.policy.Decision;
 import dev.konacode.trace.Level;
 import dev.konacode.trace.TraceEvent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
@@ -48,6 +49,11 @@ final class RecordingUi implements Ui {
     @Override
     public void thinking() {
         events.add("thinking");
+    }
+
+    @Override
+    public Answer ask(String toolName, Decision.Ask ask) {
+        return Answer.NO;
     }
 
     @Override

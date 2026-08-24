@@ -43,6 +43,7 @@ public final class Agent {
     private final LlmClient client;
     private final ToolRegistry registry;
     private final ToolPolicy policy;
+    private final Approvals approvals;
     private final Conversation conversation;
     private final Trace trace;
     private final Cancellation cancellation;
@@ -52,6 +53,7 @@ public final class Agent {
     public Agent(LlmClient client,
                  ToolRegistry registry,
                  ToolPolicy policy,
+                 Approvals approvals,
                  Conversation conversation,
                  Trace trace,
                  Cancellation cancellation,
@@ -59,6 +61,7 @@ public final class Agent {
         this.client = Objects.requireNonNull(client, "client");
         this.registry = Objects.requireNonNull(registry, "registry");
         this.policy = Objects.requireNonNull(policy, "policy");
+        this.approvals = Objects.requireNonNull(approvals, "approvals");
         this.conversation = Objects.requireNonNull(conversation, "conversation");
         this.trace = Objects.requireNonNull(trace, "trace");
         this.cancellation = Objects.requireNonNull(cancellation, "cancellation");
@@ -231,10 +234,11 @@ public final class Agent {
             case Decision.Deny(String reason) -> {
                 return ToolResult.err(reason);
             }
-            // Task 4 replaces this with a question. Until then konacode has no way to ask.
             case Decision.Ask ask -> {
-                return ToolResult.err("konacode cannot ask the user to approve " + call.name()
-                        + ": " + ask.action() + ".");
+                if (!approvals.approve(call.name(), ask)) {
+                    return ToolResult.err(
+                            "The user refused to let " + call.name() + " " + ask.action() + ".");
+                }
             }
         }
 
