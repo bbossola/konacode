@@ -1,6 +1,7 @@
 package dev.konacode.cli;
 
 import dev.konacode.agent.Cancellation;
+import dev.konacode.trace.Level;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -42,5 +43,15 @@ class MainTest {
                 () -> Main.selectUi(new Cancellation()));
 
         assertTrue(thrown.getMessage().contains("rihc"), thrown.getMessage());
+    }
+
+    @Test
+    void aWrongTraceLevelIsAnError() {
+        System.setProperty("konacode.trace", "loud");
+        try {
+            assertThrows(IllegalArgumentException.class, Level::configured);
+        } finally {
+            System.clearProperty("konacode.trace");
+        }
     }
 }
