@@ -1,6 +1,7 @@
 package dev.konacode.cli;
 
 import dev.konacode.agent.Agent;
+import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.Conversation;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.Message;
@@ -31,7 +32,8 @@ class ReplTest {
         LlmClient client = (history, tools) -> new AssistantMessage("the answer", List.of());
         Conversation conversation = new Conversation(SYSTEM);
         ToolRegistry registry = ToolRegistry.of(new ListFiles(new Workspace(root)));
-        Agent agent = new Agent(client, registry, new AllowAllPolicy(), conversation, ui, 8);
+        Agent agent = new Agent(client, registry, new AllowAllPolicy(), conversation, ui,
+                new Cancellation(), 8);
         return new Repl(agent, ui, new Commands(conversation, SYSTEM, registry, ui));
     }
 

@@ -51,6 +51,30 @@ class AgentTest {
         }
     }
 
+    /** Stops the turn from inside a tool, which is what an ESC during a tool call does. */
+    private record StoppingTool(String name, Cancellation cancellation) implements Tool {
+        @Override
+        public String description() {
+            return "Stops the turn.";
+        }
+
+        @Override
+        public ObjectNode inputSchema() {
+            return Schemas.object().build();
+        }
+
+        @Override
+        public ToolResult execute(JsonNode args) {
+            cancellation.request();
+            return ToolResult.ok("ran");
+        }
+
+        @Override
+        public boolean stopsOnInterrupt() {
+            return false;
+        }
+    }
+
     private record ExplodingTool(String name) implements Tool {
         @Override
         public String description() {
@@ -85,6 +109,7 @@ class AgentTest {
                 policy,
                 new Conversation(new SystemMessage("You are konacode.")),
                 listener,
+                new Cancellation(),
                 maxIterations);
     }
 
@@ -270,7 +295,8 @@ class AgentTest {
         Conversation conversation =
                 new Conversation(new SystemMessage("You are konacode."));
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), conversation, new RecordingToolCallListener(), 8);
+                new AllowAllPolicy(), conversation, new RecordingToolCallListener(),
+                new Cancellation(), 8);
 
         agent.respond("first");
         agent.respond("second");
@@ -293,7 +319,8 @@ class AgentTest {
         Conversation conversation =
                 new Conversation(new SystemMessage("You are konacode."));
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), conversation, new RecordingToolCallListener(), 2);
+                new AllowAllPolicy(), conversation, new RecordingToolCallListener(),
+                new Cancellation(), 2);
 
         agent.respond("go");
 
@@ -326,7 +353,7 @@ class AgentTest {
                 () -> new Agent(new FakeLlmClient(), ToolRegistry.of(new EchoTool("echo")),
                         new AllowAllPolicy(),
                         new Conversation(new SystemMessage("s")),
-                        new RecordingToolCallListener(), 0));
+                        new RecordingToolCallListener(), new Cancellation(), 0));
     }
 
     @Test
@@ -342,5 +369,98 @@ class AgentTest {
                 System.setProperty("konacode.maxIterations", previous);
             }
         }
+    }
+
+    @Test
+    void stopsWhenTheUserStopsDuringTheProviderCall() {
+        Cancellation cancellation = new Cancellation();
+        FakeLlmClient client = new FakeLlmClient()
+                .beforeReply(cancellation::request)
+                .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))));
+        Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
+        Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
+                new AllowAllPolicy(), conversation, new RecordingToolCallListener(),
+                cancellation, 8);
+
+        String answer = agent.respond("list the files");
+
+        assertEquals("Stopped.", answer);
+        List<Message> messages = conversation.messages();
+        assertInstanceOf(ToolMessage.class, messages.get(messages.size() - 2));
+        assertEquals(new AssistantMessage("Stopped by the user.", List.of()),
+                messages.get(messages.size() - 1));
+    }
+
+    @Test
+    void answersEveryToolCallThatNeverRan() {
+        Cancellation cancellation = new Cancellation();
+        FakeLlmClient client = new FakeLlmClient()
+                .beforeReply(cancellation::request)
+                .reply(new AssistantMessage("",
+                        List.of(call("c1", "echo", "{}"), call("c2", "echo", "{}"))));
+        Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
+        Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
+                new AllowAllPolicy(), conversation, new RecordingToolCallListener(),
+                cancellation, 8);
+
+        agent.respond("do two things");
+
+        List<String> toolMessages = conversation.messages().stream()
+                .filter(ToolMessage.class::isInstance)
+                .map(message -> ((ToolMessage) message).content())
+                .toList();
+        assertEquals(2, toolMessages.size());
+        assertTrue(toolMessages.get(0).contains("Stopped by the user before this tool ran."));
+        assertTrue(toolMessages.get(1).contains("Stopped by the user before this tool ran."));
+    }
+
+    @Test
+    void runsTheToolThatStartedAndStopsBeforeTheNextOne() {
+        Cancellation cancellation = new Cancellation();
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("",
+                        List.of(call("c1", "stop", "{}"), call("c2", "echo", "{}"))));
+        Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
+        RecordingToolCallListener listener = new RecordingToolCallListener();
+        Agent agent = new Agent(client,
+                ToolRegistry.of(new StoppingTool("stop", cancellation), new EchoTool("echo")),
+                new AllowAllPolicy(), conversation, listener, cancellation, 8);
+
+        assertEquals("Stopped.", agent.respond("do two things"));
+
+        List<String> toolMessages = conversation.messages().stream()
+                .filter(ToolMessage.class::isInstance)
+                .map(message -> ((ToolMessage) message).content())
+                .toList();
+        assertEquals(2, toolMessages.size());
+        assertEquals("ran", toolMessages.get(0));
+        assertTrue(toolMessages.get(1).contains("Stopped by the user before this tool ran."));
+    }
+
+    @Test
+    void treatsAnAbortedRequestAsAStopAndNotAFailure() {
+        Cancellation cancellation = new Cancellation();
+        FakeLlmClient client = new FakeLlmClient()
+                .beforeReply(cancellation::request)
+                .failWith(new LlmException("Request was interrupted."));
+        Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
+        Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
+                new AllowAllPolicy(), conversation, new RecordingToolCallListener(),
+                cancellation, 8);
+
+        assertEquals("Stopped.", agent.respond("hello"));
+    }
+
+    @Test
+    void clearsTheStopBeforeEachTurn() {
+        Cancellation cancellation = new Cancellation();
+        cancellation.request();
+        FakeLlmClient client = new FakeLlmClient().replyText("hello");
+        Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
+        Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
+                new AllowAllPolicy(), conversation, new RecordingToolCallListener(),
+                cancellation, 8);
+
+        assertEquals("hello", agent.respond("hello"));
     }
 }

@@ -20,6 +20,8 @@ final class FakeLlmClient implements LlmClient {
     private final Deque<AssistantMessage> script = new ArrayDeque<>();
     private final List<List<Message>> receivedHistories = new ArrayList<>();
     private RuntimeException failure;
+    private Runnable beforeReply = () -> {
+    };
 
     FakeLlmClient reply(AssistantMessage message) {
         script.add(message);
@@ -36,6 +38,12 @@ final class FakeLlmClient implements LlmClient {
         return this;
     }
 
+    /** Runs on the calling thread inside chat, so a test can stop the turn mid-request. */
+    FakeLlmClient beforeReply(Runnable hook) {
+        this.beforeReply = hook;
+        return this;
+    }
+
     List<List<Message>> receivedHistories() {
         return receivedHistories;
     }
@@ -43,6 +51,7 @@ final class FakeLlmClient implements LlmClient {
     @Override
     public AssistantMessage chat(List<Message> history, List<ToolSpec> tools) {
         receivedHistories.add(List.copyOf(history));
+        beforeReply.run();
         if (failure != null) {
             throw failure;
         }

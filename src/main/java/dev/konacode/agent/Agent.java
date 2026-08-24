@@ -38,6 +38,7 @@ public final class Agent {
     private final ToolPolicy policy;
     private final Conversation conversation;
     private final ToolCallListener listener;
+    private final Cancellation cancellation;
     private final int maxIterations;
 
     public Agent(LlmClient client,
@@ -45,12 +46,14 @@ public final class Agent {
                  ToolPolicy policy,
                  Conversation conversation,
                  ToolCallListener listener,
+                 Cancellation cancellation,
                  int maxIterations) {
         this.client = Objects.requireNonNull(client, "client");
         this.registry = Objects.requireNonNull(registry, "registry");
         this.policy = Objects.requireNonNull(policy, "policy");
         this.conversation = Objects.requireNonNull(conversation, "conversation");
         this.listener = Objects.requireNonNull(listener, "listener");
+        this.cancellation = Objects.requireNonNull(cancellation, "cancellation");
         if (maxIterations < 1) {
             throw new IllegalArgumentException("maxIterations must be at least 1.");
         }
@@ -78,6 +81,7 @@ public final class Agent {
     }
 
     public String respond(String userText) {
+        cancellation.clear();
         conversation.add(new UserMessage(userText));
         List<ToolSpec> tools = ToolSpecs.from(registry);
         try {
@@ -92,13 +96,25 @@ public final class Agent {
                     return reply.text();
                 }
 
-                for (ToolCall call : reply.toolCalls()) {
+                List<ToolCall> calls = reply.toolCalls();
+                for (int index = 0; index < calls.size(); index++) {
+                    if (cancellation.stopped()) {
+                        return stopped(calls.subList(index, calls.size()));
+                    }
+                    ToolCall call = calls.get(index);
                     ToolResult result = perform(call);
                     conversation.add(new ToolMessage(call.id(), result.render()));
+                }
+
+                if (cancellation.stopped()) {
+                    return stopped(List.of());
                 }
             }
             return fail("<error> Exceeded maximum tool iterations.");
         } catch (LlmException e) {
+            if (cancellation.stopped()) {
+                return stopped(List.of());
+            }
             return fail("<error> " + e.getMessage());
         }
     }
@@ -114,6 +130,22 @@ public final class Agent {
     private String fail(String message) {
         conversation.add(new AssistantMessage(message, List.of()));
         return message;
+    }
+
+    /**
+     * Closes a stopped turn.
+     *
+     * <p>The history keeps the whole turn, so the model can read what it did and reverse it when
+     * the user asks. Every tool call that never ran is answered here, because a provider rejects
+     * a conversation where a call has no result.
+     */
+    private String stopped(List<ToolCall> unanswered) {
+        for (ToolCall call : unanswered) {
+            conversation.add(new ToolMessage(call.id(),
+                    ToolResult.err("Stopped by the user before this tool ran.").render()));
+        }
+        conversation.add(new AssistantMessage("Stopped by the user.", List.of()));
+        return "Stopped.";
     }
 
     private ToolResult perform(ToolCall call) {

@@ -1,6 +1,7 @@
 package dev.konacode.cli;
 
 import dev.konacode.agent.Agent;
+import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.Conversation;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.openai.OpenAiClient;
@@ -41,8 +42,10 @@ public final class Main {
         SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
         Conversation conversation = new Conversation(system);
 
+        Cancellation cancellation = new Cancellation();
+
         Agent agent = new Agent(new OpenAiClient(config), registry, new AllowAllPolicy(),
-                conversation, ui, maxIterations);
+                conversation, ui, cancellation, maxIterations);
 
         try (ui) {
             new Repl(agent, ui, new Commands(conversation, system, registry, ui)).run();
