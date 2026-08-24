@@ -32,8 +32,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AgentTest {
 
-    /** Echoes its arguments, so tests can see exactly what the loop passed through. */
-    private record EchoTool(String name) implements Tool {
+    /**
+     * Echoes its arguments, so tests can see exactly what the loop passed through. Counts its
+     * calls, so a test can confirm a refused call never runs.
+     */
+    private static final class EchoTool implements Tool {
+        private final String name;
+        private int calls;
+
+        EchoTool(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
         @Override
         public String description() {
             return "Echoes its input.";
@@ -46,6 +61,7 @@ class AgentTest {
 
         @Override
         public ToolResult execute(JsonNode args) {
+            calls++;
             return ToolResult.ok("echo:" + args.path("value").asText(""));
         }
 
@@ -57,6 +73,10 @@ class AgentTest {
         @Override
         public Effect effect(JsonNode args) {
             return Effect.READS_INSIDE;
+        }
+
+        int calls() {
+            return calls;
         }
     }
 
@@ -329,6 +349,42 @@ class AgentTest {
                 .respond("go");
 
         assertEquals(ToolResult.err("not permitted here"), trace.results().get(0));
+    }
+
+    @Test
+    void anAskWithNobodyToAskBecomesAnError() {
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("1", "echo", "{}"))))
+                .replyText("done");
+        Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
+        Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
+                (tool, args) -> new Decision.Ask("read outside this project", "/etc/passwd", null),
+                conversation, new RecordingTrace(), new Cancellation(), 8);
+
+        agent.respond("do it");
+
+        ToolMessage result = conversation.messages().stream()
+                .filter(m -> m instanceof ToolMessage)
+                .map(ToolMessage.class::cast)
+                .findFirst()
+                .orElseThrow();
+        assertTrue(result.content().startsWith("<error>"), result.content());
+    }
+
+    @Test
+    void anAskDoesNotRunTheTool() {
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("1", "echo", "{}"))))
+                .replyText("done");
+        EchoTool echo = new EchoTool("echo");
+        Agent agent = new Agent(client, ToolRegistry.of(echo),
+                (tool, args) -> new Decision.Ask("read outside this project", "/etc/passwd", null),
+                new Conversation(new SystemMessage("You are konacode.")), new RecordingTrace(),
+                new Cancellation(), 8);
+
+        agent.respond("do it");
+
+        assertEquals(0, echo.calls(), "a refused call must not run");
     }
 
     @Test
