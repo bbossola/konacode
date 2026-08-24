@@ -44,4 +44,22 @@ class TraceTest {
         assertEquals(3, started.turn());
         assertEquals("list the files", started.userText());
     }
+
+    private static final class ThrowingSink implements Trace {
+        @Override
+        public void emit(TraceEvent event) {
+            throw new RuntimeException("a sink that fails");
+        }
+    }
+
+    @Test
+    void aSinkThatThrowsDoesNotStopTheNextSinkOrReachTheCaller() {
+        ThrowingSink first = new ThrowingSink();
+        Recorder second = new Recorder();
+        TraceEvent event = new TokensUsed(10, 20, 30);
+
+        Trace.fanOut(first, second).emit(event);
+
+        assertEquals(List.of(event), second.events);
+    }
 }

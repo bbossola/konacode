@@ -25,7 +25,12 @@ public interface Trace extends AutoCloseable {
         List<Trace> all = List.of(sinks);
         return event -> {
             for (Trace sink : all) {
-                sink.emit(event);
+                try {
+                    sink.emit(event);
+                } catch (RuntimeException e) {
+                    // konacode reports what it did. A report is never worth a session, so a
+                    // failed sink is dropped here and the turn, and the next sink, carry on.
+                }
             }
         };
     }
