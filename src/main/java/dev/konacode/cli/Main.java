@@ -8,6 +8,7 @@ import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.openai.OpenAiClient;
 import dev.konacode.llm.openai.OpenAiConfig;
 import dev.konacode.policy.AllowAllPolicy;
+import dev.konacode.policy.SelectedPolicy;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.DeleteFile;
 import dev.konacode.tools.EditFile;
@@ -71,7 +72,8 @@ public final class Main {
 
         try (ui; file) {
             new Repl(agent, ui,
-                    new Commands(conversation, system, registry, skills, ui, fileLevel)).run();
+                    new Commands(conversation, system, registry, skills, ui, fileLevel,
+                            new SelectedPolicy(new AllowAllPolicy()), workspace)).run();
         } catch (Exception e) {
             System.err.println(e.getMessage());
             System.exit(1);

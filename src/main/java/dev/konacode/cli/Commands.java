@@ -4,11 +4,16 @@ import dev.konacode.agent.Conversation;
 import dev.konacode.llm.Message;
 import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.UserMessage;
+import dev.konacode.policy.AllowAllPolicy;
+import dev.konacode.policy.EffectPolicy;
+import dev.konacode.policy.SelectedPolicy;
+import dev.konacode.policy.ToolPolicy;
 import dev.konacode.skills.Skill;
 import dev.konacode.skills.SkillException;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.Tool;
 import dev.konacode.tools.ToolRegistry;
+import dev.konacode.tools.Workspace;
 import dev.konacode.trace.Level;
 
 import java.util.List;
@@ -18,7 +23,7 @@ import java.util.Set;
 final class Commands {
 
     /** The commands that read a word after the name. Every other one refuses it. */
-    private static final Set<String> TAKES_AN_ARGUMENT = Set.of("/skill", "/trace");
+    private static final Set<String> TAKES_AN_ARGUMENT = Set.of("/skill", "/trace", "/policy");
 
     private final Conversation conversation;
     private final Message systemMessage;
@@ -26,15 +31,20 @@ final class Commands {
     private final SkillRegistry skills;
     private final Ui ui;
     private final Level fileLevel;
+    private final SelectedPolicy policies;
+    private final Workspace workspace;
 
     Commands(Conversation conversation, Message systemMessage, ToolRegistry registry,
-             SkillRegistry skills, Ui ui, Level fileLevel) {
+             SkillRegistry skills, Ui ui, Level fileLevel, SelectedPolicy policies,
+             Workspace workspace) {
         this.conversation = conversation;
         this.systemMessage = systemMessage;
         this.registry = registry;
         this.skills = skills;
         this.ui = ui;
         this.fileLevel = fileLevel;
+        this.policies = policies;
+        this.workspace = workspace;
     }
 
     boolean handles(String line) {
@@ -59,6 +69,7 @@ final class Commands {
             case "/skill" -> skill(argument);
             case "/clear" -> clear();
             case "/trace" -> trace(argument);
+            case "/policy" -> policy(argument);
             case "/exit" -> {
                 return false;
             }
@@ -78,6 +89,7 @@ final class Commands {
                 /help    show this list
                 /tools   show the tools the model can call
                 /skill   show the skills, or load one by name
+                /policy  show or set what konacode asks before it acts
                 /trace   show or set how much the screen reports
                 /clear   forget the conversation and start again
                 /exit    end the session
@@ -97,6 +109,28 @@ final class Commands {
         }
         ui.liveTrace(level.get());
         ui.showAnswer("The screen now shows `" + level.get().label() + "`.");
+    }
+
+    private void policy(String name) {
+        if (name.isEmpty()) {
+            ui.showAnswer("konacode uses `" + label(policies.selected()) + "`.\n\n"
+                    + "- `allow-all` — allow every call\n"
+                    + "- `effect` — ask before a read or a write outside this project");
+            return;
+        }
+        switch (name) {
+            case "allow-all" -> policies.select(new AllowAllPolicy());
+            case "effect" -> policies.select(new EffectPolicy(workspace));
+            default -> {
+                ui.showError("Unknown policy: " + name + ". Use allow-all or effect.");
+                return;
+            }
+        }
+        ui.showAnswer("konacode now uses `" + name + "`.");
+    }
+
+    private static String label(ToolPolicy policy) {
+        return policy instanceof EffectPolicy ? "effect" : "allow-all";
     }
 
     private void tools() {
