@@ -204,6 +204,8 @@ Write all documents and all replies in ASD-STE100 Simplified Technical English.
   belongs to a library and a hand-written double is impractical, for example the JLine
   `LineReader`. A class that needs a mock takes its collaborators in the constructor.
 - Tool descriptions are prompt engineering. Changing one changes agent behavior; treat it like changing code.
-- Every git worktree lives in the `.worktree/` directory inside the project root, named for the
-  branch. A throwaway worktree for a review or a probe takes a `review-` prefix, so it cannot
-  collide with the checkout of the branch it reviews. Remove a worktree when its branch merges.
+- Every git worktree lives in the `.worktree/` directory inside the project root. The folder takes
+  the whole name of the branch, with each `/` written as `-`, so `feat/approval` becomes
+  `.worktree/feat-approval`. A throwaway worktree for a review or a probe takes a `review-` prefix,
+  so it cannot collide with the checkout of the branch it reviews. Remove a worktree when its
+  branch merges.
