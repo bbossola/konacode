@@ -39,6 +39,27 @@ descriptions alone.
 A tool is a name, a description the model reads, a JSON schema, and a function that runs when
 the model asks for it. Adding a fifth means writing one class and registering it.
 
+## Approval
+
+konacode asks before it reads or writes outside this project. Inside this project it asks
+nothing. In the rich interface the question looks like this:
+
+```
+
+read_file wants to read outside this project.
+
+  /etc/passwd
+
+  y  read it once
+  n  refuse
+  a  always, for read_file in /etc
+```
+
+Answer `y`, `n` or `a`. `y` runs the call once. `n` refuses it. `a` runs it, and every later
+call the same tool makes in the same folder, for the rest of this session. A pipe cannot ask a
+question, so it keeps the old behaviour and allows every call. `/policy` shows or changes the
+setting.
+
 ## Skills
 
 A skill is a folder inside `~/.konacode/skills/`, with a `SKILL.md` file that names it and
@@ -125,13 +146,14 @@ what it did.
 `ctrl-c` behaves as it always has, and `esc` did not change it: at the prompt it clears the line,
 and during a turn it ends konacode. `ctrl-d` quits.
 
-Six commands work in both interfaces.
+Seven commands work in both interfaces.
 
 | Command | Action |
 |---|---|
 | `/help` | show the commands |
 | `/tools` | show the tools the model can call |
 | `/skill` | show the skills, or load one by name |
+| `/policy` | show or set what konacode asks before it acts |
 | `/trace` | show or set how much the screen reports |
 | `/clear` | forget the conversation and start again |
 | `/exit` | end the session |
