@@ -66,3 +66,6 @@ job has no `name` field. The `Scan the dependencies` name is the job name in `se
 
 A renamed job never reports the required check, and every pull request then waits forever.
 Rename a job and update this file in one commit.
+
+The `Fix the dependencies` job in `autofix.yml` is not a required check. It runs on a schedule,
+so it never reports on a pull request.

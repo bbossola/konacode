@@ -1,0 +1,30 @@
+name: Autofix
+
+on:
+  workflow_dispatch:
+  schedule:
+    # One hour after the Monday scan, so the advisories are fresh.
+    - cron: "0 7 * * 1"
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  autofix:
+    name: Fix the dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Fix the dependencies and open a pull request
+        uses: MeterianHQ/meterian-github-action@9603528ad7eb3e76e7181d8d721bba25665a403d # v1.0.18
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          oss: true
+          autofix_security: conservative
+          autofix_stability: safe
+          autofix_with_pr: true

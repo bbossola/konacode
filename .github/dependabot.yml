@@ -1,11 +1,15 @@
 version: 2
 updates:
-  - package-ecosystem: "maven"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+
+  # Meterian owns the dependency tree. Its autofix leaves <build><plugins>
+  # alone, so dependabot keeps the build plugins, and only those.
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    allow:
+      - dependency-name: "org.apache.maven.plugins:*"
