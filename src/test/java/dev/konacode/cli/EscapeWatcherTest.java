@@ -10,6 +10,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -82,14 +84,21 @@ class EscapeWatcherTest {
     void startEntersRawModeAndKeepsSignals() throws Exception {
         Attributes saved = new Attributes();
         Attributes raw = new Attributes();
+        CountDownLatch reading = new CountDownLatch(1);
         when(terminal.enterRawMode()).thenReturn(saved);
         when(terminal.getAttributes()).thenReturn(raw);
         when(terminal.reader()).thenReturn(reader);
-        when(reader.read(anyLong())).thenReturn(NonBlockingReader.READ_EXPIRED);
+        when(reader.read(anyLong())).thenAnswer(call -> {
+            reading.countDown();
+            return NonBlockingReader.READ_EXPIRED;
+        });
         EscapeWatcher watcher = new EscapeWatcher(terminal, new Cancellation());
 
         watcher.start();
         try {
+            // start() returns before the thread reads. A stop() that arrives first ends the
+            // thread with no read, and the test then fails on an unused stub.
+            assertTrue(reading.await(2, TimeUnit.SECONDS), "the watcher must read the terminal");
             assertTrue(raw.getLocalFlag(Attributes.LocalFlag.ISIG),
                     "ctrl-C must still end konacode");
             verify(terminal).setAttributes(raw);
