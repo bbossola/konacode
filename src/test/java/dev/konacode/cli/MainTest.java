@@ -147,7 +147,7 @@ class MainTest {
         assertTrue(lastToolMessage(client.histories.get(1)).content().contains("OUTSIDE-CONTENT"),
                 "allow-all lets the loop read outside the project");
         assertTrue(
-                lastToolMessage(client.histories.get(3)).content().contains("did not get approval"),
+                lastToolMessage(client.histories.get(3)).content().contains("has no approval"),
                 "the /policy effect the command chose must reach the loop's own check");
     }
 

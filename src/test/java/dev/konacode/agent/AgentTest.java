@@ -388,8 +388,9 @@ class AgentTest {
                 .map(ToolMessage.class::cast)
                 .findFirst()
                 .orElseThrow();
-        assertEquals("<error> konacode did not get approval for echo to "
-                + "read outside this project: /etc/passwd.", result.content());
+        assertEquals("<error> konacode has no approval for this call: echo on /etc/passwd."
+                + " This answers one call and sets no rule. Call the tool again when the user"
+                + " asks, and let konacode put the question.", result.content());
     }
 
     @Test

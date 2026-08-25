@@ -244,8 +244,14 @@ public final class Agent {
                     return ToolResult.err("Could not ask the user about " + call.name() + ": " + e);
                 }
                 if (!approved) {
-                    return ToolResult.err("konacode did not get approval for " + call.name()
-                            + " to " + ask.action() + ": " + ask.subject() + ".");
+                    // This text is prompt engineering. The first version named the kind of call,
+                    // "to read outside this project", and a model read that as a standing rule: it
+                    // stopped calling the tool at all, so konacode never asked again. The message
+                    // now describes one call and denies the rule.
+                    return ToolResult.err("konacode has no approval for this call: " + call.name()
+                            + " on " + ask.subject() + ". This answers one call and sets no rule."
+                            + " Call the tool again when the user asks, and let konacode put the"
+                            + " question.");
                 }
             }
         }
