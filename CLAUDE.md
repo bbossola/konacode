@@ -161,13 +161,19 @@ loop asks the user. No part does two of those jobs.
 
 ## Error channels
 
-Three, deliberately not merged:
+Four, deliberately not merged:
 
 1. **Tool failure** — `ToolResult.Err`, rendered `<error> …` and appended to the conversation as a `ToolMessage`. The model reads it and recovers. This is a normal part of operation, not an exception.
 2. **Policy denial** — also an `Err`, so a refusal is something the model can route around rather than a crash.
-3. **Transport/protocol failure** — `LlmException`, caught at the top of `respond` and surfaced to the human. The model cannot fix a 401.
+3. **No approval** — also an `Err`. The policy returned `Ask`, and the user said no, or the interface could not ask. This is not a policy denial: the policy asked for a decision and did not make one.
+4. **Transport/protocol failure** — `LlmException`, caught at the top of `respond` and surfaced to the human. The model cannot fix a 401.
 
 Never promote a tool failure to an exception. Never hand an `LlmException` to the model.
+
+**An `Err` the model reads is prompt text.** Treat it the way you treat a tool description. Name one
+call and one path. A message that names a kind of call teaches the model a rule: the first refusal
+said "to read outside this project", and the model then stopped calling the tool at all, so konacode
+never asked again and the user could not say yes.
 
 ## Questions
 

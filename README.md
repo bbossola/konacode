@@ -55,8 +55,9 @@ read_file wants to read outside this project.
   a  always, for read_file in /etc
 ```
 
-Answer `y`, `n` or `a`. `y` runs the call once. `n` refuses it. `a` runs it, and every later
-call the same tool makes in the same folder, for the rest of this session. A pipe cannot ask a
+Answer `y`, `n` or `a`. `y` runs the call once. `n` refuses it, and konacode asks again the next
+time, because one answer covers one call. `a` runs it, and every later call the same tool makes in
+the same folder, for the rest of this session. `esc` refuses and stops the turn. A pipe cannot ask a
 question, so it keeps the old behaviour and allows every call. `/policy` shows or changes the
 setting.
 
