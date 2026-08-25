@@ -346,14 +346,26 @@ class CommandsTest {
     }
 
     @Test
-    void policyWithNoNameShowsTheOneInUseAndTheChoices() {
+    void policyWithNoNameShowsBothChoicesAndTheOneInUse() {
+        RecordingUi ui = new RecordingUi();
+        Commands commands = commands(ui, new Conversation(SYSTEM));
+        commands.run("/policy allow-all");
+
+        commands.run("/policy");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertTrue(shown.contains("uses `allow-all`"), shown);
+        assertTrue(shown.contains("- `allow-all`"), shown);
+        assertTrue(shown.contains("- `effect`"), shown);
+    }
+
+    @Test
+    void policyWithNoNameNamesTheDefaultPolicy() {
         RecordingUi ui = new RecordingUi();
 
         commands(ui, new Conversation(SYSTEM)).run("/policy");
 
-        String shown = String.join("\n", ui.answers);
-        assertTrue(shown.contains("uses `effect`"), shown);
-        assertTrue(shown.contains("`allow-all`"), shown);
+        assertTrue(String.join("\n", ui.answers).contains("uses `effect`"), ui.answers.toString());
     }
 
     @Test
@@ -374,6 +386,16 @@ class CommandsTest {
     }
 
     @Test
+    void policyReadsTheNameInAnyCase() {
+        Commands commands = commands(new RecordingUi(), new Conversation(SYSTEM));
+        commands.run("/policy allow-all");
+
+        commands.run("/policy EFFECT");
+
+        assertInstanceOf(EffectPolicy.class, selected.selected());
+    }
+
+    @Test
     void policySaysWhatItChose() {
         RecordingUi ui = new RecordingUi();
 
@@ -389,7 +411,7 @@ class CommandsTest {
 
         commands.run("/policy loose");
 
-        assertTrue(ui.errors.get(0).contains("loose"), ui.errors.toString());
+        assertEquals("Unknown policy: loose. Use allow-all or effect.", ui.errors.get(0));
         assertInstanceOf(EffectPolicy.class, selected.selected());
         assertTrue(ui.answers.isEmpty(), ui.answers.toString());
     }

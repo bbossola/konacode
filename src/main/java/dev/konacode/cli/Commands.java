@@ -17,6 +17,7 @@ import dev.konacode.tools.Workspace;
 import dev.konacode.trace.Level;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
@@ -118,7 +119,7 @@ final class Commands {
                     + "- `effect` — ask before a read or a write outside this project");
             return;
         }
-        switch (name) {
+        switch (name.toLowerCase(Locale.ROOT)) {
             case "allow-all" -> policies.select(new AllowAllPolicy());
             case "effect" -> policies.select(new EffectPolicy(workspace));
             default -> {
@@ -130,7 +131,15 @@ final class Commands {
     }
 
     private static String label(ToolPolicy policy) {
-        return policy instanceof EffectPolicy ? "effect" : "allow-all";
+        if (policy instanceof EffectPolicy) {
+            return "effect";
+        }
+        if (policy instanceof AllowAllPolicy) {
+            return "allow-all";
+        }
+        // Only /policy and Main install a policy, and both install one of the two above. A third
+        // would need a name of its own, and konacode must not guess one.
+        return "a policy konacode cannot name";
     }
 
     private void tools() {
