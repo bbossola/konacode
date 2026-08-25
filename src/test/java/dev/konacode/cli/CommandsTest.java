@@ -369,6 +369,28 @@ class CommandsTest {
     }
 
     @Test
+    void policyWithNoNameNotesTheInterfaceCannotAskWhenItCannot() {
+        RecordingUi ui = new RecordingUi();
+        ui.canAsk = false;
+
+        commands(ui, new Conversation(SYSTEM)).run("/policy");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertTrue(shown.contains("cannot ask a question"), shown);
+        assertTrue(shown.contains("`effect` refuses every call outside this project"), shown);
+    }
+
+    @Test
+    void policyWithNoNameAddsNoNoteWhenTheInterfaceCanAsk() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/policy");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertFalse(shown.contains("cannot ask"), shown);
+    }
+
+    @Test
     void policyChoosesAllowAll() {
         commands(new RecordingUi(), new Conversation(SYSTEM)).run("/policy allow-all");
 

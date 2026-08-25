@@ -11,9 +11,6 @@ import dev.konacode.llm.ToolSpec;
 import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.policy.EffectPolicy;
 import dev.konacode.skills.SkillRegistry;
-import dev.konacode.tools.ReadFile;
-import dev.konacode.tools.StopCheck;
-import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
 import dev.konacode.trace.Level;
 import dev.konacode.trace.Trace;
@@ -134,7 +131,6 @@ class MainTest {
         Path outside = elsewhere.resolve("secret.txt");
         Files.writeString(outside, "OUTSIDE-CONTENT");
         Workspace workspace = new Workspace(root);
-        ToolRegistry registry = ToolRegistry.of(new ReadFile(workspace, StopCheck.NEVER));
         SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
         ScriptedClient client = new ScriptedClient()
                 .reply(readCall("1", outside.toString()))
@@ -144,7 +140,7 @@ class MainTest {
         RecordingUi ui = new RecordingUi("/policy allow-all", "read it", "/policy effect",
                 "read it");
 
-        Main.build(client, registry, skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
+        Main.build(client, skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
                 workspace).run();
 
         assertEquals(4, client.histories.size(), "each turn calls chat twice");
@@ -160,7 +156,6 @@ class MainTest {
         Path outside = elsewhere.resolve("secret.txt");
         Files.writeString(outside, "OUTSIDE-CONTENT");
         Workspace workspace = new Workspace(root);
-        ToolRegistry registry = ToolRegistry.of(new ReadFile(workspace, StopCheck.NEVER));
         SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
         ScriptedClient client = new ScriptedClient()
                 .reply(readCall("1", outside.toString()))
@@ -168,14 +163,16 @@ class MainTest {
                 .reply(readCall("2", outside.toString()))
                 .reply(new AssistantMessage("second turn done", List.of()));
         RecordingUi ui = new RecordingUi("read it", "/policy allow-all", "/policy effect",
-                "read it");
+                "read it", "/policy");
         ui.nextAsk = Answer.ALWAYS;
 
-        Main.build(client, registry, skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
+        Main.build(client, skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
                 workspace).run();
 
         assertEquals(1, ui.askCount, "the memory in Approvals must survive the policy change");
         assertTrue(lastToolMessage(client.histories.get(3)).content().contains("OUTSIDE-CONTENT"),
                 "the remembered ALWAYS must still approve the call");
+        assertTrue(ui.answers.get(ui.answers.size() - 1).contains("uses `effect`"),
+                "the policy the second read passed a check against must still be effect");
     }
 }

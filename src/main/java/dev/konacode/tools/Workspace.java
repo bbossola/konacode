@@ -50,10 +50,6 @@ public final class Workspace {
         this.alsoReadable = List.copyOf(Objects.requireNonNull(alsoReadable, "alsoReadable"));
     }
 
-    public static Workspace ofCurrentDirectory() {
-        return new Workspace(Path.of(System.getProperty("user.dir")));
-    }
-
     public Path root() {
         return root;
     }

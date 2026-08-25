@@ -114,9 +114,13 @@ final class Commands {
 
     private void policy(String name) {
         if (name.isEmpty()) {
+            String note = ui.canAsk()
+                    ? ""
+                    : "\n\nThis interface cannot ask a question, so `effect` refuses every call"
+                            + " outside this project.";
             ui.showAnswer("konacode uses `" + label(policies.selected()) + "`.\n\n"
                     + "- `allow-all` — allow every call\n"
-                    + "- `effect` — ask before a read or a write outside this project");
+                    + "- `effect` — ask before a read or a write outside this project" + note);
             return;
         }
         switch (name.toLowerCase(Locale.ROOT)) {

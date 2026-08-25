@@ -62,15 +62,10 @@ public final class Main {
         Level fileLevel = file == Trace.NONE ? Level.OFF : traceLevel;
 
         Workspace workspace = workspace();
-        ToolRegistry registry = ToolRegistry.of(
-                new ListFiles(workspace, cancellation),
-                new ReadFile(workspace, cancellation),
-                new EditFile(workspace, cancellation),
-                new DeleteFile(workspace));
         SkillRegistry skills = new SkillRegistry(new Workspace(skillsRoot()));
 
         try (ui; file) {
-            build(new OpenAiClient(config, trace), registry, skills, ui, fileLevel, cancellation,
+            build(new OpenAiClient(config, trace), skills, ui, fileLevel, cancellation,
                     maxIterations, trace, workspace).run();
         } catch (Exception e) {
             System.err.println(e.getMessage());
@@ -79,13 +74,19 @@ public final class Main {
     }
 
     /**
-     * Builds the loop and the commands around one {@link SelectedPolicy}, so a change through
-     * {@code /policy} reaches the tool call the loop is about to check. A test gives this its
-     * own collaborators to prove that the two share the policy.
+     * Builds the loop and the commands around one {@link SelectedPolicy} and one
+     * {@link ToolRegistry}, both rooted at the same {@code workspace}. A registry built anywhere
+     * else could resolve a call the policy allowed to a different place. A test gives this its own
+     * collaborators to prove the loop and the command share the policy.
      */
-    static Repl build(LlmClient client, ToolRegistry registry, SkillRegistry skills, Ui ui,
-                       Level fileLevel, Cancellation cancellation, int maxIterations, Trace trace,
+    static Repl build(LlmClient client, SkillRegistry skills, Ui ui, Level fileLevel,
+                       Cancellation cancellation, int maxIterations, Trace trace,
                        Workspace workspace) {
+        ToolRegistry registry = ToolRegistry.of(
+                new ListFiles(workspace, cancellation),
+                new ReadFile(workspace, cancellation),
+                new EditFile(workspace, cancellation),
+                new DeleteFile(workspace));
         SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
         Conversation conversation = new Conversation(system);
         SelectedPolicy policies = new SelectedPolicy(defaultPolicy(ui.canAsk(), workspace));
