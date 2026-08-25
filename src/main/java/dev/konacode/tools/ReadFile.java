@@ -77,4 +77,12 @@ public final class ReadFile implements Tool {
     public boolean stopsOnInterrupt() {
         return false;
     }
+
+    @Override
+    public Effect effect(JsonNode args) {
+        return workspace.tryResolve(args.path("path"))
+                .filter(workspace::readable)
+                .map(path -> Effect.READS_INSIDE)
+                .orElse(Effect.READS_OUTSIDE);
+    }
 }

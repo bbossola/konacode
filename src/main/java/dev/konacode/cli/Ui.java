@@ -1,5 +1,6 @@
 package dev.konacode.cli;
 
+import dev.konacode.agent.ToolApproval;
 import dev.konacode.trace.Level;
 import dev.konacode.trace.Trace;
 
@@ -9,9 +10,11 @@ import java.util.Optional;
  * Everything konacode shows the user, and the one thing it reads from them.
  *
  * <p>This extends {@link Trace} because showing what the agent did is a user interface concern.
- * One object then owns the screen, and the agent loop still never touches {@code System.out}.
+ * It extends {@link ToolApproval} for the same reason: asking the user to approve a tool call is
+ * also a user interface concern. One object then owns the screen, and the agent loop still never
+ * touches {@code System.out}.
  */
-public interface Ui extends Trace, AutoCloseable {
+public interface Ui extends Trace, ToolApproval, AutoCloseable {
 
     void welcome();
 

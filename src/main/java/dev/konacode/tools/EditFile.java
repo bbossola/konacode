@@ -91,6 +91,14 @@ public final class EditFile implements Tool {
         return false;
     }
 
+    @Override
+    public Effect effect(JsonNode args) {
+        return workspace.tryResolve(args.path("path"))
+                .filter(path -> workspace.writable(path) && workspace.readable(path))
+                .map(path -> Effect.WRITES_INSIDE)
+                .orElse(Effect.WRITES_OUTSIDE);
+    }
+
     private ToolResult create(Path file, String rawPath, String oldStr, String newStr) {
         if (!oldStr.isEmpty()) {
             return ToolResult.err(

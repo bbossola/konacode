@@ -2,6 +2,7 @@ package dev.konacode.cli;
 
 import dev.konacode.agent.Cancellation;
 import dev.konacode.cli.markdown.Markdown;
+import dev.konacode.policy.Decision;
 import dev.konacode.trace.Level;
 import dev.konacode.trace.TraceEvent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
@@ -12,6 +13,7 @@ import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.Reference;
 import org.jline.reader.UserInterruptException;
+import org.jline.terminal.Attributes;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 
@@ -26,7 +28,8 @@ import java.util.Optional;
  * more than one line.
  *
  * <p>The constructor takes every collaborator, and {@link #open()} builds the real ones. A test
- * therefore gives this class a mocked reader and terminal, and a spinner that records.
+ * therefore gives this class a mocked reader and terminal, and a spinner that records. It also
+ * keeps the {@link Cancellation}, so {@link #ask} can stop the turn when the user presses ESC.
  */
 final class RichUi implements Ui {
 
@@ -35,15 +38,17 @@ final class RichUi implements Ui {
     private final PrintStream out;
     private final Spinner spinner;
     private final EscapeWatcher watcher;
+    private final Cancellation cancellation;
     private Level live = Level.OFF;
 
     RichUi(LineReader reader, Terminal terminal, PrintStream out, Spinner spinner,
-           EscapeWatcher watcher) {
+           EscapeWatcher watcher, Cancellation cancellation) {
         this.reader = reader;
         this.terminal = terminal;
         this.out = out;
         this.spinner = spinner;
         this.watcher = watcher;
+        this.cancellation = cancellation;
     }
 
     static RichUi open(Cancellation cancellation) throws IOException {
@@ -62,7 +67,7 @@ final class RichUi implements Ui {
                 .bind(new Reference(LineReader.SELF_INSERT_UNMETA), KeyMap.alt("\r"));
 
         return new RichUi(reader, terminal, System.out, new Spinner(System.out, "thinking"),
-                new EscapeWatcher(terminal, cancellation));
+                new EscapeWatcher(terminal, cancellation), cancellation);
     }
 
     @Override
@@ -103,6 +108,76 @@ final class RichUi implements Ui {
     public void thinking() {
         watcher.start();
         spinner.start();
+    }
+
+    @Override
+    public boolean canAsk() {
+        return true;
+    }
+
+    /**
+     * Asks the user, and reads one key.
+     *
+     * <p>{@link EscapeWatcher} reads the terminal during a turn, so it must stop before the key is
+     * read and start again after it. Without that it consumes the answer. The watcher is stopped
+     * while the key is read, so it cannot see ESC there; the question reports the stop itself.
+     */
+    @Override
+    public Answer ask(String toolName, Decision.Ask ask) {
+        spinner.stop();
+        watcher.stop();
+        try {
+            show(toolName, ask);
+            return answer(read(), ask.alwaysFolder() != null);
+        } finally {
+            watcher.start();
+        }
+    }
+
+    private void show(String toolName, Decision.Ask ask) {
+        String verb = ask.action().split(" ", 2)[0];
+        out.println();
+        out.println(toolName + " wants to " + ask.action() + ".");
+        out.println();
+        out.println("  " + ask.subject());
+        out.println();
+        out.println("  y  " + verb + " it once");
+        out.println("  n  refuse");
+        if (ask.alwaysFolder() != null) {
+            out.println("  a  always, for " + toolName + " in " + ask.alwaysFolder());
+        }
+        out.flush();
+    }
+
+    private int read() {
+        Attributes saved = terminal.enterRawMode();
+        try {
+            return terminal.reader().read();
+        } catch (IOException e) {
+            return -1;
+        } finally {
+            terminal.setAttributes(saved);
+        }
+    }
+
+    private Answer answer(int key, boolean folderOffered) {
+        if (key == -1) {
+            out.println();
+            out.println("Could not read the answer. konacode refuses.");
+            out.flush();
+            return Answer.NO;
+        }
+        if (key == EscapeWatcher.ESCAPE) {
+            cancellation.request();
+            return Answer.NO;
+        }
+        if (key == 'y' || key == 'Y') {
+            return Answer.YES;
+        }
+        if (folderOffered && (key == 'a' || key == 'A')) {
+            return Answer.ALWAYS;
+        }
+        return Answer.NO;
     }
 
     @Override

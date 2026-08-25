@@ -1,5 +1,6 @@
 package dev.konacode.cli;
 
+import dev.konacode.policy.Decision;
 import dev.konacode.trace.Level;
 import dev.konacode.trace.TraceEvent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
@@ -63,6 +64,17 @@ final class PlainUi implements Ui {
 
     @Override
     public void thinking() {
+    }
+
+    /** This interface cannot ask a question, so konacode refuses rather than guess. */
+    @Override
+    public Answer ask(String toolName, Decision.Ask ask) {
+        return Answer.NO;
+    }
+
+    @Override
+    public boolean canAsk() {
+        return false;
     }
 
     @Override

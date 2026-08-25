@@ -5,6 +5,9 @@ import dev.konacode.llm.Message;
 import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.Message.UserMessage;
+import dev.konacode.policy.AllowAllPolicy;
+import dev.konacode.policy.EffectPolicy;
+import dev.konacode.policy.SelectedPolicy;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
@@ -22,6 +25,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CommandsTest {
@@ -31,13 +35,16 @@ class CommandsTest {
 
     private static final SystemMessage SYSTEM = new SystemMessage("You are konacode.");
 
+    private SelectedPolicy selected;
+
     private Commands commands(RecordingUi ui, Conversation conversation) {
         Workspace workspace = new Workspace(root);
         Workspace skillRoot = new Workspace(root.resolve("skills"));
+        selected = new SelectedPolicy(new EffectPolicy(workspace));
         return new Commands(conversation, SYSTEM,
                 ToolRegistry.of(new ListFiles(workspace, StopCheck.NEVER),
                         new ReadFile(workspace, StopCheck.NEVER)),
-                new SkillRegistry(skillRoot), ui, Level.BASIC);
+                new SkillRegistry(skillRoot), ui, Level.BASIC, selected, workspace);
     }
 
     private void writeSkill(String name, String description) throws IOException {
@@ -336,5 +343,130 @@ class CommandsTest {
         commands(ui, new Conversation(SYSTEM)).run("/help");
 
         assertTrue(String.join("\n", ui.answers).contains("/trace"), ui.answers.toString());
+    }
+
+    @Test
+    void policyWithNoNameShowsBothChoicesAndTheOneInUse() {
+        RecordingUi ui = new RecordingUi();
+        Commands commands = commands(ui, new Conversation(SYSTEM));
+        commands.run("/policy allow-all");
+
+        commands.run("/policy");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertTrue(shown.contains("uses `allow-all`"), shown);
+        assertTrue(shown.contains("- `allow-all`"), shown);
+        assertTrue(shown.contains("- `effect`"), shown);
+    }
+
+    @Test
+    void policyWithNoNameNamesTheDefaultPolicy() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/policy");
+
+        assertTrue(String.join("\n", ui.answers).contains("uses `effect`"), ui.answers.toString());
+    }
+
+    @Test
+    void policyWithNoNameNotesTheInterfaceCannotAskWhenItCannot() {
+        RecordingUi ui = new RecordingUi();
+        ui.canAsk = false;
+
+        commands(ui, new Conversation(SYSTEM)).run("/policy");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertTrue(shown.contains("cannot ask a question"), shown);
+        assertTrue(shown.contains("`effect` refuses every call outside this project"), shown);
+    }
+
+    @Test
+    void policyWithNoNameAddsNoNoteWhenTheInterfaceCanAsk() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/policy");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertFalse(shown.contains("cannot ask"), shown);
+    }
+
+    @Test
+    void policyChoosesAllowAll() {
+        commands(new RecordingUi(), new Conversation(SYSTEM)).run("/policy allow-all");
+
+        assertInstanceOf(AllowAllPolicy.class, selected.selected());
+    }
+
+    @Test
+    void policyChoosesEffect() {
+        Commands commands = commands(new RecordingUi(), new Conversation(SYSTEM));
+        commands.run("/policy allow-all");
+
+        commands.run("/policy effect");
+
+        assertInstanceOf(EffectPolicy.class, selected.selected());
+    }
+
+    @Test
+    void policyReadsTheNameInAnyCase() {
+        Commands commands = commands(new RecordingUi(), new Conversation(SYSTEM));
+        commands.run("/policy allow-all");
+
+        commands.run("/policy EFFECT");
+
+        assertInstanceOf(EffectPolicy.class, selected.selected());
+    }
+
+    @Test
+    void policySaysWhatItChose() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/policy allow-all");
+
+        assertTrue(String.join("\n", ui.answers).contains("allow-all"), ui.answers.toString());
+    }
+
+    @Test
+    void policyRefusesAnUnknownNameAndChangesNothing() {
+        RecordingUi ui = new RecordingUi();
+        Commands commands = commands(ui, new Conversation(SYSTEM));
+
+        commands.run("/policy loose");
+
+        assertEquals("Unknown policy: loose. Use allow-all or effect.", ui.errors.get(0));
+        assertInstanceOf(EffectPolicy.class, selected.selected());
+        assertTrue(ui.answers.isEmpty(), ui.answers.toString());
+    }
+
+    @Test
+    void policyEffectWarnsWhenTheInterfaceCannotAsk() {
+        RecordingUi ui = new RecordingUi();
+        ui.canAsk = false;
+
+        commands(ui, new Conversation(SYSTEM)).run("/policy effect");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertTrue(shown.contains("cannot ask a question"), shown);
+        assertTrue(shown.contains("refuses every call outside this project"), shown);
+    }
+
+    @Test
+    void policyAllowAllDoesNotWarnWhenTheInterfaceCannotAsk() {
+        RecordingUi ui = new RecordingUi();
+        ui.canAsk = false;
+
+        commands(ui, new Conversation(SYSTEM)).run("/policy allow-all");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertEquals("konacode now uses `allow-all`.", shown);
+    }
+
+    @Test
+    void helpNamesPolicy() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/help");
+
+        assertTrue(String.join("\n", ui.answers).contains("/policy"), ui.answers.toString());
     }
 }

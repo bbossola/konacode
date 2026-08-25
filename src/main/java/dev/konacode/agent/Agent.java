@@ -43,6 +43,7 @@ public final class Agent {
     private final LlmClient client;
     private final ToolRegistry registry;
     private final ToolPolicy policy;
+    private final Approvals approvals;
     private final Conversation conversation;
     private final Trace trace;
     private final Cancellation cancellation;
@@ -52,6 +53,7 @@ public final class Agent {
     public Agent(LlmClient client,
                  ToolRegistry registry,
                  ToolPolicy policy,
+                 Approvals approvals,
                  Conversation conversation,
                  Trace trace,
                  Cancellation cancellation,
@@ -59,6 +61,7 @@ public final class Agent {
         this.client = Objects.requireNonNull(client, "client");
         this.registry = Objects.requireNonNull(registry, "registry");
         this.policy = Objects.requireNonNull(policy, "policy");
+        this.approvals = Objects.requireNonNull(approvals, "approvals");
         this.conversation = Objects.requireNonNull(conversation, "conversation");
         this.trace = Objects.requireNonNull(trace, "trace");
         this.cancellation = Objects.requireNonNull(cancellation, "cancellation");
@@ -226,8 +229,31 @@ public final class Agent {
             // misbehaving tool must not. Denying is the safe reading of a broken policy.
             return ToolResult.err("Policy check for " + call.name() + " failed: " + e);
         }
-        if (decision instanceof Decision.Deny(String reason)) {
-            return ToolResult.err(reason);
+        switch (decision) {
+            case Decision.Allow ignored -> { }
+            case Decision.Deny(String reason) -> {
+                return ToolResult.err(reason);
+            }
+            case Decision.Ask ask -> {
+                boolean approved;
+                try {
+                    approved = approvals.approve(call.name(), ask);
+                } catch (RuntimeException e) {
+                    // A user interface that fails must not end the session, for the same reason a
+                    // misbehaving tool must not. konacode then has no approval.
+                    return ToolResult.err("Could not ask the user about " + call.name() + ": " + e);
+                }
+                if (!approved) {
+                    // This text is prompt engineering. The first version named the kind of call,
+                    // "to read outside this project", and a model read that as a standing rule: it
+                    // stopped calling the tool at all, so konacode never asked again. The message
+                    // now describes one call and denies the rule.
+                    return ToolResult.err("konacode has no approval for this call: " + call.name()
+                            + " on " + ask.subject() + ". This answers one call and sets no rule."
+                            + " Call the tool again when the user asks, and let konacode put the"
+                            + " question.");
+                }
+            }
         }
 
         try {

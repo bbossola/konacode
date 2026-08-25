@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,6 +24,9 @@ class WorkspaceTest {
 
     @TempDir
     Path root;
+
+    @TempDir
+    Path outside;
 
     @Test
     void resolvesRelativePathsAgainstTheRoot() {
@@ -206,5 +210,221 @@ class WorkspaceTest {
         Path missing = root.resolve("absent.txt");
 
         assertThrows(IOException.class, () -> workspace.delete(missing));
+    }
+
+    @Test
+    void aPathUnderTheRootIsInside() {
+        Workspace workspace = new Workspace(root);
+
+        assertTrue(workspace.insideRoot(root.resolve("src/Main.java")));
+        assertTrue(workspace.readable(root.resolve("src/Main.java")));
+    }
+
+    @Test
+    void aPathAboveTheRootIsOutside() {
+        Workspace workspace = new Workspace(root);
+
+        assertFalse(workspace.insideRoot(outside.resolve("elsewhere.txt")));
+        assertFalse(workspace.readable(outside.resolve("elsewhere.txt")));
+    }
+
+    @Test
+    void aReadableFolderIsReadableAndNotInside() throws IOException {
+        Path skills = Files.createDirectories(outside.resolve("skills"));
+        Workspace workspace = new Workspace(root, List.of(skills));
+
+        assertTrue(workspace.readable(skills.resolve("one/SKILL.md")));
+        assertFalse(workspace.insideRoot(skills.resolve("one/SKILL.md")));
+    }
+
+    @Test
+    void aLinkThatLeavesTheRootIsOutside() throws IOException {
+        Path target = Files.createDirectories(outside.resolve("target"));
+        Path link = Files.createSymbolicLink(root.resolve("escape"), target);
+        Workspace workspace = new Workspace(root);
+
+        try {
+            assertFalse(workspace.insideRoot(root.resolve("escape/secret.txt")));
+        } finally {
+            // JUnit declines to follow a link out of the temporary folder, and says so on every
+            // run. The test made the link, so the test removes it.
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void aBrokenLinkIsOutside() throws IOException {
+        Path link = Files.createSymbolicLink(root.resolve("escape"), outside.resolve("missing"));
+        Workspace workspace = new Workspace(root);
+
+        try {
+            assertFalse(workspace.insideRoot(link));
+            assertFalse(workspace.readable(link.resolve("child.txt")));
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void aRootReachedThroughALinkIsStillTheRoot() throws IOException {
+        Path real = Files.createDirectories(outside.resolve("realroot"));
+        Path alias = Files.createSymbolicLink(root.resolve("alias"), real);
+        Files.writeString(real.resolve("a.txt"), "x");
+        Workspace workspace = new Workspace(alias);
+
+        try {
+            assertTrue(workspace.insideRoot(alias.resolve("a.txt")));
+            assertTrue(workspace.insideRoot(real.resolve("a.txt")));
+        } finally {
+            Files.delete(alias);
+        }
+    }
+
+    @Test
+    void aFileThatDoesNotExistYetIsStillJudged() {
+        Workspace workspace = new Workspace(root);
+
+        assertTrue(workspace.insideRoot(root.resolve("new/deep/file.txt")));
+        assertFalse(workspace.insideRoot(outside.resolve("new/deep/file.txt")));
+    }
+
+    @Test
+    void theRootItselfIsInside() {
+        assertTrue(new Workspace(root).insideRoot(root));
+    }
+
+    @Test
+    void tryResolveReturnsTheResolvedPath() {
+        Workspace workspace = new Workspace(root);
+
+        assertEquals(Optional.of(root.resolve("src/Main.java")), workspace.tryResolve("src/Main.java"));
+    }
+
+    @Test
+    void tryResolveIsEmptyForAnEmptyPath() {
+        Workspace workspace = new Workspace(root);
+
+        assertEquals(Optional.empty(), workspace.tryResolve(""));
+    }
+
+    @Test
+    void aWriteIsJudgedWhereTheEntrySits() throws IOException {
+        Path inside = Files.writeString(root.resolve("real.txt"), "hello");
+        Path link = Files.createSymbolicLink(outside.resolve("link.txt"), inside);
+        Workspace workspace = new Workspace(root);
+
+        try {
+            assertTrue(workspace.insideRoot(link), "the target is inside");
+            assertFalse(workspace.writable(link), "the entry the write replaces is outside");
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void aLinkInsideTheRootIsWritable() throws IOException {
+        Path target = Files.writeString(outside.resolve("target.txt"), "x");
+        Path link = Files.createSymbolicLink(root.resolve("link.txt"), target);
+        Workspace workspace = new Workspace(root);
+
+        try {
+            assertFalse(workspace.insideRoot(link), "the target is outside");
+            assertTrue(workspace.writable(link),
+                    "delete_file removes the link, which is inside; edit_file must also ask readable");
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void aReadFollowsTheLinkAndAWriteReplacesTheEntry() throws IOException {
+        Path target = Files.writeString(outside.resolve("target.txt"), "x");
+        Path link = Files.createSymbolicLink(root.resolve("link.txt"), target);
+        Workspace workspace = new Workspace(root);
+
+        try {
+            assertEquals(Optional.of(target.toRealPath()), workspace.readTarget(link),
+                    "a read follows the final link, and reaches the target outside the root");
+            assertEquals(Optional.of(link), workspace.writeTarget(link),
+                    "a write replaces the entry, which sits inside the root");
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void aWriteUnderALinkedFolderIsJudgedInTheRealFolder() throws IOException {
+        Path elsewhere = Files.createDirectories(outside.resolve("elsewhere"));
+        Path folder = Files.createSymbolicLink(root.resolve("linked"), elsewhere);
+        Workspace workspace = new Workspace(root);
+
+        try {
+            assertFalse(workspace.writable(folder.resolve("new.txt")));
+        } finally {
+            Files.delete(folder);
+        }
+    }
+
+    @Test
+    void aWriteInsideARootReachedThroughALinkIsWritable() throws IOException {
+        Path real = Files.createDirectories(outside.resolve("realroot"));
+        Path alias = Files.createSymbolicLink(root.resolve("alias"), real);
+        Workspace workspace = new Workspace(alias);
+
+        try {
+            assertTrue(workspace.writable(alias.resolve("new.txt")));
+        } finally {
+            Files.delete(alias);
+        }
+    }
+
+    @Test
+    void aLoopInTheParentChainIsNotWritable() throws IOException {
+        Files.createSymbolicLink(root.resolve("a"), root.resolve("b"));
+        Files.createSymbolicLink(root.resolve("b"), root.resolve("a"));
+        Workspace workspace = new Workspace(root);
+
+        try {
+            assertFalse(workspace.writable(root.resolve("a").resolve("x.txt")));
+        } finally {
+            Files.delete(root.resolve("a"));
+            Files.delete(root.resolve("b"));
+        }
+    }
+
+    @Test
+    void twoPathsInOneFolderGiveOneFolder() throws IOException {
+        Files.createDirectories(root.resolve("src"));
+        Workspace workspace = new Workspace(root);
+
+        assertEquals(workspace.folderOf(root.resolve("src/A.java")),
+                workspace.folderOf(root.resolve("src/B.java")));
+    }
+
+    @Test
+    void aFolderReachedThroughALinkIsOneFolder() throws IOException {
+        Path real = Files.createDirectories(outside.resolve("shared"));
+        Path link = Files.createSymbolicLink(root.resolve("alias"), real);
+
+        try {
+            Workspace workspace = new Workspace(root);
+
+            assertEquals(workspace.folderOf(real.resolve("a.txt")),
+                    workspace.folderOf(link.resolve("a.txt")));
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void aFolderIsItsOwnFolder() {
+        assertEquals(Optional.of(root), new Workspace(root).folderOf(root));
+    }
+
+    @Test
+    void theFilesystemRootIsItsOwnFolder() {
+        Path filesystemRoot = root.getRoot();
+
+        assertTrue(new Workspace(root).folderOf(filesystemRoot).isPresent());
     }
 }

@@ -80,6 +80,20 @@ public final class ListFiles implements Tool {
         return false;
     }
 
+    @Override
+    public Effect effect(JsonNode args) {
+        JsonNode pathNode = args.path("path");
+        if (!pathNode.isTextual() || pathNode.asText().isBlank()) {
+            // No path means the root, and a root is inside itself. execute() reaches the same
+            // place through resolve("."), so the two agree while a Workspace has one root.
+            return Effect.READS_INSIDE;
+        }
+        return workspace.tryResolve(pathNode)
+                .filter(workspace::readable)
+                .map(path -> Effect.READS_INSIDE)
+                .orElse(Effect.READS_OUTSIDE);
+    }
+
     private String render(Path directory, List<Path> entries) {
         List<String> lines = new ArrayList<>();
         lines.add("directory " + directory);

@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 273 tests, all offline, no network
+mvn test                        # 428 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -51,6 +51,9 @@ as plain types; the `ToolSpecs` adapter in `agent` translates that into whatever
 needs. This keeps tools writable without knowing an LLM exists. If you find yourself importing
 `dev.konacode.llm` from `dev.konacode.tools`, the adapter is the answer, not the import.
 
+The approval seam keeps three jobs apart. The tool states a fact, the policy decides, and the
+loop asks the user. No part does two of those jobs.
+
 ## Definitions
 
 ### `dev.konacode.llm` — provider-neutral conversation model
@@ -81,7 +84,8 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 
 | Element | Kind | Definition |
 |---|---|---|
-| `Tool` | interface | `name()`, `description()`, `inputSchema()`, `ToolResult execute(JsonNode args)`, `boolean stopsOnInterrupt()`. The description is written for the model to read — it is prompt text, not a code comment. `stopsOnInterrupt` is abstract and not a default, so a new tool must answer it, the way the sealed `Decision` makes a new case a compile error everywhere. |
+| `Tool` | interface | `name()`, `description()`, `inputSchema()`, `ToolResult execute(JsonNode args)`, `boolean stopsOnInterrupt()`, `Effect effect(JsonNode args)`. The description is written for the model to read — it is prompt text, not a code comment. `stopsOnInterrupt` and `effect` are abstract and not a default, so a new tool must answer both, the way the sealed `Decision` makes a new case a compile error everywhere. |
+| `Effect` | enum | `READS_INSIDE`, `READS_OUTSIDE`, `WRITES_INSIDE`, `WRITES_OUTSIDE`, `RUNS`. What one call to a tool does. The tool states this fact and decides nothing; a `ToolPolicy` reads it and decides. |
 | `ToolResult` | sealed interface | `Ok(String text)` or `Err(String message)`. Typed rather than a bare string so the loop and the policy can react to failure without sniffing for `"<error>"`. |
 | `ToolRegistry` | final class | Name-to-`Tool` map. `lookup(String)` returns `Optional`; `all()` enumerates. |
 | `ListFiles` | implements `Tool` | Directory snapshot, sorted, capped at 200 entries. Directories get a `/` suffix, symlinks `@`. |
@@ -89,7 +93,7 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 | `EditFile` | implements `Tool` | Exact-match replacement. Refuses zero matches, refuses more than one, refuses `old_str == new_str`. Creates the file when `old_str` is empty and the file does not exist. Replacement is **literal** — `String.replace`, never `replaceAll`, which would treat `$` and `\` in the model's `new_str` as replacement-template syntax and silently corrupt the edit. |
 | `DeleteFile` | implements `Tool` | Removes one file. Refuses a directory. On a symbolic link it removes the link, never the target. It reaches any path the other tools reach, with no confirmation and no copy — see the design for the two places a control layer will land. |
 | `StopCheck` | interface | `boolean stopped()`. The one question a tool asks between two steps of its work. It lives here and not in `agent`, because `agent` already depends on `tools` and the reverse import would close a cycle. `NEVER` serves every tool and test that does not stop. |
-| `Workspace` | final class | Owns every filesystem *operation* — resolving relative, `~` and absolute paths against a root, plus `readUtf8Capped`, `writeAtomic`, `listSorted`, `delete`. `readUtf8Capped` and `listSorted` each take a `StopCheck`, so the user can stop a long read or a long listing between steps. Tools call bare `Files.exists` / `isDirectory` / `isSymbolicLink` predicates inline; everything that reads, writes or enumerates goes through here. Where path confinement will hook in when it is added. |
+| `Workspace` | final class | Owns every filesystem *operation* — resolving relative, `~` and absolute paths against a root, plus `readUtf8Capped`, `writeAtomic`, `listSorted`, `delete`. `readUtf8Capped` and `listSorted` each take a `StopCheck`, so the user can stop a long read or a long listing between steps. Tools call bare `Files.exists` / `isDirectory` / `isSymbolicLink` predicates inline; everything that reads, writes or enumerates goes through here. It also owns every judgement a policy needs about a path — inside the root, readable, writable — and resolves the real file or folder a question about that path must name. |
 | `Schemas` | static helper | Builds tool input schemas without repeating Jackson boilerplate. |
 
 ### `dev.konacode.policy`
@@ -97,8 +101,10 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 | Element | Kind | Definition |
 |---|---|---|
 | `ToolPolicy` | interface | `Decision check(Tool tool, JsonNode args)`. Consulted before every tool execution. |
-| `Decision` | sealed interface | `Allow` or `Deny(String reason)`. Sealed on purpose: adding `Ask` later becomes a compile error at every handling site. |
-| `AllowAllPolicy` | implements `ToolPolicy` | The default. Always allows. The seam exists; the restriction does not, yet. |
+| `Decision` | sealed interface | `Allow`, `Deny(String reason)`, or `Ask(String action, String subject, Path alwaysFolder)`. Sealed on purpose: a new case is a compile error at every handling site. |
+| `EffectPolicy` | implements `ToolPolicy` | Allows a call inside the launch directory. Asks about every other one, naming the real path the call reaches. |
+| `SelectedPolicy` | implements `ToolPolicy` | The policy in use now. `/policy` changes it while a session runs; `Agent` holds this one policy and never learns that the choice can change. |
+| `AllowAllPolicy` | implements `ToolPolicy` | Allows every call. The default for an interface that cannot ask a question. A user chooses it with `/policy allow-all`. |
 
 ### `dev.konacode.skills`
 
@@ -125,17 +131,19 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 | `Agent` | final class | `String respond(String userText)`. The loop. Depends only on interfaces. |
 | `Conversation` | final class | `add(Message)`, `messages()`, `restart(List<Message>)`. The history of one session, and the only state the loop keeps. It is a class and not an interface, because `messages()` and `restart` together cover every change to the history. A caller reads all of it, transforms it, and writes all of it back. `/clear` and `/compact` both work that way. |
 | `Cancellation` | final class | The user's request to stop one turn. `request` and `stopped` are public; `arm` and `disarm` are not, because only the loop may decide where an interrupt is safe. One lock keeps an interrupt from arriving after the clear. Implements `StopCheck`. |
+| `ToolApproval` | interface | `Answer ask(String toolName, Decision.Ask ask)`, `boolean canAsk()`. `Answer` is `YES`, `NO` or `ALWAYS`. The loop asks, and not the policy, because `Cancellation` lives here and only the loop knows where an interrupt is safe. |
+| `Approvals` | final class | The answers the user gave during this session, keyed to the tool and the folder. The memory sits here and not in the policy, so `/policy` changes the policy and the answers stay. Nothing is written to disk. |
 | `ToolSpecs` | static adapter | `Tool` to `ToolSpec`. The one place `tools` and `llm` meet. |
 
 ### `dev.konacode.cli`
 
 | Element | Kind | Definition |
 |---|---|---|
-| `Ui` | interface | Everything konacode shows the user, and the one thing it reads from them. It extends `Trace`, because showing what the agent did is a user interface concern, and it gains `liveTrace`, the level the screen shows. One object then owns the screen. |
+| `Ui` | interface | Everything konacode shows the user, and the one thing it reads from them. It extends `Trace`, because showing what the agent did is a user interface concern, and it gains `liveTrace`, the level the screen shows. It extends `ToolApproval` for the same reason: asking a question is a user interface concern too. One object then owns the screen and the keyboard. |
 | `PlainUi` | implements `Ui` | The interface for a pipe. It reads with a `BufferedReader` and prints what konacode printed before there were two interfaces. It renders no markdown and shows no spinner. |
 | `RichUi` | implements `Ui` | The interface for a terminal. JLine gives the line editing, the history in `~/.konacode/chat_history`, and `alt-enter` for a second line. It renders markdown, and it owns the spinner and the `EscapeWatcher`. `emit` stops the spinner before it prints a line, and restarts it once a tool finishes; the watcher keeps running, so ESC still works while a tool runs. The constructor takes every collaborator, and `open()` builds the real ones, which is why the class can have tests. |
 | `Repl` | final class | The loop. Read a line, skip it when empty, run it as a command when it starts with `/`, otherwise ask the agent. Both interfaces share it. |
-| `Commands` | final class | `/help`, `/tools`, `/skill`, `/trace`, `/clear` and `/exit`. `run` returns false when the session must end, so every command lives in one class and `Repl` gains one line. A command writes markdown, so the rich interface renders it and needs no second output method. An unknown command prints an error and never reaches the model. |
+| `Commands` | final class | `/help`, `/tools`, `/skill`, `/trace`, `/policy`, `/clear` and `/exit`. `run` returns false when the session must end, so every command lives in one class and `Repl` gains one line. A command writes markdown, so the rich interface renders it and needs no second output method. An unknown command prints an error and never reaches the model. |
 | `EscapeWatcher` | class | Reads the terminal during a turn and calls `Cancellation.request()` on the byte `0x1B`. A sibling of `Spinner`: one daemon thread, `start` and `stop`, both idempotent, not final so a test can record. Raw mode keeps `ISIG` on, so ctrl-C still ends konacode. |
 | `Spinner` | class | One daemon thread that draws and erases a character while the agent works. `RichUi` stops it before every write of its own. It is not final, so a test can record the calls. |
 | `Banner` | final class | The art from the README, which reads `kona`. It is 41 columns wide, so a narrower terminal gets the plain name. Generated from `README.md`, not retyped. |
@@ -153,13 +161,19 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 
 ## Error channels
 
-Three, deliberately not merged:
+Four, deliberately not merged:
 
 1. **Tool failure** — `ToolResult.Err`, rendered `<error> …` and appended to the conversation as a `ToolMessage`. The model reads it and recovers. This is a normal part of operation, not an exception.
 2. **Policy denial** — also an `Err`, so a refusal is something the model can route around rather than a crash.
-3. **Transport/protocol failure** — `LlmException`, caught at the top of `respond` and surfaced to the human. The model cannot fix a 401.
+3. **No approval** — also an `Err`. The policy returned `Ask`, and the user said no, or the interface could not ask. This is not a policy denial: the policy asked for a decision and did not make one.
+4. **Transport/protocol failure** — `LlmException`, caught at the top of `respond` and surfaced to the human. The model cannot fix a 401.
 
 Never promote a tool failure to an exception. Never hand an `LlmException` to the model.
+
+**An `Err` the model reads is prompt text.** Treat it the way you treat a tool description. Name one
+call and one path. A message that names a kind of call teaches the model a rule: the first refusal
+said "to read outside this project", and the model then stopped calling the tool at all, so konacode
+never asked again and the user could not say yes.
 
 ## Questions
 

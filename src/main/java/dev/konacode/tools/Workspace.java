@@ -1,5 +1,7 @@
 package dev.konacode.tools;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.text.Collator;
@@ -17,6 +20,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -29,13 +34,20 @@ public final class Workspace {
     private static final int CHUNK_BYTES = 8192;
 
     private final Path root;
+    private final List<Path> alsoReadable;
 
     public Workspace(Path root) {
-        this.root = root.toAbsolutePath().normalize();
+        this(root, List.of());
     }
 
-    public static Workspace ofCurrentDirectory() {
-        return new Workspace(Path.of(System.getProperty("user.dir")));
+    /**
+     * @param alsoReadable folders outside the root that a tool may read. A write there stays
+     *     outside the project. {@code EffectPolicy} allows a read in one of these folders with no
+     *     question.
+     */
+    public Workspace(Path root, List<Path> alsoReadable) {
+        this.root = root.toAbsolutePath().normalize();
+        this.alsoReadable = List.copyOf(Objects.requireNonNull(alsoReadable, "alsoReadable"));
     }
 
     public Path root() {
@@ -66,6 +78,140 @@ public final class Workspace {
             path = root.resolve(path);
         }
         return path.normalize();
+    }
+
+    /** Empty when the path is missing, blank, or a string this filesystem refuses. */
+    public Optional<Path> tryResolve(String rawPath) {
+        try {
+            return Optional.of(resolve(rawPath));
+        } catch (RuntimeException e) {
+            return Optional.empty();
+        }
+    }
+
+    /** Empty when the node does not name a path konacode can use. */
+    public Optional<Path> tryResolve(JsonNode pathNode) {
+        return pathNode.isTextual() ? tryResolve(pathNode.asText()) : Optional.empty();
+    }
+
+    /**
+     * True when the path is under the launch directory.
+     *
+     * <p>False when konacode cannot resolve the path. A path konacode cannot resolve is a path it
+     * must ask about.
+     *
+     * <p>The path is normalized before the links in it are resolved, so {@code a/link/../b} is
+     * judged as {@code a/b}. Every caller uses the path that {@link #resolve} returned, which is
+     * normalized the same way, so the judgement and the operation agree. A caller that builds a
+     * path some other way breaks that agreement.
+     */
+    public boolean insideRoot(Path path) {
+        return under(root, path);
+    }
+
+    /**
+     * True when the path is under the launch directory, or under a folder that may be read without
+     * a question. This is not a file permission.
+     */
+    public boolean readable(Path path) {
+        if (under(root, path)) {
+            return true;
+        }
+        for (Path folder : alsoReadable) {
+            if (under(folder, path)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The folder an approval covers for this path, with the links above it resolved. A folder
+     * covers itself, and a file is covered by the folder that holds it. Empty when konacode
+     * cannot resolve the folder, and "always" is then not offered.
+     *
+     * <p>An approval is remembered against this folder, so two paths that name one folder through
+     * different links must give one answer.
+     */
+    public Optional<Path> folderOf(Path path) {
+        Path absolute = path.toAbsolutePath().normalize();
+        Path folder = Files.isDirectory(absolute) ? absolute : absolute.getParent();
+        return folder == null ? Optional.empty() : Optional.ofNullable(real(folder));
+    }
+
+    /** The file a read reaches. The final link is followed. Empty when konacode cannot resolve it. */
+    public Optional<Path> readTarget(Path path) {
+        return Optional.ofNullable(real(path.toAbsolutePath().normalize()));
+    }
+
+    /**
+     * The entry a write replaces. The folders above it are resolved and the entry is not, because
+     * {@code writeAtomic} moves a file onto the path and {@code delete} removes a link.
+     * Empty when konacode cannot resolve it.
+     */
+    public Optional<Path> writeTarget(Path path) {
+        return Optional.ofNullable(entry(path));
+    }
+
+    /**
+     * True when a write to this path stays inside the launch directory.
+     *
+     * <p>A write replaces the entry itself: {@code writeAtomic} moves a new file onto the path, and
+     * {@code delete} removes a link and never its target. So the place the entry sits decides, and
+     * not the file a link points to. The folders above the entry are resolved, because the write
+     * lands in the real folder.
+     *
+     * <p>This judges the write only. A tool that reads before it writes must ask {@link #readable}
+     * as well, because a read follows the final link and a write replaces it.
+     */
+    public boolean writable(Path path) {
+        Path entry = entry(path);
+        Path realRoot = real(root);
+        return entry != null && realRoot != null && entry.startsWith(realRoot);
+    }
+
+    /** The place the entry sits: the folders above it resolved, and the entry left as written. */
+    private static Path entry(Path path) {
+        Path absolute = path.toAbsolutePath().normalize();
+        Path parent = absolute.getParent();
+        if (parent == null) {
+            return absolute;
+        }
+        Path realParent = real(parent);
+        return realParent == null ? null : realParent.resolve(absolute.getFileName());
+    }
+
+    private static boolean under(Path folder, Path path) {
+        Path resolvedPath = real(path);
+        Path resolvedFolder = real(folder);
+        // konacode must ask about a path it cannot resolve, so an unresolved path is outside.
+        return resolvedPath != null && resolvedFolder != null
+                && resolvedPath.startsWith(resolvedFolder);
+    }
+
+    /**
+     * Resolves every link that can be resolved. {@code toRealPath} fails for a path that does not
+     * exist, and {@code edit_file} creates files, so this resolves the nearest ancestor that does
+     * exist and keeps the rest of the path as written.
+     *
+     * <p>Without the walk, a missing file under a link out of the root is judged inside the root.
+     *
+     * <p>Null when konacode cannot resolve the path.
+     */
+    private static Path real(Path path) {
+        Path absolute = path.toAbsolutePath().normalize();
+        Path existing = absolute;
+        while (existing != null && !Files.exists(existing, LinkOption.NOFOLLOW_LINKS)) {
+            existing = existing.getParent();
+        }
+        if (existing == null) {
+            return absolute;
+        }
+        try {
+            return existing.toRealPath().resolve(existing.relativize(absolute));
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     public String readUtf8Capped(Path file, int maxBytes) throws IOException {

@@ -1,6 +1,7 @@
 package dev.konacode.cli;
 
 import dev.konacode.agent.Agent;
+import dev.konacode.agent.Approvals;
 import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.Conversation;
 import dev.konacode.llm.LlmClient;
@@ -9,6 +10,7 @@ import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.ToolSpec;
 import dev.konacode.policy.AllowAllPolicy;
+import dev.konacode.policy.SelectedPolicy;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
@@ -34,12 +36,14 @@ class ReplTest {
     private Repl repl(RecordingUi ui) {
         LlmClient client = (history, tools) -> new AssistantMessage("the answer", List.of());
         Conversation conversation = new Conversation(SYSTEM);
-        ToolRegistry registry = ToolRegistry.of(new ListFiles(new Workspace(root), StopCheck.NEVER));
+        Workspace workspace = new Workspace(root);
+        ToolRegistry registry = ToolRegistry.of(new ListFiles(workspace, StopCheck.NEVER));
         SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
-        Agent agent = new Agent(client, registry, new AllowAllPolicy(), conversation, ui,
-                new Cancellation(), 8);
+        Agent agent = new Agent(client, registry, new AllowAllPolicy(), new Approvals(ui),
+                conversation, ui, new Cancellation(), 8);
         return new Repl(agent, ui,
-                new Commands(conversation, SYSTEM, registry, skills, ui, Level.OFF));
+                new Commands(conversation, SYSTEM, registry, skills, ui, Level.OFF,
+                        new SelectedPolicy(new AllowAllPolicy()), workspace));
     }
 
     @Test

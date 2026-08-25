@@ -68,7 +68,10 @@ does.
  │             ▼
  │        ToolPolicy → Decision
  │             │  Deny ────────────────────────► Err
- │             │  Allow
+ │             │  Ask ──► ask the user
+ │             │             │  refused ────────► Err
+ │             │             │  approved
+ │             │  Allow ◄────┘
  │             ▼
  │        Tool.execute  ─────────────────────►  Ok | Err
  │             │
@@ -119,6 +122,7 @@ would take a situation the model can fix and hand it to the human instead.
 
 **Four ways a turn ends**, and all four return text: an AssistantMessage with no ToolCalls, an
 exhausted iteration budget, a transport failure, or the user pressing ESC. None of them throws.
+Pressing ESC at an approval question requests the same stop, so it is not a fifth way.
 
 A stopped turn stays in the history, so the model can read what it did and reverse it when the
 user asks. Every ToolCall that never ran is answered with an Err saying the user stopped the turn

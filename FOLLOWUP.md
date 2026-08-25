@@ -80,12 +80,10 @@ adds planning, and expect to revisit the default.
 
 ## 3. Smaller deferred items
 
-- **Path confinement.** `WorkspaceConfinedPolicy` — resolve symlinks, require the result to sit
-  under the launch directory, return `Deny` otherwise. One class; `ToolPolicy` and `Workspace`
-  already have the hooks. The default is `AllowAllPolicy` until then.
-- **Interactive approval.** `AskUserPolicy` requires a third `Decision` case. Because `Decision`
-  is sealed, adding `Ask` produces a compile error at every handling site — which is the
-  intended behavior, not an obstacle.
+- **Path confinement — built.** It became `EffectPolicy`, which asks rather than denies. See
+  [the design](docs/superpowers/specs/2026-08-24-approval-design.md).
+- **Interactive approval — built.** `Decision` gained the `Ask` case this entry proposed. See
+  [the design](docs/superpowers/specs/2026-08-24-approval-design.md).
 - **`/compact`.** The command reads `conversation.messages()`, asks the model for a summary, and
   calls `conversation.restart(List.of(systemMessage, summary))`. It needs the `LlmClient`, which
   `Commands` does not hold today. This replaces the older plan to swap the conversation for one
@@ -101,6 +99,31 @@ adds planning, and expect to revisit the default.
   (`finish_reason: "length"`) is currently indistinguishable from a complete one. Plain text is
   silently cut off; a truncated tool call usually fails argument parsing and recovers by accident
   rather than by design. Capturing it would make truncation diagnosable.
+- **A hard link defeats every path check, for a read.** `toRealPath` resolves a symbolic link and
+  not a hard one, so a hard link inside the project to a file outside it is judged inside, and
+  `read_file` and `edit_file` return the outside content. The write side is safe, and this was
+  verified: `writeAtomic` moves a file onto the path and breaks the hard link, and `delete_file`
+  removes one name while the other survives. A path check cannot close this. The answer is a
+  check on the file after it is opened.
+- **`Commands` reads a policy with `instanceof` in three places.** Twice in `label` and once in
+  the warning. A third policy would be named "a policy konacode cannot name", which is loud, and
+  would silently skip the warning, which is not. An abstract `ToolPolicy.label()`, or a method
+  that says whether a policy asks questions, closes both. It is not worth the cost while two
+  policies exist, because `ToolPolicy` has one method on purpose and the tests use it as a
+  lambda.
+- **`EffectPolicy` knows one argument name.** It reads `path`. A tool with another key answers
+  its effect correctly and then produces a question that names only the tool and offers no
+  "always", with no compile error and no failing test. `run_command` is the first tool with a
+  different shape.
+- **A question about a command has no useful subject.** The `RUNS` arm uses the tool's own name,
+  so the screen would read "run_command wants to run a command." above a line saying
+  `run_command`. The command string belongs there. `Decision.Ask.subject` is documented as a
+  path, and that wording changes in the same piece.
+- **Nothing proves the tools and the policy share a root.** `Main.build` builds both from one
+  `Workspace`, so no caller can pass a mismatch. If someone changed `build` to use two, no test
+  would notice: both wiring tests use an absolute path outside the project, and
+  `Workspace.resolve` ignores the root for an absolute path. A test that reads a relative path
+  inside the project through `build` would close it.
 
 ## 4. Streaming, and interrupting a turn
 
