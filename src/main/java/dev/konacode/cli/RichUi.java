@@ -139,7 +139,7 @@ final class RichUi implements Ui {
         out.println("  y  " + verb + " it once");
         out.println("  n  refuse");
         if (ask.alwaysFolder() != null) {
-            out.println("  a  always, for " + toolName + " under " + ask.alwaysFolder());
+            out.println("  a  always, for " + toolName + " in " + ask.alwaysFolder());
         }
         out.flush();
     }

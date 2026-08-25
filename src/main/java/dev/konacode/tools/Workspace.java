@@ -42,7 +42,8 @@ public final class Workspace {
 
     /**
      * @param alsoReadable folders outside the root that a tool may read. A write there stays
-     *     outside the project. No policy reads this list yet, and {@code EffectPolicy} will.
+     *     outside the project. {@code EffectPolicy} allows a read in one of these folders with no
+     *     question.
      */
     public Workspace(Path root, List<Path> alsoReadable) {
         this.root = root.toAbsolutePath().normalize();
@@ -130,7 +131,8 @@ public final class Workspace {
 
     /**
      * The folder an approval covers for this path, with the links above it resolved. A folder
-     * covers itself, and a file is covered by the folder that holds it.
+     * covers itself, and a file is covered by the folder that holds it. Empty when konacode
+     * cannot resolve the folder, and "always" is then not offered.
      *
      * <p>An approval is remembered against this folder, so two paths that name one folder through
      * different links must give one answer.
@@ -139,6 +141,20 @@ public final class Workspace {
         Path absolute = path.toAbsolutePath().normalize();
         Path folder = Files.isDirectory(absolute) ? absolute : absolute.getParent();
         return folder == null ? Optional.empty() : Optional.ofNullable(real(folder));
+    }
+
+    /** The file a read reaches. The final link is followed. Empty when konacode cannot resolve it. */
+    public Optional<Path> readTarget(Path path) {
+        return Optional.ofNullable(real(path.toAbsolutePath().normalize()));
+    }
+
+    /**
+     * The entry a write replaces. The folders above it are resolved and the entry is not, because
+     * {@code writeAtomic} moves a file onto the path and {@code delete} removes a link.
+     * Empty when konacode cannot resolve it.
+     */
+    public Optional<Path> writeTarget(Path path) {
+        return Optional.ofNullable(entry(path));
     }
 
     /**

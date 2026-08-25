@@ -102,8 +102,8 @@ class EffectPolicyTest {
     }
 
     @Test
-    void aReadOutsideAsksAndNamesThePathAndTheFolder() {
-        Path file = outside.resolve("secret.txt");
+    void aReadOutsideAsksAndNamesThePathAndTheFolder() throws IOException {
+        Path file = outside.toRealPath().resolve("secret.txt");
 
         Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
                 policy().check(new ReadFile(workspace(), StopCheck.NEVER),
@@ -111,19 +111,19 @@ class EffectPolicyTest {
 
         assertEquals("read outside this project", ask.action());
         assertEquals(file.toString(), ask.subject());
-        assertEquals(outside, ask.alwaysFolder());
+        assertEquals(outside.toRealPath(), ask.alwaysFolder());
     }
 
     @Test
-    void aWriteOutsideAsks() {
-        Path file = outside.resolve("notes.txt");
+    void aWriteOutsideAsks() throws IOException {
+        Path file = outside.toRealPath().resolve("notes.txt");
 
         Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
                 policy().check(new EditFile(workspace(), StopCheck.NEVER),
                         path(file.toString())));
 
         assertEquals("write outside this project", ask.action());
-        assertEquals(outside, ask.alwaysFolder());
+        assertEquals(outside.toRealPath(), ask.alwaysFolder());
     }
 
     @Test
@@ -177,6 +177,55 @@ class EffectPolicyTest {
                         path(folder.toString())));
 
         assertEquals(folder, ask.alwaysFolder(), "always must cover the folder the user listed");
+    }
+
+    @Test
+    void aLinkInsideTheProjectDoesNotOfferTheProject() throws IOException {
+        Path secret = Files.writeString(outside.resolve("secret.txt"), "x");
+        Path link = Files.createSymbolicLink(root.resolve("a.txt"), secret);
+
+        try {
+            Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
+                    policy().check(new ReadFile(workspace(), StopCheck.NEVER),
+                            path(link.toString())));
+
+            assertEquals(secret.toRealPath().toString(), ask.subject());
+            assertEquals(outside.toRealPath(), ask.alwaysFolder());
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void aBrokenLinkOffersNoFolder() throws IOException {
+        Path link = Files.createSymbolicLink(root.resolve("dangling"), outside.resolve("gone"));
+
+        try {
+            Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
+                    policy().check(new ReadFile(workspace(), StopCheck.NEVER),
+                            path(link.toString())));
+
+            assertNull(ask.alwaysFolder(), "a call that reaches nothing offers no always");
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void aWriteThroughALinkAsksAboutTheEntry() throws IOException {
+        Path inside = Files.writeString(root.resolve("real.txt"), "x");
+        Path link = Files.createSymbolicLink(outside.resolve("link.txt"), inside);
+
+        try {
+            Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
+                    policy().check(new EditFile(workspace(), StopCheck.NEVER),
+                            path(link.toString())));
+
+            assertEquals(outside.toRealPath(), ask.alwaysFolder(),
+                    "a write replaces the entry, so the entry's folder is what is approved");
+        } finally {
+            Files.delete(link);
+        }
     }
 
     /**

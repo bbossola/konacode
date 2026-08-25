@@ -16,7 +16,7 @@ public interface ToolApproval {
         YES,
         /** Refuses this one call. */
         NO,
-        /** Runs this call, and every later call the same tool makes inside the same folder. */
+        /** Runs this call, and every later call the same tool makes directly in the same folder. */
         ALWAYS
     }
 

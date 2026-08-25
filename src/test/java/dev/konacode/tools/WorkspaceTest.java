@@ -337,6 +337,22 @@ class WorkspaceTest {
     }
 
     @Test
+    void aReadFollowsTheLinkAndAWriteReplacesTheEntry() throws IOException {
+        Path target = Files.writeString(outside.resolve("target.txt"), "x");
+        Path link = Files.createSymbolicLink(root.resolve("link.txt"), target);
+        Workspace workspace = new Workspace(root);
+
+        try {
+            assertEquals(Optional.of(target.toRealPath()), workspace.readTarget(link),
+                    "a read follows the final link, and reaches the target outside the root");
+            assertEquals(Optional.of(link), workspace.writeTarget(link),
+                    "a write replaces the entry, which sits inside the root");
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
     void aWriteUnderALinkedFolderIsJudgedInTheRealFolder() throws IOException {
         Path elsewhere = Files.createDirectories(outside.resolve("elsewhere"));
         Path folder = Files.createSymbolicLink(root.resolve("linked"), elsewhere);

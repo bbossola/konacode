@@ -318,7 +318,7 @@ class RichUiTest {
         String shown = written();
         assertTrue(shown.contains("edit_file wants to write outside this project."), shown);
         assertTrue(shown.contains("/notes/a.txt"), shown);
-        assertTrue(shown.contains("always, for edit_file under /notes"), shown);
+        assertTrue(shown.contains("always, for edit_file in /notes"), shown);
     }
 
     @Test
