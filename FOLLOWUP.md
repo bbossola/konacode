@@ -80,12 +80,10 @@ adds planning, and expect to revisit the default.
 
 ## 3. Smaller deferred items
 
-- **Path confinement.** `WorkspaceConfinedPolicy` — resolve symlinks, require the result to sit
-  under the launch directory, return `Deny` otherwise. One class; `ToolPolicy` and `Workspace`
-  already have the hooks. The default is `AllowAllPolicy` until then.
-- **Interactive approval.** `AskUserPolicy` requires a third `Decision` case. Because `Decision`
-  is sealed, adding `Ask` produces a compile error at every handling site — which is the
-  intended behavior, not an obstacle.
+- **Path confinement — built.** It became `EffectPolicy`, which asks rather than denies. See
+  [the design](docs/superpowers/specs/2026-08-24-approval-design.md).
+- **Interactive approval — built.** `Decision` gained the `Ask` case this entry proposed. See
+  [the design](docs/superpowers/specs/2026-08-24-approval-design.md).
 - **`/compact`.** The command reads `conversation.messages()`, asks the model for a summary, and
   calls `conversation.restart(List.of(systemMessage, summary))`. It needs the `LlmClient`, which
   `Commands` does not hold today. This replaces the older plan to swap the conversation for one

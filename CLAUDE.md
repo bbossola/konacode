@@ -104,7 +104,7 @@ loop asks the user. No part does two of those jobs.
 | `Decision` | sealed interface | `Allow`, `Deny(String reason)`, or `Ask(String action, String subject, Path alwaysFolder)`. Sealed on purpose: a new case is a compile error at every handling site. |
 | `EffectPolicy` | implements `ToolPolicy` | Allows a call inside the launch directory. Asks about every other one, naming the real path the call reaches. |
 | `SelectedPolicy` | implements `ToolPolicy` | The policy in use now. `/policy` changes it while a session runs; `Agent` holds this one policy and never learns that the choice can change. |
-| `AllowAllPolicy` | implements `ToolPolicy` | The default. Always allows. The seam exists; the restriction does not, yet. |
+| `AllowAllPolicy` | implements `ToolPolicy` | Allows every call. The default for an interface that cannot ask a question. A user chooses it with `/policy allow-all`. |
 
 ### `dev.konacode.skills`
 
@@ -139,7 +139,7 @@ loop asks the user. No part does two of those jobs.
 
 | Element | Kind | Definition |
 |---|---|---|
-| `Ui` | interface | Everything konacode shows the user, and the one thing it reads from them. It extends `Trace`, because showing what the agent did is a user interface concern, and it gains `liveTrace`, the level the screen shows. One object then owns the screen. |
+| `Ui` | interface | Everything konacode shows the user, and the one thing it reads from them. It extends `Trace`, because showing what the agent did is a user interface concern, and it gains `liveTrace`, the level the screen shows. It extends `ToolApproval` for the same reason: asking a question is a user interface concern too. One object then owns the screen and the keyboard. |
 | `PlainUi` | implements `Ui` | The interface for a pipe. It reads with a `BufferedReader` and prints what konacode printed before there were two interfaces. It renders no markdown and shows no spinner. |
 | `RichUi` | implements `Ui` | The interface for a terminal. JLine gives the line editing, the history in `~/.konacode/chat_history`, and `alt-enter` for a second line. It renders markdown, and it owns the spinner and the `EscapeWatcher`. `emit` stops the spinner before it prints a line, and restarts it once a tool finishes; the watcher keeps running, so ESC still works while a tool runs. The constructor takes every collaborator, and `open()` builds the real ones, which is why the class can have tests. |
 | `Repl` | final class | The loop. Read a line, skip it when empty, run it as a command when it starts with `/`, otherwise ask the agent. Both interfaces share it. |

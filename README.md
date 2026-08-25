@@ -215,8 +215,8 @@ things honest with:
   window — or the bill.
 - **Unambiguous edits only** — `edit_file` fails loudly rather than guessing when the search
   string matches more than once.
-- **A policy hook** consulted before every tool call. It currently allows everything; the seam
-  is there so that stops being true without touching the loop.
+- **A policy hook** consulted before every tool call. See [Approval](#approval) for what it asks
+  in a terminal.
 
 Production agents add sandboxing, token budgets, rate limiting and permission prompts on top.
 Same skeleton, more armor. [FOLLOWUP.md](FOLLOWUP.md) tracks what is coming.
