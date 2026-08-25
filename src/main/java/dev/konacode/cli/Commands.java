@@ -127,6 +127,13 @@ final class Commands {
                 return;
             }
         }
+        // allow-all never asks, so the warning would be false there. effect asks, and this
+        // interface cannot, so every call outside the project is refused with no question.
+        if (!ui.canAsk() && policies.selected() instanceof EffectPolicy) {
+            ui.showAnswer("konacode now uses `" + name + "`. This interface cannot ask a question,"
+                    + " so it refuses every call outside this project.");
+            return;
+        }
         ui.showAnswer("konacode now uses `" + name + "`.");
     }
 

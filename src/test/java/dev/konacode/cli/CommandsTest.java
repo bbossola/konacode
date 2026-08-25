@@ -417,6 +417,29 @@ class CommandsTest {
     }
 
     @Test
+    void policyEffectWarnsWhenTheInterfaceCannotAsk() {
+        RecordingUi ui = new RecordingUi();
+        ui.canAsk = false;
+
+        commands(ui, new Conversation(SYSTEM)).run("/policy effect");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertTrue(shown.contains("cannot ask a question"), shown);
+        assertTrue(shown.contains("refuses every call outside this project"), shown);
+    }
+
+    @Test
+    void policyAllowAllDoesNotWarnWhenTheInterfaceCannotAsk() {
+        RecordingUi ui = new RecordingUi();
+        ui.canAsk = false;
+
+        commands(ui, new Conversation(SYSTEM)).run("/policy allow-all");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertEquals("konacode now uses `allow-all`.", shown);
+    }
+
+    @Test
     void helpNamesPolicy() {
         RecordingUi ui = new RecordingUi();
 

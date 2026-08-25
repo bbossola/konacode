@@ -73,6 +73,11 @@ final class PlainUi implements Ui {
     }
 
     @Override
+    public boolean canAsk() {
+        return false;
+    }
+
+    @Override
     public void liveTrace(Level level) {
         this.live = level;
     }

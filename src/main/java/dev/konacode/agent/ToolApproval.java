@@ -27,4 +27,7 @@ public interface ToolApproval {
      *     a null folder is legal, and it approves this call only.
      */
     Answer ask(String toolName, Decision.Ask ask);
+
+    /** True when this interface can put a question to a user. */
+    boolean canAsk();
 }

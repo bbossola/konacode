@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlainUiTest {
@@ -115,5 +116,10 @@ class PlainUiTest {
         assertEquals(ToolApproval.Answer.NO,
                 ui("").ask("edit_file", new Decision.Ask("write outside this project",
                         "/etc/hosts", Path.of("/etc"))));
+    }
+
+    @Test
+    void itCannotAsk() {
+        assertFalse(ui("").canAsk());
     }
 }

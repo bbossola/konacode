@@ -110,6 +110,11 @@ final class RichUi implements Ui {
         spinner.start();
     }
 
+    @Override
+    public boolean canAsk() {
+        return true;
+    }
+
     /**
      * Asks the user, and reads one key.
      *

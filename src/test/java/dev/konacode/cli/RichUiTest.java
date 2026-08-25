@@ -256,6 +256,11 @@ class RichUiTest {
     }
 
     @Test
+    void canAskIsTrue() {
+        assertTrue(ui().canAsk());
+    }
+
+    @Test
     void yMeansYes() throws IOException {
         NonBlockingReader input = keys('y');
         when(terminal.reader()).thenReturn(input);

@@ -19,6 +19,9 @@ final class RecordingUi implements Ui {
     final List<String> errors = new ArrayList<>();
     final List<String> events = new ArrayList<>();
     Level live = Level.OFF;
+    boolean canAsk = true;
+    Answer nextAsk = Answer.NO;
+    int askCount;
 
     RecordingUi(String... input) {
         Collections.addAll(lines, input);
@@ -53,7 +56,13 @@ final class RecordingUi implements Ui {
 
     @Override
     public Answer ask(String toolName, Decision.Ask ask) {
-        return Answer.NO;
+        askCount++;
+        return nextAsk;
+    }
+
+    @Override
+    public boolean canAsk() {
+        return canAsk;
     }
 
     @Override

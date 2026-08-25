@@ -33,6 +33,11 @@ class ApprovalsTest {
             }
             return answers.remove(0);
         }
+
+        @Override
+        public boolean canAsk() {
+            return true;
+        }
     }
 
     private static Decision.Ask askAbout(String file) {

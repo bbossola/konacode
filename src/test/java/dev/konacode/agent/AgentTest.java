@@ -185,9 +185,22 @@ class AgentTest {
         return new ToolCall(id, name, argumentsJson);
     }
 
+    /** Answers every question with the same fixed answer. */
+    private record FixedApproval(ToolApproval.Answer answer) implements ToolApproval {
+        @Override
+        public ToolApproval.Answer ask(String toolName, Decision.Ask ask) {
+            return answer;
+        }
+
+        @Override
+        public boolean canAsk() {
+            return true;
+        }
+    }
+
     /** No test before this task expects a question, so every ask is refused. */
     private static Approvals refusesToAsk() {
-        return new Approvals((toolName, ask) -> ToolApproval.Answer.NO);
+        return new Approvals(new FixedApproval(ToolApproval.Answer.NO));
     }
 
     private Agent agent(FakeLlmClient client, ToolRegistry registry, ToolPolicy policy,
@@ -403,7 +416,7 @@ class AgentTest {
         Agent agent = new Agent(client, ToolRegistry.of(echo),
                 (tool, args) -> Decision.ask("write outside this project", "/etc/hosts",
                         Path.of("/etc")),
-                new Approvals((toolName, ask) -> ToolApproval.Answer.YES),
+                new Approvals(new FixedApproval(ToolApproval.Answer.YES)),
                 new Conversation(new SystemMessage("You are konacode.")), new RecordingTrace(),
                 new Cancellation(), 8);
 
@@ -486,8 +499,16 @@ class AgentTest {
 
     @Test
     void survivesAnApprovalThatThrows() {
-        ToolApproval brokenApproval = (toolName, ask) -> {
-            throw new IllegalStateException("terminal bug");
+        ToolApproval brokenApproval = new ToolApproval() {
+            @Override
+            public Answer ask(String toolName, Decision.Ask ask) {
+                throw new IllegalStateException("terminal bug");
+            }
+
+            @Override
+            public boolean canAsk() {
+                return true;
+            }
         };
         FakeLlmClient client = new FakeLlmClient()
                 .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
