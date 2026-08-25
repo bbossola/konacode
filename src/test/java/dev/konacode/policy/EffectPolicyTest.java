@@ -176,7 +176,8 @@ class EffectPolicyTest {
                 policy().check(new ListFiles(workspace(), StopCheck.NEVER),
                         path(folder.toString())));
 
-        assertEquals(folder, ask.alwaysFolder(), "always must cover the folder the user listed");
+        assertEquals(folder.toRealPath(), ask.alwaysFolder(),
+                "always must cover the folder the user listed");
     }
 
     @Test
