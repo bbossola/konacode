@@ -3,8 +3,9 @@ name: Autofix
 on:
   workflow_dispatch:
   schedule:
-    # One hour after the Monday scan, so the advisories are fresh.
-    - cron: "0 7 * * 1"
+    # Each day at 07:00. On Monday this is one hour after the scan, so the
+    # advisories are fresh.
+    - cron: "0 7 * * *"
 
 permissions:
   contents: write
