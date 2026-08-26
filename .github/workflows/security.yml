@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Scan the dependencies
-        uses: MeterianHQ/meterian-github-action@6849965b713613691cd357967671da061d968f83 # v1.0.17
+        uses: MeterianHQ/meterian-github-action@9603528ad7eb3e76e7181d8d721bba25665a403d # v1.0.18
         with:
           oss: true
           cli_args: >-

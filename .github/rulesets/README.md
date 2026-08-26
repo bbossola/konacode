@@ -66,3 +66,14 @@ job has no `name` field. The `Scan the dependencies` name is the job name in `se
 
 A renamed job never reports the required check, and every pull request then waits forever.
 Rename a job and update this file in one commit.
+
+The `Fix the dependencies` job in `autofix.yml` is not a required check. It runs each day at
+07:00 UTC, so it never reports on a pull request.
+
+A pull request that the autofix opens carries no check at all. The autofix opens it with the
+token that GitHub gives the workflow, and GitHub starts no workflow run from an event that this
+token causes. So neither `test` nor `Scan the dependencies` reports on it. Run the test suite on
+your machine before you merge, or close the pull request and open it again to start the checks.
+
+A dependabot pull request is different. Dependabot opens it outside Actions, with its own
+credentials, so both checks run.
