@@ -300,6 +300,14 @@ first part would remove the answer.
 `stdout` and `stderr` are merged, in the order the process wrote them. The model reads one stream,
 in the way a human reads a terminal.
 
+**A command that outlives its shell may lose its output.** konacode reads the pipe on one thread
+while the command runs. When the shell exits, the JDK keeps the bytes already in the pipe and
+reports the end of the stream, so a background job that writes after that point is not seen. When
+konacode can detect the short read it adds `<output may be incomplete: a background process still
+holds it open>`, and sometimes it cannot detect it. A temporary file would remove the race and let
+one runaway command fill the disk, so konacode keeps the pipe and the tool description tells the
+model to background a job only when it does not need what the job prints.
+
 ### The exit code
 
 The result is `Ok`, and the text ends with the exit code.

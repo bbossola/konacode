@@ -1818,6 +1818,20 @@ runs. The race is whether the drain thread blocks on the pipe before the shell e
 runs `sleep 5 & echo hi; sleep 0.3`, which keeps the shell alive past the write, and it measured
 50 of 50.
 
+**A limit konacode keeps.** The incomplete marker catches a slow orphan and misses a fast one. When
+the JDK reaps the shell it keeps the bytes already in the pipe and reports the end of the stream, so
+a drain thread that is not yet blocked inside `read` ends cleanly, `join` truthfully answers true,
+and output was lost with no marker. The reviewer measured 13 runs in 200 of
+`(sleep 0.05; echo delayed) & echo now`.
+
+konacode keeps the pipe. A temporary file would remove the race, and it would let one runaway
+command under a 600 second timeout fill the disk. A pipe with a capped drain bounds what konacode
+holds and touches no disk. The description now tells the model that a process which outlives the
+command may lose its output, which is the layer where the model can act on it. No test covers the
+lost output, because it reproduces 13 times in 200 and a test of it would be flaky.
+
+Commit `8674097`.
+
 ---
 
 ## Task 8: the timeout and the stop
