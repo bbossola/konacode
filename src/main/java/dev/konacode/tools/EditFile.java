@@ -93,12 +93,7 @@ public final class EditFile implements Tool {
 
     @Override
     public Action computeAction(JsonNode args) {
-        // An edit reads the file and then writes it. Both tests must pass, or a link that
-        // points into the project would give one call disclosure of any file on the disk.
-        return Actions.onPath(name(), workspace, args.path("path"),
-                Effect.WRITES_INSIDE, Effect.WRITES_OUTSIDE,
-                path -> workspace.writable(path) && workspace.readable(path),
-                workspace::writeTarget);
+        return Actions.readThenWrite(name(), workspace, args.path("path"));
     }
 
     private ToolResult create(Path file, String rawPath, String oldStr, String newStr) {

@@ -31,9 +31,17 @@ class ActionsTest {
 
     private Action read(ObjectNode args) {
         Workspace workspace = new Workspace(root);
-        return Actions.onPath("read_file", workspace, args.path("path"),
-                Effect.READS_INSIDE, Effect.READS_OUTSIDE,
-                workspace::readable, workspace::readTarget);
+        return Actions.read("read_file", workspace, args.path("path"));
+    }
+
+    private Action write(ObjectNode args) {
+        Workspace workspace = new Workspace(root);
+        return Actions.write("delete_file", workspace, args.path("path"));
+    }
+
+    private Action readThenWrite(ObjectNode args) {
+        Workspace workspace = new Workspace(root);
+        return Actions.readThenWrite("edit_file", workspace, args.path("path"));
     }
 
     @Test
@@ -97,5 +105,65 @@ class ActionsTest {
         assertEquals(Effect.READS_OUTSIDE, action.effect());
         assertEquals("read_file", action.operand());
         assertTrue(action.permission().isEmpty());
+    }
+
+    @Test
+    void aPathThisFilesystemRefusesGivesTheTextBack() {
+        String withNul = "a" + (char) 0 + "b";
+
+        Action action = read(path(withNul));
+
+        assertEquals(Effect.READS_OUTSIDE, action.effect());
+        assertEquals(withNul, action.operand(),
+                "the operand is the path as the model wrote it");
+        assertTrue(action.permission().isEmpty());
+    }
+
+    @Test
+    void aWriteThroughALinkNamesTheEntryAndNotTheTarget() throws IOException {
+        Path inside = Files.writeString(root.resolve("real.txt"), "x");
+        Path link = Files.createSymbolicLink(outside.resolve("link.txt"), inside);
+
+        try {
+            Action action = write(path(link.toString()));
+
+            assertEquals(Effect.WRITES_OUTSIDE, action.effect());
+            assertEquals(link.toString(), action.operand(),
+                    "a write replaces the entry, so the entry is the operand");
+            assertEquals(new Permission.InFolder("delete_file", outside.toRealPath()),
+                    action.permission().orElseThrow());
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void anEditThroughALinkThatLeavesTheProjectAsks() throws IOException {
+        Path secret = Files.writeString(outside.resolve("secret.txt"), "key");
+        Path link = Files.createSymbolicLink(root.resolve("notes.txt"), secret);
+
+        try {
+            Action action = readThenWrite(path(link.toString()));
+
+            assertEquals(Effect.WRITES_OUTSIDE, action.effect(),
+                    "edit_file reads the target, so it must ask");
+            assertEquals(link.toString(), action.operand(),
+                    "the write replaces the entry, so the entry is the operand");
+        } finally {
+            Files.delete(link);
+        }
+    }
+
+    @Test
+    void aDeleteOfThatSameLinkStaysInside() throws IOException {
+        Path secret = Files.writeString(outside.resolve("secret.txt"), "key");
+        Path link = Files.createSymbolicLink(root.resolve("notes.txt"), secret);
+
+        try {
+            assertEquals(Effect.WRITES_INSIDE, write(path(link.toString())).effect(),
+                    "delete_file removes the link and reads nothing");
+        } finally {
+            Files.delete(link);
+        }
     }
 }

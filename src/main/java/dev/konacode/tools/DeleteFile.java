@@ -80,8 +80,6 @@ public final class DeleteFile implements Tool {
 
     @Override
     public Action computeAction(JsonNode args) {
-        return Actions.onPath(name(), workspace, args.path("path"),
-                Effect.WRITES_INSIDE, Effect.WRITES_OUTSIDE,
-                workspace::writable, workspace::writeTarget);
+        return Actions.write(name(), workspace, args.path("path"));
     }
 }

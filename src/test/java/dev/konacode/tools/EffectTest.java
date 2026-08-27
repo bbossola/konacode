@@ -56,6 +56,14 @@ class EffectTest {
     }
 
     @Test
+    void listFilesWithNoPathNamesTheRoot() {
+        assertEquals(root.toString(),
+                new ListFiles(workspace(), StopCheck.NEVER)
+                        .computeAction(MAPPER.createObjectNode()).operand(),
+                "the operand must name the place execute() reaches");
+    }
+
+    @Test
     void readFileReadsInside() {
         assertEquals(Effect.READS_INSIDE,
                 new ReadFile(workspace(), StopCheck.NEVER).computeAction(path("notes.txt")).effect());

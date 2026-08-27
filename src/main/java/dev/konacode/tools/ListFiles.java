@@ -88,9 +88,7 @@ public final class ListFiles implements Tool {
             // place through resolve("."), so the two agree while a Workspace has one root.
             return Action.once(Effect.READS_INSIDE, workspace.root().toString());
         }
-        return Actions.onPath(name(), workspace, pathNode,
-                Effect.READS_INSIDE, Effect.READS_OUTSIDE,
-                workspace::readable, workspace::readTarget);
+        return Actions.read(name(), workspace, pathNode);
     }
 
     private String render(Path directory, List<Path> entries) {
