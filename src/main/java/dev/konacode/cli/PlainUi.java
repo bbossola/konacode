@@ -90,9 +90,10 @@ final class PlainUi implements Ui {
     @Override
     public void emit(TraceEvent event) {
         if (event instanceof ToolCalled called) {
-            // The model wrote these arguments. The rich interface guards the same line.
-            out.println("tool: " + called.name() + "(" + Ansi.oneLine(called.argumentsJson())
-                    + ")");
+            // The model wrote this name and these arguments. The rich interface guards the
+            // same line.
+            out.println("tool: " + Ansi.oneLine(called.name()) + "("
+                    + Ansi.oneLine(called.argumentsJson()) + ")");
             return;
         }
         live.keep(event).ifPresent(kept -> out.println("trace: " + TraceLine.of(kept)));

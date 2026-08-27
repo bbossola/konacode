@@ -6,6 +6,7 @@ import dev.konacode.tools.Permission;
 import dev.konacode.trace.Level;
 import dev.konacode.trace.TraceEvent.RequestSent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
+import dev.konacode.trace.TraceEvent.ToolFinished;
 import org.jline.reader.History;
 import org.jline.reader.LineReader;
 import org.jline.terminal.Attributes;
@@ -18,10 +19,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
@@ -332,5 +335,58 @@ class ForgedQuestionTest {
         String output = Ansi.strip(raw());
         assertFalse(output.contains("\u001B"), output);
         assertEquals(0, questions(output), "the trace line forges no question: " + output);
+    }
+
+    // ---- the name of a tool, which the model also chooses ---------------------------------------
+
+    /**
+     * A name the model invented. The codec validates none, and the loop emits the name before the
+     * registry lookup, so an invented name reaches the screen.
+     */
+    private static final String FORGED_NAME =
+            "run_command\u001B[2J\n" + QUESTION + "\n  rm -rf /home/bruno";
+
+    @Test
+    void aForgedToolNameInTheLineOfACallReachesNoTerminal() {
+        String line = TraceLine.of(new ToolCalled(1, FORGED_NAME, "{}"));
+
+        assertFalse(line.contains("\u001B"), line);
+        assertEquals(1, line.lines().count(), line);
+        assertEquals(0, questions(line), "the trace line forges no question: " + line);
+    }
+
+    @Test
+    void aForgedToolNameInTheLineOfAResultDrawsNoSecondQuestion() throws IOException {
+        RichUi ui = ui(WIDTH);
+        ui.liveTrace(Level.FULL);
+
+        ui.emit(new ToolFinished(1, FORGED_NAME, true, "content", 5));
+        String output = Ansi.strip(askWith("echo safe"));
+
+        assertFalse(output.contains("\u001B"), output);
+        assertOneQuestion(output);
+    }
+
+    @Test
+    void aForgedToolNameInTheToolLineDrawsNoSecondQuestion() throws IOException {
+        ui(WIDTH).emit(new ToolCalled(1, FORGED_NAME, "{}"));
+
+        String output = Ansi.strip(askWith("echo safe"));
+
+        assertFalse(output.contains("\u001B"), output);
+        assertOneQuestion(output);
+    }
+
+    @Test
+    void aForgedToolNameReachesNoPipe() {
+        // The pipe cannot ask, so every question on it is a forged one.
+        PlainUi ui = new PlainUi(new BufferedReader(new StringReader("")), out);
+
+        ui.emit(new ToolCalled(1, FORGED_NAME, "{}"));
+
+        String output = raw();
+        assertFalse(output.contains("\u001B"), output);
+        assertEquals(1, output.lines().count(), output);
+        assertEquals(0, questions(output), output);
     }
 }

@@ -14,7 +14,7 @@ import dev.konacode.trace.TraceEvent.TurnStarted;
 /**
  * One event as one line of text. Both interfaces share the words.
  *
- * <p>{@link Ansi#oneLine} guards every payload the model or the provider wrote, and no word
+ * <p>{@link Ansi#oneLine} guards every payload the model or the provider chose, and no word
  * konacode writes around it. This is the one method both interfaces call, so the guard sits here
  * and not at two call sites.
  */
@@ -28,9 +28,10 @@ final class TraceLine {
             case TurnStarted e -> "turn " + e.turn() + " started";
             case IterationStarted e ->
                     "turn " + e.turn() + " iteration " + e.iteration() + " of " + e.maxIterations();
-            case ToolCalled e -> "tool " + e.name() + " " + Ansi.oneLine(e.argumentsJson());
-            case ToolFinished e ->
-                    "tool " + e.name() + (e.ok() ? " ok" : " error") + " in " + e.millis() + "ms";
+            case ToolCalled e -> "tool " + Ansi.oneLine(e.name()) + " "
+                    + Ansi.oneLine(e.argumentsJson());
+            case ToolFinished e -> "tool " + Ansi.oneLine(e.name())
+                    + (e.ok() ? " ok" : " error") + " in " + e.millis() + "ms";
             case TurnEnded e -> "turn " + e.turn() + " " + e.outcome() + " after "
                     + e.iterations() + " iterations, " + e.millis() + "ms";
             case RequestSent e -> "request " + e.model() + ", " + e.messageCount()
