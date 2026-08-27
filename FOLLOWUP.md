@@ -88,8 +88,12 @@ adds planning, and expect to revisit the default.
   calls `conversation.restart(List.of(systemMessage, summary))`. It needs the `LlmClient`, which
   `Commands` does not hold today. This replaces the older plan to swap the conversation for one
   with a token budget. The user asks for it, and no policy decides.
-- **A `run_command` tool — built.** It asks before every call, and an "always" covers the exact
-  line. See [the design](docs/superpowers/specs/2026-08-27-run-command-design.md).
+- **A `run_command` tool — built.** It runs one shell line with `sh -c`. See
+  [the design](docs/superpowers/specs/2026-08-27-run-command-design.md).
+- **`AllowAllPolicy` is the default for a piped session, and `run_command` now exists.** A pipe
+  has no user to answer a question, so konacode allows every call there. That was one risk while
+  every tool acted on a path. It is a larger one now, because a piped session runs any shell line
+  with no question. Decide whether a pipe should refuse a `RUNS` call instead of allowing it.
 - **Bounded retry in `OpenAiClient`.** The client makes exactly one attempt, so a single transient
   `429` or `5xx` discards a whole turn — costly for a loop that may make eight round trips per
   user message. Two or three attempts with backoff, scoped to `429`, `502`, `503`, `504` and

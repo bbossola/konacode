@@ -9,7 +9,7 @@
 ░░░░ ░░░░░  ░░░░░░  ░░░░ ░░░░░  ░░░░░░░░
 ```
 
-**A coding agent in Java 21.** No framework, no orchestration library, no magic — a loop, three
+**A coding agent in Java 21.** No framework, no orchestration library, no magic — a loop, five
 tools, and a language model with opinions.
 
 ## The whole trick
@@ -35,7 +35,7 @@ descriptions alone.
 | `read_file` | Return a file's contents | Capped at 100 KB |
 | `edit_file` | Exact-match string replacement (creates the file when `old_str` is empty) | Refuses ambiguous matches |
 | `delete_file` | Remove a file | Refuses a directory |
-| `run_command` | Run a shell line in the project directory | Asks before every call |
+| `run_command` | Run a shell line in the project directory | Stopped by the timeout, default 600 seconds |
 
 A tool is a name, a description the model reads, a JSON schema, and a function that runs when
 the model asks for it. Adding a sixth means writing one class and registering it.
@@ -199,7 +199,7 @@ src/main/java/dev/konacode/
 ├── cli/        the two interfaces, the loop, the commands
 │   └── markdown/   the renderer
 ├── agent/      the conversation and the tool loop
-├── tools/      the Tool interface, the registry, the three tools
+├── tools/      the Tool interface, the registry, the five tools
 ├── policy/     what the agent is allowed to do
 └── llm/        the provider interface, and one implementation of it
     └── openai/
