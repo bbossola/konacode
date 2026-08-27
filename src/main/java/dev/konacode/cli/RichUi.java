@@ -157,9 +157,13 @@ final class RichUi implements Ui {
      *
      * <p>The strip is first. It reads the escape byte and the bytes after it as one code, and the
      * replace then covers an escape byte that starts no code.
+     *
+     * <p>{@code \p{Cf}} covers a Unicode format character. U+202E reverses the direction the
+     * terminal draws, so a line can display as one command and run as another, with no control
+     * byte. An accented character in a real file name is not in that category, and it survives.
      */
     private static String oneLine(String text) {
-        return Ansi.strip(text).replaceAll("\\p{Cntrl}", "\u2400");
+        return Ansi.strip(text).replaceAll("[\\p{Cntrl}\\p{Cf}]", "\u2400");
     }
 
     private int read() {

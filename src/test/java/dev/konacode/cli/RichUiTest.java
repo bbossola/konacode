@@ -431,6 +431,31 @@ class RichUiTest {
     }
 
     @Test
+    void aDirectionOverrideReachesNoTerminal() throws IOException {
+        // The override is written as an escape. A literal one here would reverse this test too.
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+        Decision.Ask ask = new Decision.Ask("run_command", "run a command",
+                "echo \u202Egnahc\u202C safe", Optional.empty());
+
+        ui().ask(ask);
+
+        assertFalse(raw().contains("\u202E"), raw());
+    }
+
+    @Test
+    void anAccentedFileNameSurvives() throws IOException {
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+        Decision.Ask ask = new Decision.Ask("read_file", "read outside this project",
+                "/home/bruno/n\u00F3tes/caf\u00E9.txt", Optional.empty());
+
+        ui().ask(ask);
+
+        assertTrue(raw().contains("/home/bruno/n\u00F3tes/caf\u00E9.txt"), raw());
+    }
+
+    @Test
     void aNewlineInAPermissionCannotDrawASecondQuestion() throws IOException {
         NonBlockingReader input = keys('n');
         when(terminal.reader()).thenReturn(input);
