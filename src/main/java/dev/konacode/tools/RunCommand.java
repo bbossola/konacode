@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Runs one shell line with {@code sh -c}, and gives back what it printed.
@@ -23,6 +24,9 @@ public final class RunCommand implements Tool {
 
     /** How long konacode waits for the last of the output after the command finishes. */
     static final long DRAIN_JOIN_MILLIS = 1000;
+
+    /** How long konacode waits between two questions about the stop and about the timeout. */
+    private static final long POLL_MILLIS = 50;
 
     /** Each character makes the line mean something else on another day. */
     private static final String EXPANDING = "$`*?[~";
@@ -108,8 +112,19 @@ public final class RunCommand implements Tool {
     }
 
     private ToolResult waitFor(Process process, Thread drain, CappedOutput output, String line) {
+        long deadline = System.nanoTime() + timeout.toNanos();
         try {
-            process.waitFor();
+            while (!process.waitFor(POLL_MILLIS, TimeUnit.MILLISECONDS)) {
+                if (stop.stopped()) {
+                    return kill(process, drain,
+                            "Stopped by the user before this command finished: " + line);
+                }
+                // The subtraction stays correct when nanoTime passes the end of its range.
+                if (System.nanoTime() - deadline >= 0) {
+                    return kill(process, drain, "This command did not finish in "
+                            + timeout.toSeconds() + " seconds and was stopped: " + line);
+                }
+            }
         } catch (InterruptedException e) {
             ToolResult stopped = kill(process, drain, "Interrupted while this command ran: " + line);
             Thread.currentThread().interrupt();
@@ -203,6 +218,31 @@ public final class RunCommand implements Tool {
         process.destroyForcibly();
         join(drain);
         return ToolResult.err(message);
+    }
+
+    /**
+     * How long konacode waits for one command.
+     *
+     * <p>A wrong value is an error, for the reason {@code konacode.maxIterations} gives. The user
+     * owns this value, and the model does not: a model that could raise it would escape the limit.
+     */
+    public static Duration configuredTimeout() {
+        String configured = System.getProperty("konacode.command.timeoutSeconds");
+        if (configured == null) {
+            return DEFAULT_TIMEOUT;
+        }
+        long seconds;
+        try {
+            seconds = Long.parseLong(configured.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("konacode.command.timeoutSeconds must be a whole"
+                    + " number of seconds, but was: " + configured);
+        }
+        if (seconds < 1) {
+            throw new IllegalArgumentException("konacode.command.timeoutSeconds must be at least"
+                    + " 1, but was: " + configured);
+        }
+        return Duration.ofSeconds(seconds);
     }
 
     /** The command line, or null when the argument is absent, not text, or blank. */

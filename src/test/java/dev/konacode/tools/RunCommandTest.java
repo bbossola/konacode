@@ -7,11 +7,14 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Timeout(30)
@@ -21,6 +24,9 @@ class RunCommandTest {
     Path root;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    /** Answers "stopped" from the first question. */
+    private static final StopCheck STOPPED = () -> true;
 
     private static ObjectNode command(String line) {
         ObjectNode args = MAPPER.createObjectNode();
@@ -200,5 +206,87 @@ class RunCommandTest {
         ToolResult result = tool().execute(MAPPER.createObjectNode());
 
         assertInstanceOf(ToolResult.Err.class, result);
+    }
+
+    @Test
+    void aCommandThatPassesTheTimeoutIsStopped() {
+        RunCommand tool = new RunCommand(new Workspace(root), StopCheck.NEVER,
+                Duration.ofMillis(200));
+
+        ToolResult result = tool.execute(command("sleep 30"));
+
+        ToolResult.Err err = assertInstanceOf(ToolResult.Err.class, result);
+        assertTrue(err.message().contains("sleep 30"), err.message());
+        assertTrue(err.message().contains("did not finish"), err.message());
+    }
+
+    @Test
+    void theUserStopsACommandThatRuns() {
+        RunCommand tool = new RunCommand(new Workspace(root), STOPPED, Duration.ofSeconds(30));
+
+        ToolResult result = tool.execute(command("sleep 30"));
+
+        ToolResult.Err err = assertInstanceOf(ToolResult.Err.class, result);
+        assertTrue(err.message().contains("Stopped by the user"), err.message());
+        assertTrue(err.message().contains("sleep 30"), err.message());
+    }
+
+    @Test
+    void aStopEndsTheCommandQuickly() {
+        RunCommand tool = new RunCommand(new Workspace(root), STOPPED, Duration.ofSeconds(30));
+        long started = System.nanoTime();
+
+        tool.execute(command("sleep 30"));
+
+        long millis = (System.nanoTime() - started) / 1_000_000;
+        assertTrue(millis < 5_000, "the command must end at once, and it took " + millis + " ms");
+    }
+
+    @Test
+    void theDefaultTimeoutIsTenMinutes() {
+        assertEquals(Duration.ofSeconds(600), RunCommand.DEFAULT_TIMEOUT);
+    }
+
+    @Test
+    void aConfiguredTimeoutIsUsed() {
+        System.setProperty("konacode.command.timeoutSeconds", "5");
+        try {
+            assertEquals(Duration.ofSeconds(5), RunCommand.configuredTimeout());
+        } finally {
+            System.clearProperty("konacode.command.timeoutSeconds");
+        }
+    }
+
+    @Test
+    void aWrongTimeoutFailsLoudly() {
+        System.setProperty("konacode.command.timeoutSeconds", "soon");
+        try {
+            IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+                    RunCommand::configuredTimeout);
+            assertTrue(thrown.getMessage().contains("konacode.command.timeoutSeconds"));
+        } finally {
+            System.clearProperty("konacode.command.timeoutSeconds");
+        }
+    }
+
+    @Test
+    void aTimeoutBelowOneSecondFailsLoudly() {
+        System.setProperty("konacode.command.timeoutSeconds", "0");
+        try {
+            assertThrows(IllegalArgumentException.class, RunCommand::configuredTimeout);
+        } finally {
+            System.clearProperty("konacode.command.timeoutSeconds");
+        }
+    }
+
+    @Test
+    void aStoppedCommandLeavesNoChildBehind() throws Exception {
+        Path marker = root.resolve("marker.txt");
+        RunCommand tool = new RunCommand(new Workspace(root), STOPPED, Duration.ofSeconds(30));
+
+        tool.execute(command("sh -c 'sleep 2; echo late > " + marker + "'"));
+        Thread.sleep(3000);
+
+        assertFalse(Files.exists(marker), "the child of the shell must be destroyed too");
     }
 }
