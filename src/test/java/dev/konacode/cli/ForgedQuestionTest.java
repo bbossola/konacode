@@ -3,6 +3,8 @@ package dev.konacode.cli;
 import dev.konacode.agent.Cancellation;
 import dev.konacode.policy.Decision;
 import dev.konacode.tools.Permission;
+import dev.konacode.trace.Level;
+import dev.konacode.trace.TraceEvent.RequestSent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import org.jline.reader.History;
 import org.jline.reader.LineReader;
@@ -301,5 +303,34 @@ class ForgedQuestionTest {
 
         assertFalse(output.contains("\t"), "a tab is replaced");
         assertTrue(output.contains("odd\u2400name.txt"), output);
+    }
+
+    @Test
+    void aLongToolCalledLineIsCutToTheWidthOfTheTerminal() {
+        // The same attack as the operand, one line above the question the loop is about to ask.
+        RichUi ui = ui(WIDTH);
+
+        ui.emit(new ToolCalled(1, "run_command",
+                "{\"command\":\"echo " + "x".repeat(200) + "\"}"));
+
+        String output = Ansi.strip(raw());
+        assertTrue(output.lines().allMatch(line -> line.length() <= WIDTH), output);
+        assertTrue(output.contains("\u2026"), "the cut is marked: " + output);
+    }
+
+    @Test
+    void aRequestBodyReachesNoTerminalWhenTheTraceIsFull() {
+        // The body holds the whole conversation, so it holds text the model wrote.
+        RichUi ui = ui(WIDTH);
+        ui.liveTrace(Level.FULL);
+
+        ui.emit(new RequestSent("https://api.openai.com/v1", "gpt-5-mini", 2, 3,
+                "{\"content\":\"echo safe\u001B[2J\n\n" + QUESTION + "\"}"));
+
+        // The strip removes the colour code konacode wrote, so a byte that is left came from the
+        // body.
+        String output = Ansi.strip(raw());
+        assertFalse(output.contains("\u001B"), output);
+        assertEquals(0, questions(output), "the trace line forges no question: " + output);
     }
 }

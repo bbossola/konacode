@@ -3,10 +3,12 @@ package dev.konacode.cli;
 import dev.konacode.trace.TraceEvent.Outcome;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.TokensUsed;
+import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.TurnEnded;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TraceLineTest {
@@ -35,5 +37,23 @@ class TraceLineTest {
         String line = TraceLine.of(new ReplyReceived(200, 15, "{\"a\":1}"));
 
         assertEquals("reply 200 in 15ms\n{\"a\":1}", line);
+    }
+
+    @Test
+    void guardsTheArgumentsOfACall() {
+        String line = TraceLine.of(new ToolCalled(1, "run_command",
+                "{\"command\":\"echo\nrm -rf /\"}"));
+
+        assertEquals(1, line.lines().count(), line);
+        assertTrue(line.contains("echo\u2400rm -rf /"), line);
+    }
+
+    @Test
+    void guardsTheBodyAndKeepsTheNewlineKonacodeWrites() {
+        String line = TraceLine.of(new ReplyReceived(200, 15,
+                "{\"a\":\"\u001B[2J\nb\"}"));
+
+        assertEquals(2, line.lines().count(), line);
+        assertFalse(line.contains("\u001B"), line);
     }
 }

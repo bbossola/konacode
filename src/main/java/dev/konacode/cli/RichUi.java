@@ -154,6 +154,9 @@ final class RichUi implements Ui {
      * <p>The model can pad the operand to the width it guesses. The wrapped part then starts at
      * column 0, and it reads as a line konacode wrote. The beginning of the line stays, because a
      * user judges a path by the folder it is in, and the mark says that more text is there.
+     *
+     * <p>The count is characters and not columns, so a CJK character or an emoji can still wrap.
+     * {@link Ansi#visibleLength} has the same limit, and so does every caller of it.
      */
     private String toOneRow(String text) {
         int room = terminal.getWidth() - 4;
@@ -210,8 +213,8 @@ final class RichUi implements Ui {
             spinner.stop();
             // The model wrote these arguments, and this line prints before the loop asks the
             // user, so an unguarded newline here draws a question above the real one.
-            out.println(Ansi.style("tool: " + called.name() + "("
-                    + Ansi.oneLine(called.argumentsJson()) + ")", Ansi.GREEN));
+            out.println(Ansi.style(toOneRow("tool: " + called.name() + "("
+                    + Ansi.oneLine(called.argumentsJson()) + ")"), Ansi.GREEN));
             return;
         }
         live.keep(event).ifPresent(kept -> {
