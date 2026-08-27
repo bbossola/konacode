@@ -10,11 +10,13 @@ import java.nio.charset.StandardCharsets;
  * first part only would remove the answer.
  *
  * <p>This class is not thread safe. A caller that writes from one thread and reads from another
- * must hold one lock across both.
+ * must hold one lock across the write and the read. A caller that locks the read only gets no
+ * error: it gets stale output or partial output, because the Java Memory Model gives no
+ * visibility without a lock on both sides.
  */
 final class CappedOutput {
 
-    private final ByteArrayOutputStream head = new ByteArrayOutputStream();
+    private final ByteArrayOutputStream head;
     private final int headBytes;
     private final byte[] tail;
     private int tailStart;
@@ -27,6 +29,7 @@ final class CappedOutput {
             throw new IllegalArgumentException("Each part must keep at least one byte.");
         }
         this.headBytes = headBytes;
+        this.head = new ByteArrayOutputStream(headBytes);
         this.tail = new byte[tailBytes];
     }
 
@@ -56,7 +59,12 @@ final class CappedOutput {
         tailStart = (tailStart + 1) % tail.length;
     }
 
-    /** What the model reads. The bytes are decoded as UTF-8, and a bad byte becomes U+FFFD. */
+    /**
+     * What the model reads. A cut can land in the middle of a character, and
+     * {@code new String(byte[], Charset)} replaces a bad byte with U+FFFD rather than throwing.
+     * konacode never reports a cut as a broken file, and {@code Workspace.readUtf8Capped} states
+     * the same rule for a file.
+     */
     String text() {
         String first = head.toString(StandardCharsets.UTF_8);
         byte[] last = new byte[tailLength];
@@ -67,7 +75,12 @@ final class CappedOutput {
         if (removedBytes == 0) {
             return first + second;
         }
-        return first + "\n… " + removedLines + " lines (" + removedBytes + " bytes) removed …\n"
-                + second;
+        return first + "\n<removed " + count(removedLines, "line") + ", "
+                + count(removedBytes, "byte") + " from the middle>\n" + second;
+    }
+
+    /** The model reads this line, so "1 lines" must not appear in it. */
+    private static String count(long value, String noun) {
+        return value + " " + noun + (value == 1 ? "" : "s");
     }
 }

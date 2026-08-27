@@ -6,7 +6,6 @@ import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CappedOutputTest {
 
@@ -28,31 +27,35 @@ class CappedOutputTest {
     }
 
     @Test
-    void theCapKeepsTheFirstPartAndTheLastPart() {
-        String text = write(4, 4, "AAAA1111222233334444BBBB").text();
+    void theCapSplitsExactlyAtTheTwoLimits() {
+        assertEquals("AB\n<removed 0 lines, 1 byte from the middle>\nDE",
+                write(2, 2, "ABCDE").text());
+    }
 
-        assertTrue(text.startsWith("AAAA"), text);
-        assertTrue(text.endsWith("BBBB"), text);
+    @Test
+    void theCapKeepsTheFirstPartAndTheLastPart() {
+        assertEquals("AAAA\n<removed 0 lines, 16 bytes from the middle>\nBBBB",
+                write(4, 4, "AAAA1111222233334444BBBB").text());
     }
 
     @Test
     void theCapNamesTheLinesAndTheBytesItRemoved() {
-        assertEquals("A\n… 3 lines (7 bytes) removed …\nB",
+        assertEquals("A\n<removed 3 lines, 7 bytes from the middle>\nB",
                 write(1, 1, "A\nxx\nyy\nB").text());
     }
 
     @Test
     void aRemovedPartWithNoLineBreakReportsNoLines() {
-        assertEquals("A\n… 0 lines (3 bytes) removed …\nB", write(1, 1, "AxyzB").text());
+        assertEquals("A\n<removed 0 lines, 3 bytes from the middle>\nB", write(1, 1, "AxyzB").text());
     }
 
     @Test
-    void severalWritesBehaveAsOneStream() {
+    void writingAcrossSeveralCallsMatchesOneCall() {
         CappedOutput output = new CappedOutput(1, 1);
         output.write("Ax".getBytes(StandardCharsets.UTF_8), 2);
         output.write("yB".getBytes(StandardCharsets.UTF_8), 2);
 
-        assertEquals("A\n… 0 lines (2 bytes) removed …\nB", output.text());
+        assertEquals("A\n<removed 0 lines, 2 bytes from the middle>\nB", output.text());
     }
 
     @Test
