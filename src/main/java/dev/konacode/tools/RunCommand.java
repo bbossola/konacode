@@ -112,10 +112,11 @@ public final class RunCommand implements Tool {
             Thread.currentThread().interrupt();
             return stopped;
         }
+        // konacode cannot free a drain thread that an orphan holds open. A close does not wake a
+        // read that already blocks on the pipe, and an interrupt does not either. The thread is a
+        // daemon, so it never holds konacode open, and it ends when the orphan closes the pipe.
+        // The reader is told with <output may be incomplete>.
         boolean whole = join(drain);
-        if (!whole) {
-            freeDrain(process);
-        }
         synchronized (output) {
             return ToolResult.ok(output.text() + endOf(process, whole));
         }
@@ -178,22 +179,6 @@ public final class RunCommand implements Tool {
             Thread.currentThread().interrupt();
         }
         return !drain.isAlive();
-    }
-
-    /**
-     * Closes the output of a command that a background process still holds open.
-     *
-     * <p>This does not always end the drain thread. On Linux the JVM closes the pipe when the
-     * direct child exits, and it puts the bytes that arrived into a buffer. A read that blocks
-     * already stays blocked, and it ends when the background process closes the pipe. The drain
-     * thread is a daemon thread, so it never holds the exit of konacode.
-     */
-    private static void freeDrain(Process process) {
-        try {
-            process.getInputStream().close();
-        } catch (IOException ignored) {
-            // The stream is already gone, so the drain thread has already ended.
-        }
     }
 
     /**
