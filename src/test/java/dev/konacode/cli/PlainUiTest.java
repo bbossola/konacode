@@ -124,4 +124,14 @@ class PlainUiTest {
     void itCannotAsk() {
         assertFalse(ui("").canAsk());
     }
+
+    @Test
+    void aToolCallLineHoldsOneLine() {
+        // The model wrote the arguments. A newline here draws a line konacode did not write.
+        ui("").emit(new ToolCalled(1, "run_command",
+                "{\"command\":\"echo safe\nrm -rf /\"}"));
+
+        assertEquals(1, written().lines().count(), written());
+        assertFalse(written().contains("\u001B"), written());
+    }
 }

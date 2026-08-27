@@ -139,31 +139,28 @@ final class RichUi implements Ui {
         out.println();
         out.println(ask.toolName() + " wants to " + ask.intent() + ".");
         out.println();
-        out.println("  " + oneLine(ask.operand()));
+        out.println(toOneRow("  " + Ansi.oneLine(ask.operand())));
         out.println();
         out.println("  y  " + verb + " it once");
         out.println("  n  refuse");
-        ask.permission().ifPresent(
-                permission -> out.println("  a  always, for " + oneLine(permission.inWords())));
+        ask.permission().ifPresent(permission -> out.println(
+                toOneRow("  a  always, for " + Ansi.oneLine(permission.inWords()))));
         out.flush();
     }
 
     /**
-     * Makes one line of a string the model wrote.
+     * Cuts one line to the width of the terminal, so a long operand cannot wrap and forge a line.
      *
-     * <p>The model chooses the operand and the command in a permission. A newline there draws a
-     * second question below the real one, and an escape code repaints the screen, so the user
-     * approves something they did not read. A user cannot approve what they cannot read.
-     *
-     * <p>The strip is first. It reads the escape byte and the bytes after it as one code, and the
-     * replace then covers an escape byte that starts no code.
-     *
-     * <p>{@code \p{Cf}} covers a Unicode format character. U+202E reverses the direction the
-     * terminal draws, so a line can display as one command and run as another, with no control
-     * byte. An accented character in a real file name is not in that category, and it survives.
+     * <p>The model can pad the operand to the width it guesses. The wrapped part then starts at
+     * column 0, and it reads as a line konacode wrote. The beginning of the line stays, because a
+     * user judges a path by the folder it is in, and the mark says that more text is there.
      */
-    private static String oneLine(String text) {
-        return Ansi.strip(text).replaceAll("[\\p{Cntrl}\\p{Cf}]", "\u2400");
+    private String toOneRow(String text) {
+        int room = terminal.getWidth() - 4;
+        if (room < 20 || text.length() <= room) {
+            return text;
+        }
+        return text.substring(0, room - 1) + "\u2026";
     }
 
     private int read() {
@@ -211,8 +208,10 @@ final class RichUi implements Ui {
     public void emit(TraceEvent event) {
         if (event instanceof ToolCalled called) {
             spinner.stop();
-            out.println(Ansi.style(
-                    "tool: " + called.name() + "(" + called.argumentsJson() + ")", Ansi.GREEN));
+            // The model wrote these arguments, and this line prints before the loop asks the
+            // user, so an unguarded newline here draws a question above the real one.
+            out.println(Ansi.style("tool: " + called.name() + "("
+                    + Ansi.oneLine(called.argumentsJson()) + ")", Ansi.GREEN));
             return;
         }
         live.keep(event).ifPresent(kept -> {
