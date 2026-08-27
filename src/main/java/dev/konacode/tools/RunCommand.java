@@ -25,7 +25,13 @@ public final class RunCommand implements Tool {
     /** How long konacode waits for the last of the output after the command finishes. */
     static final long DRAIN_JOIN_MILLIS = 1000;
 
-    /** How long konacode waits between two questions about the stop and about the timeout. */
+    /**
+     * How long konacode waits between two questions about one running command.
+     *
+     * <p>A stop then takes about 70 ms, which a person reads as at once. A smaller value wakes
+     * the thread more often and gains nothing a person can see. A larger value makes the stop
+     * slower, and it lets the command pass its deadline by that same amount.
+     */
     private static final long POLL_MILLIS = 50;
 
     /** Each character makes the line mean something else on another day. */
@@ -114,19 +120,24 @@ public final class RunCommand implements Tool {
     private ToolResult waitFor(Process process, Thread drain, CappedOutput output, String line) {
         long deadline = System.nanoTime() + timeout.toNanos();
         try {
+            // The stop is asked first. When both are true in one 50 ms window, a user who pressed
+            // ESC must read that they stopped it, and not that konacode ran out of time.
             while (!process.waitFor(POLL_MILLIS, TimeUnit.MILLISECONDS)) {
                 if (stop.stopped()) {
-                    return kill(process, drain,
-                            "Stopped by the user before this command finished: " + line);
+                    return kill(process, drain, stopMessage(line));
                 }
                 // The subtraction stays correct when nanoTime passes the end of its range.
                 if (System.nanoTime() - deadline >= 0) {
                     return kill(process, drain, "This command did not finish in "
-                            + timeout.toSeconds() + " seconds and was stopped: " + line);
+                            + seconds(timeout.toSeconds()) + " and was stopped: " + line);
                 }
             }
         } catch (InterruptedException e) {
-            ToolResult stopped = kill(process, drain, "Interrupted while this command ran: " + line);
+            // Cancellation sets its flag before it interrupts, so this tells a user who pressed
+            // ESC from a thread that was interrupted for another reason.
+            ToolResult stopped = kill(process, drain, stop.stopped()
+                    ? stopMessage(line)
+                    : "Interrupted while this command ran: " + line);
             Thread.currentThread().interrupt();
             return stopped;
         }
@@ -145,6 +156,14 @@ public final class RunCommand implements Tool {
         synchronized (output) {
             return ToolResult.ok(output.text() + endOf(process, whole));
         }
+    }
+
+    private static String stopMessage(String line) {
+        return "Stopped by the user before this command finished: " + line;
+    }
+
+    private static String seconds(long value) {
+        return value + (value == 1 ? " second" : " seconds");
     }
 
     /**

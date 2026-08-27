@@ -2,6 +2,7 @@ package dev.konacode.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
@@ -27,6 +28,12 @@ class RunCommandTest {
 
     /** Answers "stopped" from the first question. */
     private static final StopCheck STOPPED = () -> true;
+
+    /** execute() restores the interrupt flag. This keeps it out of the next test in this thread. */
+    @AfterEach
+    void clearTheInterruptFlag() {
+        Thread.interrupted();
+    }
 
     private static ObjectNode command(String line) {
         ObjectNode args = MAPPER.createObjectNode();
@@ -239,7 +246,7 @@ class RunCommandTest {
         tool.execute(command("sleep 30"));
 
         long millis = (System.nanoTime() - started) / 1_000_000;
-        assertTrue(millis < 5_000, "the command must end at once, and it took " + millis + " ms");
+        assertTrue(millis < 1_000, "the command must end at once, and it took " + millis + " ms");
     }
 
     @Test
@@ -280,12 +287,35 @@ class RunCommandTest {
     }
 
     @Test
+    void anInterruptFromTheUserReadsAsAStop() {
+        RunCommand tool = new RunCommand(new Workspace(root), STOPPED, Duration.ofSeconds(30));
+        Thread.currentThread().interrupt();
+
+        ToolResult result = tool.execute(command("sleep 30"));
+
+        assertTrue(assertInstanceOf(ToolResult.Err.class, result).message()
+                .contains("Stopped by the user"), "ESC interrupts, and the user must read a stop");
+    }
+
+    @Test
+    void anInterruptWithNoUserStopReadsAsAnInterrupt() {
+        RunCommand tool = new RunCommand(new Workspace(root), StopCheck.NEVER,
+                Duration.ofSeconds(30));
+        Thread.currentThread().interrupt();
+
+        ToolResult result = tool.execute(command("sleep 30"));
+
+        assertTrue(assertInstanceOf(ToolResult.Err.class, result).message()
+                .contains("Interrupted while this command ran"), "no user stop, so no stop message");
+    }
+
+    @Test
     void aStoppedCommandLeavesNoChildBehind() throws Exception {
         Path marker = root.resolve("marker.txt");
         RunCommand tool = new RunCommand(new Workspace(root), STOPPED, Duration.ofSeconds(30));
 
-        tool.execute(command("sh -c 'sleep 2; echo late > " + marker + "'"));
-        Thread.sleep(3000);
+        tool.execute(command("sh -c 'sleep 0.3; echo late > " + marker + "'"));
+        Thread.sleep(1000);
 
         assertFalse(Files.exists(marker), "the child of the shell must be destroyed too");
     }
