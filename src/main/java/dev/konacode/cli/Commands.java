@@ -13,7 +13,6 @@ import dev.konacode.skills.SkillException;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.Tool;
 import dev.konacode.tools.ToolRegistry;
-import dev.konacode.tools.Workspace;
 import dev.konacode.trace.Level;
 
 import java.util.List;
@@ -33,11 +32,9 @@ final class Commands {
     private final Ui ui;
     private final Level fileLevel;
     private final SelectedPolicy policies;
-    private final Workspace workspace;
 
     Commands(Conversation conversation, Message systemMessage, ToolRegistry registry,
-             SkillRegistry skills, Ui ui, Level fileLevel, SelectedPolicy policies,
-             Workspace workspace) {
+             SkillRegistry skills, Ui ui, Level fileLevel, SelectedPolicy policies) {
         this.conversation = conversation;
         this.systemMessage = systemMessage;
         this.registry = registry;
@@ -45,7 +42,6 @@ final class Commands {
         this.ui = ui;
         this.fileLevel = fileLevel;
         this.policies = policies;
-        this.workspace = workspace;
     }
 
     boolean handles(String line) {

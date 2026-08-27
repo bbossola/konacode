@@ -89,13 +89,13 @@ public final class Main {
                 new DeleteFile(workspace));
         SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
         Conversation conversation = new Conversation(system);
-        SelectedPolicy policies = new SelectedPolicy(defaultPolicy(ui.canAsk(), workspace));
+        SelectedPolicy policies = new SelectedPolicy(defaultPolicy(ui.canAsk()));
 
         Agent agent = new Agent(client, registry, policies, new Approvals(ui), conversation,
                 trace, cancellation, maxIterations);
 
         return new Repl(agent, ui, new Commands(conversation, system, registry, skills, ui,
-                fileLevel, policies, workspace));
+                fileLevel, policies));
     }
 
     static Path skillsRoot() {
@@ -111,7 +111,7 @@ public final class Main {
      * An interface that cannot ask a question keeps today's behaviour, because a question there
      * would refuse every call outside the project. An interface that can ask uses the new policy.
      */
-    static ToolPolicy defaultPolicy(boolean canAsk, Workspace workspace) {
+    static ToolPolicy defaultPolicy(boolean canAsk) {
         return canAsk ? new EffectPolicy() : new AllowAllPolicy();
     }
 

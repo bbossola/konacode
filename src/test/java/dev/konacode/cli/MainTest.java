@@ -121,9 +121,8 @@ class MainTest {
 
     @Test
     void anInterfaceThatCanAskGetsTheNewPolicy() {
-        assertInstanceOf(EffectPolicy.class, Main.defaultPolicy(true, new Workspace(Path.of("."))));
-        assertInstanceOf(AllowAllPolicy.class,
-                Main.defaultPolicy(false, new Workspace(Path.of("."))));
+        assertInstanceOf(EffectPolicy.class, Main.defaultPolicy(true));
+        assertInstanceOf(AllowAllPolicy.class, Main.defaultPolicy(false));
     }
 
     @Test

@@ -24,6 +24,7 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EffectPolicyTest {
@@ -279,6 +280,12 @@ class EffectPolicyTest {
         assertEquals("read", verbOf(read));
         assertEquals("write", verbOf(write));
         assertEquals("run", verbOf(run));
+    }
+
+    @Test
+    void aQuestionRefusesANullPermission() {
+        assertThrows(NullPointerException.class,
+                () -> new Decision.Ask("read_file", "read outside this project", "/etc", null));
     }
 
     private static String verbOf(Decision.Ask ask) {

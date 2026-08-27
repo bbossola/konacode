@@ -44,7 +44,7 @@ class CommandsTest {
         return new Commands(conversation, SYSTEM,
                 ToolRegistry.of(new ListFiles(workspace, StopCheck.NEVER),
                         new ReadFile(workspace, StopCheck.NEVER)),
-                new SkillRegistry(skillRoot), ui, Level.BASIC, selected, workspace);
+                new SkillRegistry(skillRoot), ui, Level.BASIC, selected);
     }
 
     private void writeSkill(String name, String description) throws IOException {

@@ -2,6 +2,7 @@ package dev.konacode.policy;
 
 import dev.konacode.tools.Permission;
 
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -27,7 +28,15 @@ public sealed interface Decision {
      *     "always". The question then shows yes and no only.
      */
     record Ask(String toolName, String intent, String operand, Optional<Permission> permission)
-            implements Decision {}
+            implements Decision {
+
+        public Ask {
+            Objects.requireNonNull(toolName, "toolName");
+            Objects.requireNonNull(intent, "intent");
+            Objects.requireNonNull(operand, "operand");
+            Objects.requireNonNull(permission, "permission");
+        }
+    }
 
     static Decision allow() {
         return new Allow();
