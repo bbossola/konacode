@@ -651,6 +651,12 @@ Put the predicate back.
 git add -A
 git commit -m "refactor: a tool states an Action, and not an Effect"
 ```
+**As built (Task 3).** The review found that `onPath` took two lambdas that must agree, and that
+nothing forced the pairing. `onPath` is now private. Three named entry points are the only surface:
+`Actions.read`, `Actions.write` and `Actions.readThenWrite`. Each one fixes its own pair, and
+`readThenWrite` carries the reason `edit_file` tests both `writable` and `readable`. Four tests were
+added: three that drive the write side, and one for a path the filesystem refuses. Commits `8aaec37`
+and `99f004c`.
 
 ---
 
@@ -1108,6 +1114,16 @@ Expected: a test fails, because konacode asks a second time. Put the lines back.
 git add -A
 git commit -m "refactor: the question carries a Permission, and the policy is stateless"
 ```
+**As built (Task 4).** `cli/Commands.java` also changed, because it built `new EffectPolicy(workspace)`.
+The `Workspace` it held then read nowhere, so the field, the constructor parameter and every caller
+argument were removed. Step 10 above told the implementer to keep the `Workspace` parameter of
+`Main.defaultPolicy`; that was wrong for the same reason, and the parameter was removed too, so the
+method is now `defaultPolicy(boolean canAsk)`. `Decision.Ask` gained the compact constructor its
+sibling `Action` already had. Commits `0a15bc5` and `19b953e`.
+
+**Open, deferred.** When a tool cannot resolve its `path` argument, `Actions` names the tool as the
+operand, so the question shows the tool name twice. It is true and it tells the user nothing. It
+fires only on a malformed call from the model. This is a follow-up issue, and not a task here.
 
 ---
 
@@ -2004,10 +2020,13 @@ In the `dev.konacode.tools` table:
 - Add a row for `Permission`: sealed interface, `InFolder(toolName, folder)` or `ExactCommand(toolName, command)`. konacode compares two permissions and never examines one, so a record gives the whole lookup.
 - Add a row for `RunCommand`: runs one shell line with `sh -c` in the project directory. Merges the two output streams, reports the exit code, and gives back `Ok` for a non-zero exit, because konacode ran the command. Offers an `ExactCommand` permission only when the line holds none of `$ ` ` * ? [ ~`.
 - Add a row for `CappedOutput`: keeps the first 50 KB and the last 50 KB of a stream, and names the lines and the bytes it removed.
+- Add a row for `Actions`: static helper, package-private. `read`, `write` and `readThenWrite` build the `Action` of a tool that acts on one path. Three named entry points, because the two questions a path needs must agree, and two loose lambdas let a caller pair them wrongly.
 
 In the `dev.konacode.policy` table, change the `Decision` row: `Ask(String toolName, String intent, String operand, Optional<Permission> permission)`. Change the `EffectPolicy` row: it holds no state, and it reads the `Action` the tool states.
 
 In the `dev.konacode.agent` table, change the `ToolApproval` row to `Answer ask(Decision.Ask ask)`, and the `Approvals` row to say the memory is a set of permissions.
+
+In the `dev.konacode.cli` table, change the `Commands` row if it names a `Workspace`. `Commands` holds none now.
 
 In the configuration table, add a row:
 
