@@ -2206,6 +2206,34 @@ model had no reason not to run it again. `kill` now appends
 
 Commits `c2ade37` and `c5f1696`.
 
+**The guard was then attacked, and it had two more holes.** A review wrote the payloads and proved
+each one.
+
+- **`\p{Cntrl}` is ASCII only.** It is `[\x00-\x1F\x7F]`, so it misses U+0080 to U+009F. U+009B is
+  the eight bit form of `ESC [`, so `U+009B 2 J` erases the display exactly like `\u001B[2J`.
+  `\p{Cc}` covers both ranges. U+2028 and U+2029 end a line by definition, and they are `\p{Zl}`
+  and `\p{Zp}`.
+- **The guard sat in one of several places that print what the model wrote.** `Agent.perform` emits
+  `ToolCalled` before it asks the user, and `RichUi.emit` printed the raw `argumentsJson` one line
+  above the guarded question. A whole forged question came from that line alone.
+
+The guard is now `Ansi.oneLine`, in the class that already owns `strip` and `visibleLength`, so
+every printing site inherits it: both interfaces, the `ToolCalled` line, and the request and reply
+bodies that `/trace full` shows. `RichUi` also cuts a row to the width of the terminal, because a
+model that pads an operand to the width places forged text at column 0 of the wrapped row with no
+control character at all.
+
+Two things stay open, and `FOLLOWUP.md` records both: `showAnswer` is unguarded, and
+`Ansi.visibleLength` counts characters and not columns.
+
+Commits `62c98f6` and `5aa25ce`.
+
+**What this says about the process.** Nine tasks each had a spec review and a quality review, and
+all eighteen passed. Every one asked whether the code was correct. None asked what the screen can
+be made to say. The whole-branch review found it in one pass, and an adversarial re-review of the
+fix found two more holes in it. A question the user answers is an interface for an attacker, and it
+needs a reviewer who is trying to break it.
+
 ---
 
 ## Manual test
