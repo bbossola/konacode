@@ -1579,6 +1579,19 @@ git add src/main/java/dev/konacode/tools/RunCommand.java src/test/java/dev/konac
 git commit -m "feat: add run_command, which states its action"
 ```
 
+**As built (Task 6).** The description above told the model what the tool does, and not what it is
+for. Every other tool in konacode names the work it is not for. Without that, a model has no reason
+to prefer `read_file` over `run_command("cat notes.txt")`, and konacode cannot judge a path inside
+a shell line. Two sentences were added, and one test pins them. Four tests proved less than their
+names claimed, and each one was tightened: the expansion loop now asserts the effect, the
+description test asserts the claim and not one substring, `aCommandAlwaysRuns` drives all three
+branches, and a command that is not text has a test of its own. Commit `19d7219`.
+
+**Checked, and left alone.** The review tested the six characters against `{`, `}`, `!`, a
+backslash, both quote characters, and `<(`. None of them belongs in the set. Brace expansion is
+deterministic, so a line that holds it means the same thing on another day. `/bin/sh` on this
+machine is dash, which does not expand a brace at all.
+
 ---
 
 ## Task 7: `RunCommand` runs the command
