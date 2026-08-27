@@ -3,6 +3,7 @@ package dev.konacode.cli;
 import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.ToolApproval;
 import dev.konacode.policy.Decision;
+import dev.konacode.tools.Permission;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.ToolFinished;
 import org.jline.reader.EndOfFileException;
@@ -246,7 +247,8 @@ class RichUiTest {
     }
 
     private static Decision.Ask askAbout(String file) {
-        return new Decision.Ask("write outside this project", file, Path.of(file).getParent());
+        return new Decision.Ask("edit_file", "write outside this project", file,
+                Optional.of(new Permission.InFolder("edit_file", Path.of(file).getParent())));
     }
 
     private NonBlockingReader keys(int key) throws IOException {
@@ -265,7 +267,7 @@ class RichUiTest {
         NonBlockingReader input = keys('y');
         when(terminal.reader()).thenReturn(input);
 
-        assertEquals(ToolApproval.Answer.YES, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertEquals(ToolApproval.Answer.YES, ui().ask(askAbout("/notes/a.txt")));
     }
 
     @Test
@@ -273,18 +275,18 @@ class RichUiTest {
         NonBlockingReader input = keys('a');
         when(terminal.reader()).thenReturn(input);
 
-        assertEquals(ToolApproval.Answer.ALWAYS, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertEquals(ToolApproval.Answer.ALWAYS, ui().ask(askAbout("/notes/a.txt")));
     }
 
     @Test
     void theUppercaseVariantsAlsoWork() throws IOException {
         NonBlockingReader upperY = keys('Y');
         when(terminal.reader()).thenReturn(upperY);
-        assertEquals(ToolApproval.Answer.YES, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertEquals(ToolApproval.Answer.YES, ui().ask(askAbout("/notes/a.txt")));
 
         NonBlockingReader upperA = keys('A');
         when(terminal.reader()).thenReturn(upperA);
-        assertEquals(ToolApproval.Answer.ALWAYS, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertEquals(ToolApproval.Answer.ALWAYS, ui().ask(askAbout("/notes/a.txt")));
     }
 
     @Test
@@ -292,7 +294,7 @@ class RichUiTest {
         NonBlockingReader input = keys('q');
         when(terminal.reader()).thenReturn(input);
 
-        assertEquals(ToolApproval.Answer.NO, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertEquals(ToolApproval.Answer.NO, ui().ask(askAbout("/notes/a.txt")));
     }
 
     @Test
@@ -300,25 +302,26 @@ class RichUiTest {
         NonBlockingReader input = keys(EscapeWatcher.ESCAPE);
         when(terminal.reader()).thenReturn(input);
 
-        assertEquals(ToolApproval.Answer.NO, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertEquals(ToolApproval.Answer.NO, ui().ask(askAbout("/notes/a.txt")));
         assertTrue(cancellation.stopped(), "esc must stop the turn");
     }
 
     @Test
-    void aIsRefusedWhenNoFolderIsOffered() throws IOException {
+    void aIsRefusedWhenNoPermissionIsOffered() throws IOException {
         NonBlockingReader input = keys('a');
         when(terminal.reader()).thenReturn(input);
 
         assertEquals(ToolApproval.Answer.NO,
-                ui().ask("run_command", new Decision.Ask("run a command", "run_command", null)));
+                ui().ask(new Decision.Ask("run_command", "run a command", "run_command",
+                        Optional.empty())));
     }
 
     @Test
-    void theQuestionNamesTheToolThePathAndTheFolder() throws IOException {
+    void theQuestionNamesTheToolThePathAndThePermission() throws IOException {
         NonBlockingReader input = keys('n');
         when(terminal.reader()).thenReturn(input);
 
-        ui().ask("edit_file", askAbout("/notes/a.txt"));
+        ui().ask(askAbout("/notes/a.txt"));
 
         String shown = written();
         assertTrue(shown.contains("edit_file wants to write outside this project."), shown);
@@ -327,11 +330,12 @@ class RichUiTest {
     }
 
     @Test
-    void noAlwaysLineWithoutAFolder() throws IOException {
+    void noAlwaysLineWithoutAPermission() throws IOException {
         NonBlockingReader input = keys('n');
         when(terminal.reader()).thenReturn(input);
 
-        ui().ask("run_command", new Decision.Ask("run a command", "run_command", null));
+        ui().ask(new Decision.Ask("run_command", "run a command", "run_command",
+                Optional.empty()));
 
         assertFalse(written().contains("always"), written());
     }
@@ -345,7 +349,7 @@ class RichUiTest {
         RecordingEscapeWatcher watcher = new RecordingEscapeWatcher(terminal);
         RichUi ui = new RichUi(reader, terminal, out, spinner, watcher, cancellation);
 
-        ui.ask("edit_file", askAbout("/notes/a.txt"));
+        ui.ask(askAbout("/notes/a.txt"));
 
         assertEquals(List.of("stop", "start"), watcher.calls);
     }
@@ -355,17 +359,17 @@ class RichUiTest {
         NonBlockingReader input = keys(-1);
         when(terminal.reader()).thenReturn(input);
 
-        assertEquals(ToolApproval.Answer.NO, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertEquals(ToolApproval.Answer.NO, ui().ask(askAbout("/notes/a.txt")));
         assertTrue(written().contains("Could not read the answer. konacode refuses."), written());
     }
 
     @Test
-    void theFirstWordOfTheActionBecomesTheVerb() throws IOException {
+    void theFirstWordOfTheIntentBecomesTheVerb() throws IOException {
         NonBlockingReader input = keys('n');
         when(terminal.reader()).thenReturn(input);
 
-        ui().ask("read_file", new Decision.Ask("read outside this project", "/etc/hosts",
-                Path.of("/etc")));
+        ui().ask(new Decision.Ask("read_file", "read outside this project", "/etc/hosts",
+                Optional.of(new Permission.InFolder("read_file", Path.of("/etc")))));
 
         assertTrue(written().contains("y  read it once"), written());
     }
@@ -377,7 +381,7 @@ class RichUiTest {
         NonBlockingReader input = keys('y');
         when(terminal.reader()).thenReturn(input);
 
-        ui().ask("edit_file", askAbout("/notes/a.txt"));
+        ui().ask(askAbout("/notes/a.txt"));
 
         InOrder order = inOrder(terminal);
         order.verify(terminal).enterRawMode();

@@ -125,7 +125,7 @@ final class Commands {
         }
         switch (name.toLowerCase(Locale.ROOT)) {
             case "allow-all" -> policies.select(new AllowAllPolicy());
-            case "effect" -> policies.select(new EffectPolicy(workspace));
+            case "effect" -> policies.select(new EffectPolicy());
             default -> {
                 ui.showError("Unknown policy: " + name + ". Use allow-all or effect.");
                 return;

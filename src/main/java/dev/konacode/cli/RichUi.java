@@ -123,29 +123,28 @@ final class RichUi implements Ui {
      * while the key is read, so it cannot see ESC there; the question reports the stop itself.
      */
     @Override
-    public Answer ask(String toolName, Decision.Ask ask) {
+    public Answer ask(Decision.Ask ask) {
         spinner.stop();
         watcher.stop();
         try {
-            show(toolName, ask);
-            return answer(read(), ask.alwaysFolder() != null);
+            show(ask);
+            return answer(read(), ask.permission().isPresent());
         } finally {
             watcher.start();
         }
     }
 
-    private void show(String toolName, Decision.Ask ask) {
-        String verb = ask.action().split(" ", 2)[0];
+    private void show(Decision.Ask ask) {
+        String verb = ask.intent().split(" ", 2)[0];
         out.println();
-        out.println(toolName + " wants to " + ask.action() + ".");
+        out.println(ask.toolName() + " wants to " + ask.intent() + ".");
         out.println();
-        out.println("  " + ask.subject());
+        out.println("  " + ask.operand());
         out.println();
         out.println("  y  " + verb + " it once");
         out.println("  n  refuse");
-        if (ask.alwaysFolder() != null) {
-            out.println("  a  always, for " + toolName + " in " + ask.alwaysFolder());
-        }
+        ask.permission().ifPresent(
+                permission -> out.println("  a  always, for " + permission.inWords()));
         out.flush();
     }
 
@@ -160,7 +159,7 @@ final class RichUi implements Ui {
         }
     }
 
-    private Answer answer(int key, boolean folderOffered) {
+    private Answer answer(int key, boolean alwaysOffered) {
         if (key == -1) {
             out.println();
             out.println("Could not read the answer. konacode refuses.");
@@ -174,7 +173,7 @@ final class RichUi implements Ui {
         if (key == 'y' || key == 'Y') {
             return Answer.YES;
         }
-        if (folderOffered && (key == 'a' || key == 'A')) {
+        if (alwaysOffered && (key == 'a' || key == 'A')) {
             return Answer.ALWAYS;
         }
         return Answer.NO;

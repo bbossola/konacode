@@ -1,12 +1,14 @@
 package dev.konacode.agent;
 
 import dev.konacode.policy.Decision;
+import dev.konacode.tools.Permission;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -24,12 +26,12 @@ class ApprovalsTest {
         }
 
         @Override
-        public Answer ask(String toolName, Decision.Ask ask) {
-            asked.add(toolName + " " + ask.subject());
+        public Answer ask(Decision.Ask ask) {
+            asked.add(ask.toolName() + " " + ask.operand());
             if (answers.isEmpty()) {
                 throw new AssertionError(
-                        "asked a question the script did not expect: " + toolName + " "
-                                + ask.subject());
+                        "asked a question the script did not expect: " + ask.toolName() + " "
+                                + ask.operand());
             }
             return answers.remove(0);
         }
@@ -40,8 +42,13 @@ class ApprovalsTest {
         }
     }
 
+    private static Decision.Ask askAbout(String toolName, String file) {
+        return new Decision.Ask(toolName, "write outside this project", file,
+                Optional.of(new Permission.InFolder(toolName, Path.of(file).getParent())));
+    }
+
     private static Decision.Ask askAbout(String file) {
-        return new Decision.Ask("write outside this project", file, Path.of(file).getParent());
+        return askAbout("edit_file", file);
     }
 
     @Test
@@ -50,8 +57,8 @@ class ApprovalsTest {
                 ToolApproval.Answer.YES, ToolApproval.Answer.YES);
         Approvals approvals = new Approvals(ui);
 
-        assertTrue(approvals.approve("edit_file", askAbout("/notes/a.txt")));
-        assertTrue(approvals.approve("edit_file", askAbout("/notes/a.txt")));
+        assertTrue(approvals.approve(askAbout("/notes/a.txt")));
+        assertTrue(approvals.approve(askAbout("/notes/a.txt")));
 
         assertEquals(2, ui.asked.size());
     }
@@ -60,7 +67,7 @@ class ApprovalsTest {
     void noRefuses() {
         Approvals approvals = new Approvals(new ScriptedApproval(ToolApproval.Answer.NO));
 
-        assertFalse(approvals.approve("edit_file", askAbout("/notes/a.txt")));
+        assertFalse(approvals.approve(askAbout("/notes/a.txt")));
     }
 
     @Test
@@ -68,8 +75,8 @@ class ApprovalsTest {
         ScriptedApproval ui = new ScriptedApproval(ToolApproval.Answer.ALWAYS);
         Approvals approvals = new Approvals(ui);
 
-        assertTrue(approvals.approve("edit_file", askAbout("/notes/a.txt")));
-        assertTrue(approvals.approve("edit_file", askAbout("/notes/b.txt")));
+        assertTrue(approvals.approve(askAbout("/notes/a.txt")));
+        assertTrue(approvals.approve(askAbout("/notes/b.txt")));
 
         assertEquals(1, ui.asked.size());
     }
@@ -80,9 +87,9 @@ class ApprovalsTest {
                 ToolApproval.Answer.ALWAYS, ToolApproval.Answer.NO);
         Approvals approvals = new Approvals(ui);
 
-        approvals.approve("edit_file", askAbout("/notes/a.txt"));
+        approvals.approve(askAbout("/notes/a.txt"));
 
-        assertFalse(approvals.approve("edit_file", askAbout("/other/b.txt")));
+        assertFalse(approvals.approve(askAbout("/other/b.txt")));
         assertEquals(2, ui.asked.size());
     }
 
@@ -92,22 +99,23 @@ class ApprovalsTest {
                 ToolApproval.Answer.ALWAYS, ToolApproval.Answer.NO);
         Approvals approvals = new Approvals(ui);
 
-        approvals.approve("edit_file", askAbout("/notes/a.txt"));
+        approvals.approve(askAbout("edit_file", "/notes/a.txt"));
 
-        assertFalse(approvals.approve("delete_file", askAbout("/notes/b.txt")));
+        assertFalse(approvals.approve(askAbout("delete_file", "/notes/b.txt")));
         assertEquals(2, ui.asked.size());
     }
 
     @Test
-    void alwaysIsNotRememberedWhenThereIsNoFolder() {
+    void alwaysIsNotRememberedWhenThereIsNoPermission() {
         ScriptedApproval ui = new ScriptedApproval(
                 ToolApproval.Answer.ALWAYS, ToolApproval.Answer.NO);
         Approvals approvals = new Approvals(ui);
-        Decision.Ask noFolder = new Decision.Ask("run a command", "run_command", null);
+        Decision.Ask noPermission = new Decision.Ask("run_command", "run a command", "run_command",
+                Optional.empty());
 
-        assertTrue(approvals.approve("run_command", noFolder));
+        assertTrue(approvals.approve(noPermission));
 
-        assertFalse(approvals.approve("run_command", noFolder));
+        assertFalse(approvals.approve(noPermission));
         assertEquals(2, ui.asked.size());
     }
 
@@ -116,11 +124,25 @@ class ApprovalsTest {
         ScriptedApproval ui = new ScriptedApproval(ToolApproval.Answer.ALWAYS);
         Approvals approvals = new Approvals(ui);
 
-        approvals.approve("edit_file", askAbout("/notes/a.txt"));
+        approvals.approve(askAbout("/notes/a.txt"));
 
-        assertTrue(approvals.approve("edit_file",
-                new Decision.Ask("write outside this project", "/notes/./b.txt",
-                        Path.of("/notes/./"))));
+        assertTrue(approvals.approve(new Decision.Ask("edit_file", "write outside this project",
+                "/notes/./b.txt",
+                Optional.of(new Permission.InFolder("edit_file", Path.of("/notes/./"))))));
         assertEquals(1, ui.asked.size());
+    }
+
+    @Test
+    void aFolderApprovalNeverCoversACommand() {
+        ScriptedApproval ui = new ScriptedApproval(
+                ToolApproval.Answer.ALWAYS, ToolApproval.Answer.ALWAYS);
+        Approvals approvals = new Approvals(ui);
+        approvals.approve(new Decision.Ask("run_command", "run a command", "mvn test",
+                Optional.of(new Permission.InFolder("run_command", Path.of("/tmp")))));
+
+        approvals.approve(new Decision.Ask("run_command", "run a command", "mvn test",
+                Optional.of(new Permission.ExactCommand("run_command", "mvn test"))));
+
+        assertEquals(2, ui.asked.size(), "a different kind of permission must ask again");
     }
 }

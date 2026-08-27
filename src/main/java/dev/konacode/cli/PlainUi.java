@@ -68,7 +68,7 @@ final class PlainUi implements Ui {
 
     /** This interface cannot ask a question, so konacode refuses rather than guess. */
     @Override
-    public Answer ask(String toolName, Decision.Ask ask) {
+    public Answer ask(Decision.Ask ask) {
         return Answer.NO;
     }
 

@@ -112,7 +112,7 @@ public final class Main {
      * would refuse every call outside the project. An interface that can ask uses the new policy.
      */
     static ToolPolicy defaultPolicy(boolean canAsk, Workspace workspace) {
-        return canAsk ? new EffectPolicy(workspace) : new AllowAllPolicy();
+        return canAsk ? new EffectPolicy() : new AllowAllPolicy();
     }
 
     static Ui selectUi(Cancellation cancellation) throws IOException {

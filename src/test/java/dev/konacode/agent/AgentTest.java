@@ -14,6 +14,7 @@ import dev.konacode.policy.Decision;
 import dev.konacode.policy.ToolPolicy;
 import dev.konacode.tools.Action;
 import dev.konacode.tools.Effect;
+import dev.konacode.tools.Permission;
 import dev.konacode.tools.Schemas;
 import dev.konacode.tools.Tool;
 import dev.konacode.tools.ToolRegistry;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -189,7 +191,7 @@ class AgentTest {
     /** Answers every question with the same fixed answer. */
     private record FixedApproval(ToolApproval.Answer answer) implements ToolApproval {
         @Override
-        public ToolApproval.Answer ask(String toolName, Decision.Ask ask) {
+        public ToolApproval.Answer ask(Decision.Ask ask) {
             return answer;
         }
 
@@ -379,7 +381,8 @@ class AgentTest {
                 .replyText("done");
         Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                (tool, args) -> Decision.ask("read outside this project", "/etc/passwd", null),
+                (tool, args) -> Decision.ask("echo", "read outside this project", "/etc/passwd",
+                        Optional.empty()),
                 refusesToAsk(), conversation, new RecordingTrace(), new Cancellation(), 8);
 
         agent.respond("do it");
@@ -403,7 +406,8 @@ class AgentTest {
         RecordingTrace trace = new RecordingTrace();
 
         agent(client, ToolRegistry.of(echo),
-                (tool, args) -> Decision.ask("read outside this project", "/etc/passwd", null),
+                (tool, args) -> Decision.ask("echo", "read outside this project", "/etc/passwd",
+                        Optional.empty()),
                 trace, 8).respond("do it");
 
         assertEquals(0, echo.calls(), "a refused call must not run");
@@ -416,8 +420,8 @@ class AgentTest {
                 .replyText("done");
         EchoTool echo = new EchoTool("echo");
         Agent agent = new Agent(client, ToolRegistry.of(echo),
-                (tool, args) -> Decision.ask("write outside this project", "/etc/hosts",
-                        Path.of("/etc")),
+                (tool, args) -> Decision.ask("echo", "write outside this project", "/etc/hosts",
+                        Optional.of(new Permission.InFolder("echo", Path.of("/etc")))),
                 new Approvals(new FixedApproval(ToolApproval.Answer.YES)),
                 new Conversation(new SystemMessage("You are konacode.")), new RecordingTrace(),
                 new Cancellation(), 8);
@@ -503,7 +507,7 @@ class AgentTest {
     void survivesAnApprovalThatThrows() {
         ToolApproval brokenApproval = new ToolApproval() {
             @Override
-            public Answer ask(String toolName, Decision.Ask ask) {
+            public Answer ask(Decision.Ask ask) {
                 throw new IllegalStateException("terminal bug");
             }
 
@@ -517,8 +521,8 @@ class AgentTest {
                 .replyText("Recovered.");
         RecordingTrace trace = new RecordingTrace();
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                (tool, args) -> Decision.ask("write outside this project", "/etc/hosts",
-                        Path.of("/etc")),
+                (tool, args) -> Decision.ask("echo", "write outside this project", "/etc/hosts",
+                        Optional.of(new Permission.InFolder("echo", Path.of("/etc")))),
                 new Approvals(brokenApproval),
                 new Conversation(new SystemMessage("You are konacode.")), trace,
                 new Cancellation(), 8);
