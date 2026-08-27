@@ -2031,6 +2031,30 @@ git add -A
 git commit -m "feat: run_command stops on ESC and on a timeout"
 ```
 
+**As built (Task 8).** The poll loop landed as written, and then a review found that a user who
+presses ESC read the wrong message. `stopsOnInterrupt()` answers true, so `Agent` arms
+`Cancellation`, and `Cancellation.request()` interrupts the thread. `process.waitFor(50, MILLISECONDS)`
+is interruptible, so the interrupted branch fires before the loop asks `stop.stopped()` again. The
+reviewer wired it as Task 9 does and measured 10 runs in 10 taking that branch. A user therefore read
+"Interrupted while this command ran", which sounds like a fault.
+
+`Cancellation.request()` sets its flag before it interrupts, and `stopped()` reads that flag whether
+or not the thread is armed. The interrupted branch now asks who interrupted it, and gives the stop
+message when the user did. `stopsOnInterrupt()` stays true, because the interrupt ends the wait at
+once instead of after one more poll. Two tests cover the real path.
+
+`aStoppedCommandLeavesNoChildBehind` cost 3.08 seconds of the class's 5.10. The child now sleeps
+0.3 seconds and the test waits 1 second, measured 10 passes in 10. `aStopEndsTheCommandQuickly`
+allowed 5000 milliseconds against a measured 70, so it would have passed with a 4 second poll; the
+bound is now 1000. The class takes 2.92 seconds.
+
+Commits `77315ef` and `1265772`.
+
+**A comment that was not written.** The dispatch asked for a comment saying that a leaked interrupt
+flag makes the next test fail. The implementer could not make any test fail, in three orderings, and
+wrote what they measured instead. The `@AfterEach` stays, because it is cheap and it removes a
+dependence on whatever consumes the flag today. A comment must state what somebody measured.
+
 ---
 
 ## Task 9: wire it in, and write it down
