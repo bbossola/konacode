@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 497 tests, all offline, no network
+mvn test                        # 498 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -96,7 +96,7 @@ loop asks the user. No part does two of those jobs.
 | `ReadFile` | implements `Tool` | File contents, capped at 100 KB. Decodes with malformed-input replacement rather than failing, so a cap landing mid-codepoint is not reported as "binary file". |
 | `EditFile` | implements `Tool` | Exact-match replacement. Refuses zero matches, refuses more than one, refuses `old_str == new_str`. Creates the file when `old_str` is empty and the file does not exist. Replacement is **literal** — `String.replace`, never `replaceAll`, which would treat `$` and `\` in the model's `new_str` as replacement-template syntax and silently corrupt the edit. |
 | `DeleteFile` | implements `Tool` | Removes one file. Refuses a directory. On a symbolic link it removes the link, never the target. It reaches any path the other tools reach, with no confirmation and no copy — see the design for the two places a control layer will land. |
-| `RunCommand` | implements `Tool` | Runs one shell line with `sh -c`, in the project directory, with the two output streams merged and no standard input. konacode adds `<exit N>` after the output. A non-zero exit code is `Ok`, because konacode ran the command and the command answered. It offers an `ExactCommand` permission only when the line holds none of `$` `` ` `` `*` `?` `[` `~`, because a line that expands means something else on another day. `esc` and a timeout both end it. |
+| `RunCommand` | implements `Tool` | Runs one shell line with `sh -c`, in the project directory, with the two output streams merged and no standard input. The last line is `<exit N>`. A non-zero exit code is `Ok`, because konacode ran the command and the command answered. It offers an `ExactCommand` permission only when the line holds none of `$` `` ` `` `*` `?` `[` `~`, because a line that expands means something else on another day. `esc` and a timeout both end it. |
 | `CappedOutput` | final class, package-private | Keeps the first 50 KB and the last 50 KB of a stream, and names the lines and the bytes it removed with `<removed …>`. |
 | `StopCheck` | interface | `boolean stopped()`. The one question a tool asks between two steps of its work. It lives here and not in `agent`, because `agent` already depends on `tools` and the reverse import would close a cycle. `NEVER` serves every tool and test that does not stop. |
 | `Workspace` | final class | Owns every filesystem *operation* — resolving relative, `~` and absolute paths against a root, plus `readUtf8Capped`, `writeAtomic`, `listSorted`, `delete`. `readUtf8Capped` and `listSorted` each take a `StopCheck`, so the user can stop a long read or a long listing between steps. Tools call bare `Files.exists` / `isDirectory` / `isSymbolicLink` predicates inline; everything that reads, writes or enumerates goes through here. It also owns every judgement a policy needs about a path — inside the root, readable, writable — and resolves the real file or folder a question about that path must name. |

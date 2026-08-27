@@ -167,15 +167,18 @@ public final class RunCommand implements Tool {
     }
 
     /**
-     * The last line konacode adds. The angle brackets say that konacode writes this line and the
-     * command does not, in the way {@code <removed …>} does. A command can print its own line
-     * that reads {@code exit 0}, and the model must be able to tell the two apart.
+     * The lines konacode adds after the output. The angle brackets say that konacode writes these
+     * lines and the command does not, in the way {@code <removed …>} does. A command can print its
+     * own line that reads {@code exit 0}, and the model must be able to tell the two apart.
+     *
+     * <p>{@code <exit N>} is last, because the description promises the model that it is last.
      */
     private static String endOf(Process process, boolean whole) {
-        StringBuilder end = new StringBuilder("\n<exit ").append(process.exitValue()).append('>');
+        StringBuilder end = new StringBuilder();
         if (!whole) {
             end.append("\n<output may be incomplete: a background process still holds it open>");
         }
+        end.append("\n<exit ").append(process.exitValue()).append('>');
         return end.toString();
     }
 

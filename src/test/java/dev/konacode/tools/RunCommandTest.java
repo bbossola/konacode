@@ -209,6 +209,16 @@ class RunCommandTest {
     }
 
     @Test
+    void theExitLineIsLastEvenWhenTheOutputIsShort() {
+        // The trailing sleep makes the orphan reliable, for the reason
+        // anOrphanThatHoldsTheOutputOpenIsReported gives above.
+        String text = run("sleep 5 & echo hi; sleep 0.3");
+
+        assertTrue(text.contains("<output may be incomplete"), text);
+        assertTrue(text.endsWith("<exit 0>"), text);
+    }
+
+    @Test
     void aMissingCommandIsAToolFailure() {
         ToolResult result = tool().execute(MAPPER.createObjectNode());
 
