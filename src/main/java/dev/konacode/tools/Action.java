@@ -26,6 +26,7 @@ public record Action(Effect effect, String operand, Optional<Permission> permiss
         return new Action(effect, operand, Optional.empty());
     }
 
+    /** A call the user may approve once, or approve as a standing permission. */
     public static Action of(Effect effect, String operand, Permission permission) {
         return new Action(effect, operand, Optional.of(permission));
     }
