@@ -3,6 +3,8 @@ package dev.konacode.tools;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.Objects;
 
@@ -15,7 +17,6 @@ import java.util.Objects;
  */
 public final class RunCommand implements Tool {
 
-    // execute() uses these. It arrives in the next commit.
     static final int HEAD_BYTES = 50_000;
     static final int TAIL_BYTES = 50_000;
     static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(600);
@@ -81,7 +82,86 @@ public final class RunCommand implements Tool {
 
     @Override
     public ToolResult execute(JsonNode args) {
-        return ToolResult.err("Not implemented yet.");
+        String line = line(args);
+        if (line == null) {
+            return ToolResult.err("Give a command as a non-empty string in the field 'command'.");
+        }
+        Process process;
+        try {
+            process = new ProcessBuilder("sh", "-c", line)
+                    .directory(workspace.root().toFile())
+                    .redirectErrorStream(true)
+                    .start();
+        } catch (IOException e) {
+            return ToolResult.err("Could not start a shell for: " + line + ". " + e.getMessage());
+        }
+        closeInput(process);
+        CappedOutput output = new CappedOutput(HEAD_BYTES, TAIL_BYTES);
+        Thread drain = drain(process, output);
+        return waitFor(process, drain, output, line);
+    }
+
+    private ToolResult waitFor(Process process, Thread drain, CappedOutput output, String line) {
+        try {
+            process.waitFor();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return kill(process, drain, "Interrupted while this command ran: " + line);
+        }
+        join(drain);
+        synchronized (output) {
+            return ToolResult.ok(output.text() + "\nexit " + process.exitValue());
+        }
+    }
+
+    /**
+     * A command with an open input holds the turn until it is stopped. A closed input makes it
+     * fail at once instead.
+     */
+    private static void closeInput(Process process) {
+        try {
+            process.getOutputStream().close();
+        } catch (IOException ignored) {
+            // The process is already gone, so there is no input to close.
+        }
+    }
+
+    /**
+     * Reads the output on its own thread. A pipe that fills stops the process, so somebody must
+     * read it while the process runs.
+     */
+    private static Thread drain(Process process, CappedOutput output) {
+        Thread thread = new Thread(() -> {
+            byte[] buffer = new byte[8192];
+            try (InputStream in = process.getInputStream()) {
+                int read;
+                while ((read = in.read(buffer)) != -1) {
+                    synchronized (output) {
+                        output.write(buffer, read);
+                    }
+                }
+            } catch (IOException ignored) {
+                // The process died. What arrived is what the model reads.
+            }
+        }, "konacode-command-output");
+        thread.setDaemon(true);
+        thread.start();
+        return thread;
+    }
+
+    private static void join(Thread drain) {
+        try {
+            drain.join(1000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private static ToolResult kill(Process process, Thread drain, String message) {
+        process.descendants().forEach(ProcessHandle::destroyForcibly);
+        process.destroyForcibly();
+        join(drain);
+        return ToolResult.err(message);
     }
 
     /** The command line, or null when the argument is absent, not text, or blank. */

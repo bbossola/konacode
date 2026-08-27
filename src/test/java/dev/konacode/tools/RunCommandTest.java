@@ -5,10 +5,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RunCommandTest {
@@ -128,5 +130,57 @@ class RunCommandTest {
 
         assertTrue(description.contains("read_file"), description);
         assertTrue(description.contains("delete_file"), description);
+    }
+
+    private String run(String line) {
+        ToolResult result = tool().execute(command(line));
+        return assertInstanceOf(ToolResult.Ok.class, result).text();
+    }
+
+    @Test
+    void aCommandGivesBackWhatItPrinted() {
+        assertTrue(run("echo hello").startsWith("hello"), "the output must come first");
+    }
+
+    @Test
+    void aCommandThatSucceedsReportsExitZero() {
+        assertTrue(run("echo hello").endsWith("\nexit 0"), run("echo hello"));
+    }
+
+    @Test
+    void aCommandThatFailsIsNotAToolFailure() {
+        assertTrue(run("exit 3").endsWith("\nexit 3"), "konacode ran it, so the result is Ok");
+    }
+
+    @Test
+    void standardErrorComesBackWithStandardOutput() {
+        assertTrue(run("echo bad >&2").contains("bad"));
+    }
+
+    @Test
+    void theCommandRunsInTheProjectDirectory() throws IOException {
+        assertTrue(run("pwd").startsWith(root.toRealPath().toString()), run("pwd"));
+    }
+
+    @Test
+    void theCommandGetsNoStandardInput() {
+        assertTrue(run("cat; echo done").contains("done"),
+                "cat must reach the end of input at once and not hold the turn");
+    }
+
+    @Test
+    void longOutputKeepsTheFirstPartAndTheLastPart() {
+        String text = run("seq 1 200000");
+
+        assertTrue(text.startsWith("1\n"), "the first line must survive");
+        assertTrue(text.contains("<removed "), "the cap must say what it removed");
+        assertTrue(text.contains("200000"), "the last line must survive");
+    }
+
+    @Test
+    void aMissingCommandIsAToolFailure() {
+        ToolResult result = tool().execute(MAPPER.createObjectNode());
+
+        assertInstanceOf(ToolResult.Err.class, result);
     }
 }
