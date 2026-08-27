@@ -1785,6 +1785,39 @@ git add -A
 git commit -m "feat: run_command runs a shell line and reports the exit code"
 ```
 
+**As built (Task 7).** One shape broke the code three ways: a command that starts a background job
+and lets its own shell exit, for example `sh -c 'sleep 30 & echo hi'`.
+
+- The orphan holds the pipe open, so `join(drain)` gives up after one second and the output is
+  short. The result said nothing about that. The last line is now `<exit N>`, in the family of
+  `<removed …>`, and a short read adds `<output may be incomplete: a background process still
+  holds it open>`. A command can print its own line that reads `exit 0`, and the model must be
+  able to tell the two apart.
+- The interrupted branch set the interrupt flag before it called `kill`, so `drain.join` threw at
+  once and the grace period was lost. `kill` now runs first.
+- `RunCommandTest` gained `@Timeout(30)`. A test in this area hangs rather than fails, and a test
+  that hangs is worse than no test.
+- `kill` cannot reach a process that the shell already gave to process 1, because
+  `descendants()` sees only what the shell still owns. The javadoc records that limit. konacode
+  ends what it can see.
+
+Commits `1aa2e95`, `c2a0817` and `8f03757`.
+
+**Measured, and rejected.** A first fix closed the process input stream to free the drain thread.
+The implementer measured it and found it frees nothing on Linux: the JDK has already replaced the
+pipe stream with a byte buffer by then, and a close does not wake a read that already blocks on the
+pipe. An interrupt does not either. The call was removed, and the fact is a comment in `waitFor`.
+The thread is a daemon, it never holds konacode open, and it ends when the orphan closes the pipe.
+
+**Measured, and worth knowing.** The JDK keeps only the bytes that were readable when the child
+exited. Whatever an orphan writes after that is dropped before konacode can see it, so
+`<output may be incomplete>` is the only honest answer, and not a convenience.
+
+**A flaky test, and the cure.** `run("sleep 5 & echo hi")` left the drain thread alive in 14 of 20
+runs. The race is whether the drain thread blocks on the pipe before the shell exits. The test now
+runs `sleep 5 & echo hi; sleep 0.3`, which keeps the shell alive past the write, and it measured
+50 of 50.
+
 ---
 
 ## Task 8: the timeout and the stop
