@@ -126,6 +126,18 @@ class MainTest {
     }
 
     @Test
+    void theRegistryHoldsRunCommand() {
+        Workspace workspace = new Workspace(root);
+        SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
+        RecordingUi ui = new RecordingUi("/tools");
+
+        Main.build(new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
+                workspace).run();
+
+        assertTrue(ui.answers.get(0).contains("run_command"), ui.answers.get(0));
+    }
+
+    @Test
     void theLoopAndTheCommandShareOnePolicy() throws IOException {
         Path outside = elsewhere.resolve("secret.txt");
         Files.writeString(outside, "OUTSIDE-CONTENT");

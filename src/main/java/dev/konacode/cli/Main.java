@@ -17,6 +17,7 @@ import dev.konacode.tools.DeleteFile;
 import dev.konacode.tools.EditFile;
 import dev.konacode.tools.ListFiles;
 import dev.konacode.tools.ReadFile;
+import dev.konacode.tools.RunCommand;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
 import dev.konacode.trace.JsonlTrace;
@@ -86,7 +87,8 @@ public final class Main {
                 new ListFiles(workspace, cancellation),
                 new ReadFile(workspace, cancellation),
                 new EditFile(workspace, cancellation),
-                new DeleteFile(workspace));
+                new DeleteFile(workspace),
+                new RunCommand(workspace, cancellation, RunCommand.configuredTimeout()));
         SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
         Conversation conversation = new Conversation(system);
         SelectedPolicy policies = new SelectedPolicy(defaultPolicy(ui.canAsk()));

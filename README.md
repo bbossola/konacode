@@ -27,7 +27,7 @@ That is `Agent.respond()`. Nobody taught the model to list a directory before re
 to re-read a file after a failed edit. That behavior emerges from the loop and the tool
 descriptions alone.
 
-## The four tools
+## The five tools
 
 | Tool | What it does | Guardrail |
 |---|---|---|
@@ -35,14 +35,16 @@ descriptions alone.
 | `read_file` | Return a file's contents | Capped at 100 KB |
 | `edit_file` | Exact-match string replacement (creates the file when `old_str` is empty) | Refuses ambiguous matches |
 | `delete_file` | Remove a file | Refuses a directory |
+| `run_command` | Run a shell line in the project directory | Asks before every call |
 
 A tool is a name, a description the model reads, a JSON schema, and a function that runs when
-the model asks for it. Adding a fifth means writing one class and registering it.
+the model asks for it. Adding a sixth means writing one class and registering it.
 
 ## Approval
 
-konacode asks before it reads or writes outside this project. Inside this project it asks
-nothing. In the rich interface the question looks like this:
+konacode asks before it reads or writes outside this project, and before it runs a command. For
+a read or a write inside this project it asks nothing. In the rich interface the question looks
+like this:
 
 ```
 
@@ -60,6 +62,10 @@ time, because one answer covers one call. `a` runs it, and every later call the 
 the same folder, for the rest of this session. `esc` refuses and stops the turn. A pipe cannot ask a
 question, so it keeps the old behaviour and allows every call. `/policy` shows or changes the
 setting.
+
+`run_command` asks about the command line, and `a` then covers that exact line. A line that holds
+`$`, `` ` ``, `*`, `?`, `[` or `~` means something else on another day, so konacode offers `y` and
+`n` only.
 
 ## Skills
 
@@ -124,7 +130,7 @@ Things worth trying:
 | `KONACODE_MODEL` | no | `gpt-5-mini` |
 | `KONACODE_BASE_URL` | no | `https://api.openai.com/v1` |
 
-Plus four system properties.
+Plus five system properties.
 
 | Property | Values | Purpose |
 |---|---|---|
@@ -132,6 +138,7 @@ Plus four system properties.
 | `konacode.ui` | `auto`, `plain`, `rich`, default `auto` | which interface to use |
 | `konacode.trace` | `off`, `basic`, `full`, default `off` | how much the trace file records |
 | `konacode.trace.maxFiles` | a whole number, default `100` | how many trace files konacode keeps |
+| `konacode.command.timeoutSeconds` | a whole number, default `600` | how long one command may run |
 
 konacode looks for a terminal. It uses the rich interface when it finds one, and the plain
 interface otherwise. A pipe therefore gets the plain interface.

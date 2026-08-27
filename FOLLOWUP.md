@@ -88,8 +88,8 @@ adds planning, and expect to revisit the default.
   calls `conversation.restart(List.of(systemMessage, summary))`. It needs the `LlmClient`, which
   `Commands` does not hold today. This replaces the older plan to swap the conversation for one
   with a token budget. The user asks for it, and no policy decides.
-- **A `run_command` tool.** One class, and a genuine safety question — it is the point at which
-  `AllowAllPolicy` stops being a defensible default.
+- **A `run_command` tool — built.** It asks before every call, and an "always" covers the exact
+  line. See [the design](docs/superpowers/specs/2026-08-27-run-command-design.md).
 - **Bounded retry in `OpenAiClient`.** The client makes exactly one attempt, so a single transient
   `429` or `5xx` discards a whole turn — costly for a loop that may make eight round trips per
   user message. Two or three attempts with backoff, scoped to `429`, `502`, `503`, `504` and
@@ -111,14 +111,6 @@ adds planning, and expect to revisit the default.
   that says whether a policy asks questions, closes both. It is not worth the cost while two
   policies exist, because `ToolPolicy` has one method on purpose and the tests use it as a
   lambda.
-- **`EffectPolicy` knows one argument name.** It reads `path`. A tool with another key answers
-  its effect correctly and then produces a question that names only the tool and offers no
-  "always", with no compile error and no failing test. `run_command` is the first tool with a
-  different shape.
-- **A question about a command has no useful subject.** The `RUNS` arm uses the tool's own name,
-  so the screen would read "run_command wants to run a command." above a line saying
-  `run_command`. The command string belongs there. `Decision.Ask.subject` is documented as a
-  path, and that wording changes in the same piece.
 - **Nothing proves the tools and the policy share a root.** `Main.build` builds both from one
   `Workspace`, so no caller can pass a mismatch. If someone changed `build` to use two, no test
   would notice: both wiring tests use an absolute path outside the project, and

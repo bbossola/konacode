@@ -120,6 +120,11 @@ produces an error that looks like a serialization bug and is miserable to diagno
 Conversation and is read by the model, which is how it recovers. Promoting one to an exception
 would take a situation the model can fix and hand it to the human instead.
 
+**A tool states one `Action`: what the call does, what it acts on, and what a standing "always"
+would cover.** A tool that gives no permission says that no standing "always" can describe this
+call. `run_command` gives none for a line that expands, because that line means something else on
+another day.
+
 **Four ways a turn ends**, and all four return text: an AssistantMessage with no ToolCalls, an
 exhausted iteration budget, a transport failure, or the user pressing ESC. None of them throws.
 Pressing ESC at an approval question requests the same stop, so it is not a fifth way.
@@ -196,10 +201,12 @@ The loop asks `stopped()` **before** each tool call, never after. A tool that ha
 therefore runs to the end and its real result is appended the normal way. The check that ends the
 turn happens where the next tool would have started.
 
-A thread interrupt stops none of the tools that ship today. This was measured on JDK 21.0.2:
+A thread interrupt stops none of the four file tools. This was measured on JDK 21.0.2:
 `Files.list`, `Files.newInputStream`, `Files.readAllBytes`, `Files.writeString`, `Files.move` and
-`Files.deleteIfExists` all run to the end with the interrupt status already set. So all four tools
+`Files.deleteIfExists` all run to the end with the interrupt status already set. So those four
 answer `stopsOnInterrupt()` with false, and asking is the only mechanism that works for them.
+`run_command` answers true. It waits for the process in short steps, and both the interrupt and
+the `StopCheck` end that wait. It then ends the process and every process it still owns.
 
 ## A reply that lies about being finished
 
