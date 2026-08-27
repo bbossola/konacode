@@ -26,6 +26,7 @@ import dev.konacode.trace.Trace;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 
 public final class Main {
@@ -41,12 +42,14 @@ public final class Main {
         int maxIterations;
         Level traceLevel;
         int maxTraceFiles;
+        Duration commandTimeout;
         Ui ui;
         try {
             config = OpenAiConfig.fromEnvironment(System.getenv());
             maxIterations = Agent.configuredMaxIterations();
             traceLevel = Level.configured();
             maxTraceFiles = JsonlTrace.configuredMaxFiles();
+            commandTimeout = RunCommand.configuredTimeout();
             ui = selectUi(cancellation);
         } catch (IllegalArgumentException | IOException e) {
             System.err.println(e.getMessage());
@@ -67,7 +70,7 @@ public final class Main {
 
         try (ui; file) {
             build(new OpenAiClient(config, trace), skills, ui, fileLevel, cancellation,
-                    maxIterations, trace, workspace).run();
+                    maxIterations, trace, workspace, commandTimeout).run();
         } catch (Exception e) {
             System.err.println(e.getMessage());
             System.exit(1);
@@ -82,13 +85,13 @@ public final class Main {
      */
     static Repl build(LlmClient client, SkillRegistry skills, Ui ui, Level fileLevel,
                        Cancellation cancellation, int maxIterations, Trace trace,
-                       Workspace workspace) {
+                       Workspace workspace, Duration commandTimeout) {
         ToolRegistry registry = ToolRegistry.of(
                 new ListFiles(workspace, cancellation),
                 new ReadFile(workspace, cancellation),
                 new EditFile(workspace, cancellation),
                 new DeleteFile(workspace),
-                new RunCommand(workspace, cancellation, RunCommand.configuredTimeout()));
+                new RunCommand(workspace, cancellation, commandTimeout));
         SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
         Conversation conversation = new Conversation(system);
         SelectedPolicy policies = new SelectedPolicy(defaultPolicy(ui.canAsk()));

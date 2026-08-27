@@ -320,6 +320,41 @@ class RunCommandTest {
     }
 
     @Test
+    void aStoppedCommandGivesBackWhatItPrinted() {
+        // The trailing sleep lets the drain thread read "working" before the first stop question,
+        // 50 ms after the start. Without it the test depends on a race.
+        RunCommand tool = new RunCommand(new Workspace(root), STOPPED, Duration.ofSeconds(30));
+
+        ToolResult result = tool.execute(command("echo working; sleep 30"));
+
+        String message = assertInstanceOf(ToolResult.Err.class, result).message();
+        assertTrue(message.contains("working"), message);
+        assertTrue(message.contains("<output before konacode stopped the command>"), message);
+    }
+
+    @Test
+    void aCommandStoppedBeforeItPrintsGivesNoEmptyMarker() {
+        RunCommand tool = new RunCommand(new Workspace(root), STOPPED, Duration.ofSeconds(30));
+
+        ToolResult result = tool.execute(command("sleep 30"));
+
+        assertFalse(assertInstanceOf(ToolResult.Err.class, result).message()
+                .contains("<output before"), "no output means no marker");
+    }
+
+    @Test
+    void aTimedOutCommandLeavesNoChildBehind() throws Exception {
+        Path marker = root.resolve("timeout-marker.txt");
+        RunCommand tool = new RunCommand(new Workspace(root), StopCheck.NEVER,
+                Duration.ofMillis(200));
+
+        tool.execute(command("sh -c 'sleep 0.3; echo late > " + marker + "'"));
+        Thread.sleep(1000);
+
+        assertFalse(Files.exists(marker), "the child of the shell must be destroyed too");
+    }
+
+    @Test
     void aStoppedCommandLeavesNoChildBehind() throws Exception {
         Path marker = root.resolve("marker.txt");
         RunCommand tool = new RunCommand(new Workspace(root), STOPPED, Duration.ofSeconds(30));

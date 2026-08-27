@@ -139,13 +139,27 @@ final class RichUi implements Ui {
         out.println();
         out.println(ask.toolName() + " wants to " + ask.intent() + ".");
         out.println();
-        out.println("  " + ask.operand());
+        out.println("  " + oneLine(ask.operand()));
         out.println();
         out.println("  y  " + verb + " it once");
         out.println("  n  refuse");
         ask.permission().ifPresent(
-                permission -> out.println("  a  always, for " + permission.inWords()));
+                permission -> out.println("  a  always, for " + oneLine(permission.inWords())));
         out.flush();
+    }
+
+    /**
+     * Makes one line of a string the model wrote.
+     *
+     * <p>The model chooses the operand and the command in a permission. A newline there draws a
+     * second question below the real one, and an escape code repaints the screen, so the user
+     * approves something they did not read. A user cannot approve what they cannot read.
+     *
+     * <p>The strip is first. It reads the escape byte and the bytes after it as one code, and the
+     * replace then covers an escape byte that starts no code.
+     */
+    private static String oneLine(String text) {
+        return Ansi.strip(text).replaceAll("\\p{Cntrl}", "\u2400");
     }
 
     private int read() {

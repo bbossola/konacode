@@ -65,6 +65,8 @@ public final class RunCommand implements Tool {
                 `<exit N>`, where N is the exit code. \
                 A process that keeps running after the command finishes may lose its output, \
                 so run a job in the background only when you do not need what it prints. \
+                When konacode stops the command, the reply holds what the command printed \
+                before it stopped. \
                 A command that ends with a non-zero exit code is normal output, and not an \
                 error: read the output and decide what to do. \
                 The command gets no standard input, so a command that waits for input fails at \
@@ -124,18 +126,18 @@ public final class RunCommand implements Tool {
             // ESC must read that they stopped it, and not that konacode ran out of time.
             while (!process.waitFor(POLL_MILLIS, TimeUnit.MILLISECONDS)) {
                 if (stop.stopped()) {
-                    return kill(process, drain, stopMessage(line));
+                    return kill(process, drain, output, stopMessage(line));
                 }
                 // The subtraction stays correct when nanoTime passes the end of its range.
                 if (System.nanoTime() - deadline >= 0) {
-                    return kill(process, drain, "This command did not finish in "
+                    return kill(process, drain, output, "This command did not finish in "
                             + seconds(timeout.toSeconds()) + " and was stopped: " + line);
                 }
             }
         } catch (InterruptedException e) {
             // Cancellation sets its flag before it interrupts, so this tells a user who pressed
             // ESC from a thread that was interrupted for another reason.
-            ToolResult stopped = kill(process, drain, stop.stopped()
+            ToolResult stopped = kill(process, drain, output, stop.stopped()
                     ? stopMessage(line)
                     : "Interrupted while this command ran: " + line);
             Thread.currentThread().interrupt();
@@ -234,12 +236,21 @@ public final class RunCommand implements Tool {
      * <p>{@code descendants()} asks the operating system now, and it sees only a process that the
      * shell still owns. A shell that starts a background job and then exits gives that job to
      * process 1, and konacode cannot reach it. konacode ends what it can see.
+     *
+     * <p>The reply holds what the command printed. Without it a long build that passes the
+     * deadline tells the model nothing, and the model runs the same command again.
      */
-    private static ToolResult kill(Process process, Thread drain, String message) {
+    private static ToolResult kill(Process process, Thread drain, CappedOutput output,
+                                   String message) {
         process.descendants().forEach(ProcessHandle::destroyForcibly);
         process.destroyForcibly();
         join(drain);
-        return ToolResult.err(message);
+        synchronized (output) {
+            String printed = output.text();
+            return ToolResult.err(printed.isEmpty()
+                    ? message
+                    : message + "\n<output before konacode stopped the command>\n" + printed);
+        }
     }
 
     /**

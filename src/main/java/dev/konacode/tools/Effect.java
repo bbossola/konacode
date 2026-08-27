@@ -10,7 +10,8 @@ package dev.konacode.tools;
  * a tool whose path argument is optional answers for its default, as {@code list_files} does for
  * the root.
  *
- * <p>{@code RUNS} has no tool that answers it yet. A tool that runs a command will.
+ * <p>{@code RUNS} has one tool that answers it: {@code run_command}. A command names no path,
+ * so this value has no {@code INSIDE} form and no {@code OUTSIDE} form.
  */
 public enum Effect {
     READS_INSIDE,

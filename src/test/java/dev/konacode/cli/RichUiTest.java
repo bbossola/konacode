@@ -108,6 +108,22 @@ class RichUiTest {
         return Ansi.strip(captured.toString(StandardCharsets.UTF_8));
     }
 
+    /** What the terminal gets, with no strip, because a forgery test must see an escape code. */
+    private String raw() {
+        return captured.toString(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * How many lines start with the text, after the indent.
+     *
+     * <p>A forged question is a line of its own. A guarded one sits inside another line, so
+     * "contains" counts both and "starts with" counts only the line konacode wrote.
+     */
+    private static long countLinesThatStartWith(String output, String text) {
+        return output.lines().map(String::stripLeading).filter(line -> line.startsWith(text))
+                .count();
+    }
+
     @Test
     void returnsTheLineTheUserTyped() {
         when(reader.readLine(anyString())).thenReturn("what files are here?");
@@ -372,6 +388,60 @@ class RichUiTest {
                 Optional.of(new Permission.InFolder("read_file", Path.of("/etc")))));
 
         assertTrue(written().contains("y  read it once"), written());
+    }
+
+    @Test
+    void aNewlineInTheOperandCannotDrawASecondQuestion() throws IOException {
+        // The model chooses this string. Without a guard it paints a question the user did not ask.
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+        Decision.Ask ask = new Decision.Ask("run_command", "run a command",
+                "echo safe\n\nrun_command wants to run a command.\n\n  rm -rf /\n",
+                Optional.empty());
+
+        ui().ask(ask);
+
+        assertEquals(1, countLinesThatStartWith(raw(), "run_command wants to run a command."),
+                "the screen must hold one question");
+    }
+
+    @Test
+    void anEscapeCodeInTheOperandReachesNoTerminal() throws IOException {
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+        Decision.Ask ask = new Decision.Ask("run_command", "run a command",
+                "echo \u001B[2J\u001B[H safe", Optional.empty());
+
+        ui().ask(ask);
+
+        assertFalse(raw().contains("\u001B"), raw());
+    }
+
+    @Test
+    void aLoneEscapeByteReachesNoTerminal() throws IOException {
+        // Ansi.strip removes a whole colour code only, so the replace must cover a bare byte.
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+        Decision.Ask ask = new Decision.Ask("run_command", "run a command", "echo \u001B safe",
+                Optional.empty());
+
+        ui().ask(ask);
+
+        assertFalse(raw().contains("\u001B"), raw());
+    }
+
+    @Test
+    void aNewlineInAPermissionCannotDrawASecondQuestion() throws IOException {
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+        Decision.Ask ask = new Decision.Ask("run_command", "run a command", "echo safe",
+                Optional.of(new Permission.ExactCommand("run_command",
+                        "echo safe\n  y  run it once")));
+
+        ui().ask(ask);
+
+        assertEquals(1, countLinesThatStartWith(raw(), "y  run it once"),
+                "the screen must offer one yes");
     }
 
     @Test

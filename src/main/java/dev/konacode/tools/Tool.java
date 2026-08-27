@@ -30,6 +30,8 @@ public interface Tool {
      *
      * <p>The answer must name the place that {@link #execute} will touch. A tool that cannot name
      * that place answers the {@code OUTSIDE} value of its kind, and konacode then asks the user.
+     * A tool that runs a command names no place, so it answers {@code RUNS} and gives the
+     * command line as the operand.
      *
      * <p>A tool that gives no permission says that no standing "always" can describe this call.
      */

@@ -38,7 +38,7 @@ class EffectPolicyTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** The only tool that answers RUNS. No real tool does until run_command exists. */
+    /** A stub that answers RUNS, so this test needs no real tool. */
     private static final class Running implements Tool {
         @Override
         public String name() {

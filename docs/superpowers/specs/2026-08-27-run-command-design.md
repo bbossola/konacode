@@ -313,7 +313,7 @@ model to background a job only when it does not need what the job prints.
 The result is `Ok`, and the text ends with the exit code.
 
 ```
-exit 1
+<exit 1>
 ```
 
 A non-zero exit is not a tool failure. konacode ran the command, and the command answered. The
@@ -361,7 +361,8 @@ environment variable that the model sets. A permission written to disk.
 
 ## Tests
 
-All offline, and a temporary folder holds every path. No test starts a long process.
+All offline, and a temporary folder holds every path. No test waits for a long process: konacode
+stops each one, or the deadline stops it.
 
 **Part 1**
 
