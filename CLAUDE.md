@@ -55,6 +55,14 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 The approval seam keeps three jobs apart. The tool states a fact, the policy decides, and the
 loop asks the user. No part does two of those jobs.
 
+**A question shows a string the model chose, so it goes through `Ansi.oneLine` first.** The model
+picks the path, the command line, the name of a tool and the arguments of a call. A newline in one
+of those draws a second question below the real one, and an escape code repaints the screen, so the
+user approves something they did not read. A user cannot approve what they cannot read. The two
+words konacode writes, the name in the first line of a question and the sentence beside it, need no
+guard: `Agent` finds the tool in the registry before it calls `policy.check`, so `EffectPolicy`
+writes `tool.name()` and never `call.name()`.
+
 ## Definitions
 
 ### `dev.konacode.llm` — provider-neutral conversation model
@@ -147,7 +155,7 @@ loop asks the user. No part does two of those jobs.
 |---|---|---|
 | `Ui` | interface | Everything konacode shows the user, and the one thing it reads from them. It extends `Trace`, because showing what the agent did is a user interface concern, and it gains `liveTrace`, the level the screen shows. It extends `ToolApproval` for the same reason: asking a question is a user interface concern too. One object then owns the screen and the keyboard. |
 | `PlainUi` | implements `Ui` | The interface for a pipe. It reads with a `BufferedReader` and prints what konacode printed before there were two interfaces. It renders no markdown and shows no spinner. It calls `Ansi.oneLine` on the name and the arguments of a call, the way the rich interface does. |
-| `RichUi` | implements `Ui` | The interface for a terminal. JLine gives the line editing, the history in `~/.konacode/chat_history`, and `alt-enter` for a second line. It renders markdown, and it owns the spinner and the `EscapeWatcher`. It calls `Ansi.oneLine` on every string the model chose — the operand, the permission, the name of a tool and the arguments of a call — and it cuts the operand line, the `always` line and the tool line to the width of the terminal, because a user cannot approve what they cannot read. `emit` stops the spinner before it prints a line, and restarts it once a tool finishes; the watcher keeps running, so ESC still works while a tool runs. The constructor takes every collaborator, and `open()` builds the real ones, which is why the class can have tests. |
+| `RichUi` | implements `Ui` | The interface for a terminal. JLine gives the line editing, the history in `~/.konacode/chat_history`, and `alt-enter` for a second line. It renders markdown, and it owns the spinner and the `EscapeWatcher`. It calls `Ansi.oneLine` on four strings the model chose — the operand, the permission, the name of a tool and the arguments of a call — and it cuts the operand line, the `always` line and the tool line to the width of the terminal, because a user cannot approve what they cannot read. `emit` stops the spinner before it prints a line, and restarts it once a tool finishes; the watcher keeps running, so ESC still works while a tool runs. The constructor takes every collaborator, and `open()` builds the real ones, which is why the class can have tests. |
 | `Repl` | final class | The loop. Read a line, skip it when empty, run it as a command when it starts with `/`, otherwise ask the agent. Both interfaces share it. |
 | `Commands` | final class | `/help`, `/tools`, `/skill`, `/trace`, `/policy`, `/clear` and `/exit`. `run` returns false when the session must end, so every command lives in one class and `Repl` gains one line. A command writes markdown, so the rich interface renders it and needs no second output method. An unknown command prints an error and never reaches the model. |
 | `EscapeWatcher` | class | Reads the terminal during a turn and calls `Cancellation.request()` on the byte `0x1B`. A sibling of `Spinner`: one daemon thread, `start` and `stop`, both idempotent, not final so a test can record. Raw mode keeps `ISIG` on, so ctrl-C still ends konacode. |
