@@ -287,8 +287,12 @@ The tool caps the output at 100 KB, in the way `read_file` caps a file. The cap 
 part and the last part, and it writes one line between them:
 
 ```
-… 4213 lines (431201 bytes) removed …
+<removed 4213 lines, 431201 bytes from the middle>
 ```
+
+The angle brackets put this line in the family of `<error>`, which is the one token konacode
+already uses to tell the model that konacode speaks, and not the tool. A build tool prints its own
+truncation notice as prose, so prose here would be ambiguous.
 
 A build prints its error at the end, and its command line at the start. A cap that kept only the
 first part would remove the answer.

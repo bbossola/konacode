@@ -1316,6 +1316,18 @@ git add src/main/java/dev/konacode/tools/CappedOutput.java src/test/java/dev/kon
 git commit -m "feat: add CappedOutput, which keeps the first and the last part of a stream"
 ```
 
+**As built (Task 5), the marker.** The line between the two parts was `… N lines (M bytes)
+removed …`. A build tool prints its own truncation notice in that shape, so a model can read the
+line as command output. The marker is now `<removed 3 lines, 7 bytes from the middle>`, in the
+family of `<error>`, which is konacode's one existing token for "konacode is speaking, not the
+tool". A count of one reads correctly. `outputAtTheCapComesBackWhole` did not pin the boundary it
+named, so `theCapSplitsExactlyAtTheTwoLimits` was added. Commit `9fd0fee`.
+
+**Declined.** The review measured the per-byte loop in `write` at about 980 ms for 100 MB, against
+about 340 ms for a block copy. The loop stays. A block copy adds complexity inside a ring buffer,
+and one second of processor time for 100 MB, on a daemon thread, is a fair price for code that a
+reader can check.
+
 **As built (Task 5).** The expected value above was wrong when this plan was written. It said
 2 lines and 6 bytes. The input `A\nxx\nyy\nB` is 9 bytes, the head keeps 1 and the tail keeps 1, so
 7 bytes leave the tail, and 3 of them are a line break. The byte that `B` pushes out is a removal
@@ -1621,7 +1633,7 @@ Add to `src/test/java/dev/konacode/tools/RunCommandTest.java`:
         String text = run("seq 1 200000");
 
         assertTrue(text.startsWith("1\n"), "the first line must survive");
-        assertTrue(text.contains("lines ("), "the cap must say what it removed");
+        assertTrue(text.contains("<removed "), "the cap must say what it removed");
         assertTrue(text.contains("200000"), "the last line must survive");
     }
 
