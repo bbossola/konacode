@@ -90,6 +90,11 @@ adds planning, and expect to revisit the default.
   with a token budget. The user asks for it, and no policy decides.
 - **A `run_command` tool — built.** It runs one shell line with `sh -c`. See
   [the design](docs/superpowers/specs/2026-08-27-run-command-design.md).
+- **An approved command line can run code written later.** `a` remembers the exact line, and the
+  line is honest. Its meaning is not: `make` reads a `Makefile`, and the model may change that file
+  inside the project with no question, then run the approved line again with no question. No test
+  of the characters in a line can see this. Decide whether an `ExactCommand` permission should end
+  when a file inside the project changes.
 - **`AllowAllPolicy` is the default for a piped session, and `run_command` now exists.** A pipe
   has no user to answer a question, so konacode allows every call there. That was one risk while
   every tool acted on a path. It is a larger one now, because a piped session runs any shell line

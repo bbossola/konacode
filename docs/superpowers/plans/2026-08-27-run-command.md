@@ -205,6 +205,8 @@ git add src/main/java/dev/konacode/tools/Permission.java src/test/java/dev/konac
 git commit -m "feat: add Permission, a standing decision as a value"
 ```
 
+**As built (Task 1).** Built as written. Commit `4779f5f`.
+
 ---
 
 ## Task 2: `Action`
@@ -318,6 +320,9 @@ Expected: PASS.
 git add src/main/java/dev/konacode/tools/Action.java src/test/java/dev/konacode/tools/ActionTest.java
 git commit -m "feat: add Action, the fact a tool states about one call"
 ```
+
+**As built (Task 2).** Built as written. `Action.of` gained the javadoc its sibling `once` already
+had. Commits `83e6c64` and `ffb6d1d`.
 
 ---
 
@@ -2161,6 +2166,45 @@ Expected: PASS. Record the test count, and check that `CLAUDE.md` gives the same
 git add -A
 git commit -m "feat: register run_command, and record the new seam in the docs"
 ```
+
+**As built (Task 9).** The tool description promised the model that the last line is `<exit N>`,
+and `endOf` appended the incomplete marker below it. `endOf` now writes `<exit N>` last, and a test
+holds the order. The `FOLLOWUP.md` entry first said `run_command` asks before every call, which is
+false under `AllowAllPolicy`; the entry now names the risk that this branch makes larger. The
+README tool table repeated the same false claim, and it now names the timeout instead. Commits
+`cbfb38e`, `a068267` and `db23b6a`.
+
+---
+
+## After the plan: what the whole-branch review found
+
+Nine tasks each had a spec review and a quality review. A review of the whole branch then found two
+defects that no single task could see.
+
+**Critical, and fixed. The approval question was forgeable.** The model chooses the operand, and
+`RichUi.show` printed it raw. A newline in a command line drew a second question below the real
+one, so a user read `echo safe`, pressed `y`, and konacode ran the whole line. A `#` at the end kept
+the line valid for `sh`. `Permission.ExactCommand.inWords()` embedded the same string again, so the
+`a` line was forgeable too. A file name that holds a newline gave the four file tools the same hole.
+
+`RichUi.oneLine` now guards both strings the model writes, and neither `toolName` nor `intent`,
+which konacode writes. Two facts came out of the fix:
+
+- `Ansi.strip` removes a colour code only. Its pattern is `\u001B\[[0-9;]*m`, so `\u001B[2J` passes
+  through it. The replace of `\p{Cntrl}` is what removes an escape byte, and the strip must run
+  first, or the byte becomes a picture that the strip can never match.
+- `\p{Cntrl}` is ASCII only, so it misses a Unicode direction override. U+202E reverses how a
+  terminal draws a line, so a command displays as one thing and runs as another with no control
+  byte. The guard also covers `\p{Cf}`, and a test holds that an accented file name survives.
+
+Neither the design nor the plan considered this. It was unconsidered, and not deferred.
+
+**Important, and fixed. A stop and a timeout threw away the output.** `kill` returned only its
+message, so a `mvn test` that passed the deadline told the model nothing about what failed, and the
+model had no reason not to run it again. `kill` now appends
+`<output before konacode stopped the command>` and the text, and the description tells the model.
+
+Commits `c2ade37` and `c5f1696`.
 
 ---
 
