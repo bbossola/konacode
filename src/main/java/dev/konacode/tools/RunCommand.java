@@ -21,6 +21,9 @@ public final class RunCommand implements Tool {
     static final int TAIL_BYTES = 50_000;
     static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(600);
 
+    /** How long konacode waits for the last of the output after the command finishes. */
+    static final long DRAIN_JOIN_MILLIS = 1000;
+
     /** Each character makes the line mean something else on another day. */
     private static final String EXPANDING = "$`*?[~";
 
@@ -48,8 +51,8 @@ public final class RunCommand implements Tool {
                 delete a file. The tools read_file, list_files, edit_file and delete_file \
                 do those, and konacode judges the path that each one touches. \
                 The command runs with `sh -c`, so a pipe, `&&` and `;` all work. \
-                Standard output and standard error come back together, and the last line gives \
-                the exit code. A command that ends with a non-zero exit code is normal output, \
+                Standard output and standard error come back together, and the last line is \
+                `<exit N>`, where N is the exit code. A command that ends with a non-zero exit code is normal output, \
                 and not an error: read the output and decide what to do. \
                 The command gets no standard input, so a command that waits for input fails at \
                 once. Long output keeps the first part and the last part.""";
@@ -105,13 +108,30 @@ public final class RunCommand implements Tool {
         try {
             process.waitFor();
         } catch (InterruptedException e) {
+            ToolResult stopped = kill(process, drain, "Interrupted while this command ran: " + line);
             Thread.currentThread().interrupt();
-            return kill(process, drain, "Interrupted while this command ran: " + line);
+            return stopped;
         }
-        join(drain);
+        boolean whole = join(drain);
+        if (!whole) {
+            freeDrain(process);
+        }
         synchronized (output) {
-            return ToolResult.ok(output.text() + "\nexit " + process.exitValue());
+            return ToolResult.ok(output.text() + endOf(process, whole));
         }
+    }
+
+    /**
+     * The last line konacode adds. The angle brackets say that konacode writes this line and the
+     * command does not, in the way {@code <removed …>} does. A command can print its own line
+     * that reads {@code exit 0}, and the model must be able to tell the two apart.
+     */
+    private static String endOf(Process process, boolean whole) {
+        StringBuilder end = new StringBuilder("\n<exit ").append(process.exitValue()).append('>');
+        if (!whole) {
+            end.append("\n<output may be incomplete: a background process still holds it open>");
+        }
+        return end.toString();
     }
 
     /**
@@ -141,7 +161,8 @@ public final class RunCommand implements Tool {
                     }
                 }
             } catch (IOException ignored) {
-                // The process died. What arrived is what the model reads.
+                // The stream ended before the output did. What arrived is what the model reads,
+                // and the caller says so with <output may be incomplete>.
             }
         }, "konacode-command-output");
         thread.setDaemon(true);
@@ -149,14 +170,39 @@ public final class RunCommand implements Tool {
         return thread;
     }
 
-    private static void join(Thread drain) {
+    /** True when the drain thread finished. False when konacode stopped waiting for it. */
+    private static boolean join(Thread drain) {
         try {
-            drain.join(1000);
+            drain.join(DRAIN_JOIN_MILLIS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+        return !drain.isAlive();
     }
 
+    /**
+     * Closes the output of a command that a background process still holds open.
+     *
+     * <p>This does not always end the drain thread. On Linux the JVM closes the pipe when the
+     * direct child exits, and it puts the bytes that arrived into a buffer. A read that blocks
+     * already stays blocked, and it ends when the background process closes the pipe. The drain
+     * thread is a daemon thread, so it never holds the exit of konacode.
+     */
+    private static void freeDrain(Process process) {
+        try {
+            process.getInputStream().close();
+        } catch (IOException ignored) {
+            // The stream is already gone, so the drain thread has already ended.
+        }
+    }
+
+    /**
+     * Ends the command and every process it still owns.
+     *
+     * <p>{@code descendants()} asks the operating system now, and it sees only a process that the
+     * shell still owns. A shell that starts a background job and then exits gives that job to
+     * process 1, and konacode cannot reach it. konacode ends what it can see.
+     */
     private static ToolResult kill(Process process, Thread drain, String message) {
         process.descendants().forEach(ProcessHandle::destroyForcibly);
         process.destroyForcibly();

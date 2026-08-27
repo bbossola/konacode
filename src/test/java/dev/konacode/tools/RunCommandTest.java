@@ -3,6 +3,7 @@ package dev.konacode.tools;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
@@ -13,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Timeout(30)
 class RunCommandTest {
 
     @TempDir
@@ -144,12 +146,12 @@ class RunCommandTest {
 
     @Test
     void aCommandThatSucceedsReportsExitZero() {
-        assertTrue(run("echo hello").endsWith("\nexit 0"), run("echo hello"));
+        assertTrue(run("echo hello").endsWith("<exit 0>"), run("echo hello"));
     }
 
     @Test
     void aCommandThatFailsIsNotAToolFailure() {
-        assertTrue(run("exit 3").endsWith("\nexit 3"), "konacode ran it, so the result is Ok");
+        assertTrue(run("exit 3").endsWith("<exit 3>"), "konacode ran it, so the result is Ok");
     }
 
     @Test
@@ -175,6 +177,17 @@ class RunCommandTest {
         assertTrue(text.startsWith("1\n"), "the first line must survive");
         assertTrue(text.contains("<removed "), "the cap must say what it removed");
         assertTrue(text.contains("200000"), "the last line must survive");
+    }
+
+    @Test
+    void anOrphanThatHoldsTheOutputOpenIsReported() {
+        // The last sleep lets the drain thread block on the pipe before the shell exits. A read
+        // that blocks already stays blocked when the shell exits, so the test always sees the
+        // orphan. Without it, the result depends on a race and the test is not reliable.
+        String text = run("sleep 5 & echo hi; sleep 0.3");
+
+        assertTrue(text.contains("hi"), text);
+        assertTrue(text.contains("<output may be incomplete"), text);
     }
 
     @Test
