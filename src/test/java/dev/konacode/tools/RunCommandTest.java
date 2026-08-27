@@ -127,6 +127,11 @@ class RunCommandTest {
     }
 
     @Test
+    void theDescriptionWarnsAboutABackgroundJob() {
+        assertTrue(tool().description().contains("background"), tool().description());
+    }
+
+    @Test
     void theDescriptionSendsFileWorkToTheFileTools() {
         String description = tool().description();
 

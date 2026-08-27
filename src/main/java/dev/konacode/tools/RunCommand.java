@@ -52,8 +52,11 @@ public final class RunCommand implements Tool {
                 do those, and konacode judges the path that each one touches. \
                 The command runs with `sh -c`, so a pipe, `&&` and `;` all work. \
                 Standard output and standard error come back together, and the last line is \
-                `<exit N>`, where N is the exit code. A command that ends with a non-zero exit code is normal output, \
-                and not an error: read the output and decide what to do. \
+                `<exit N>`, where N is the exit code. \
+                A process that keeps running after the command finishes may lose its output, \
+                so run a job in the background only when you do not need what it prints. \
+                A command that ends with a non-zero exit code is normal output, and not an \
+                error: read the output and decide what to do. \
                 The command gets no standard input, so a command that waits for input fails at \
                 once. Long output keeps the first part and the last part.""";
     }
@@ -116,6 +119,13 @@ public final class RunCommand implements Tool {
         // read that already blocks on the pipe, and an interrupt does not either. The thread is a
         // daemon, so it never holds konacode open, and it ends when the orphan closes the pipe.
         // The reader is told with <output may be incomplete>.
+        //
+        // That marker catches a slow orphan and misses a fast one. When the JDK reaps the shell
+        // it keeps the bytes already in the pipe and reports the end of the stream, so a drain
+        // thread that is not yet blocked inside read ends cleanly and this answers true, while
+        // output was lost. Measured at 13 runs in 200 of `(sleep 0.05; echo delayed) & echo now`.
+        // A temporary file would remove the race and let one runaway command fill the disk, so
+        // konacode keeps the pipe and the description tells the model.
         boolean whole = join(drain);
         synchronized (output) {
             return ToolResult.ok(output.text() + endOf(process, whole));
