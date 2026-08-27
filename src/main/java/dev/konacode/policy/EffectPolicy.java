@@ -26,7 +26,7 @@ public final class EffectPolicy implements ToolPolicy {
 
     @Override
     public Decision check(Tool tool, JsonNode args) {
-        return switch (tool.effect(args)) {
+        return switch (tool.computeAction(args).effect()) {
             case READS_INSIDE, WRITES_INSIDE -> Decision.allow();
             case READS_OUTSIDE -> ask("read outside this project", tool, args, workspace::readTarget);
             case WRITES_OUTSIDE -> ask("write outside this project", tool, args, workspace::writeTarget);

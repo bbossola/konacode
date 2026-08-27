@@ -12,6 +12,7 @@ import dev.konacode.llm.ToolCall;
 import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.policy.Decision;
 import dev.konacode.policy.ToolPolicy;
+import dev.konacode.tools.Action;
 import dev.konacode.tools.Effect;
 import dev.konacode.tools.Schemas;
 import dev.konacode.tools.Tool;
@@ -72,8 +73,8 @@ class AgentTest {
         }
 
         @Override
-        public Effect effect(JsonNode args) {
-            return Effect.READS_INSIDE;
+        public Action computeAction(JsonNode args) {
+            return Action.once(Effect.READS_INSIDE, name());
         }
 
         int calls() {
@@ -105,8 +106,8 @@ class AgentTest {
         }
 
         @Override
-        public Effect effect(JsonNode args) {
-            return Effect.READS_INSIDE;
+        public Action computeAction(JsonNode args) {
+            return Action.once(Effect.READS_INSIDE, name());
         }
     }
 
@@ -149,8 +150,8 @@ class AgentTest {
         }
 
         @Override
-        public Effect effect(JsonNode args) {
-            return Effect.READS_INSIDE;
+        public Action computeAction(JsonNode args) {
+            return Action.once(Effect.READS_INSIDE, name());
         }
     }
 
@@ -176,8 +177,8 @@ class AgentTest {
         }
 
         @Override
-        public Effect effect(JsonNode args) {
-            return Effect.READS_INSIDE;
+        public Action computeAction(JsonNode args) {
+            return Action.once(Effect.READS_INSIDE, name());
         }
     }
 

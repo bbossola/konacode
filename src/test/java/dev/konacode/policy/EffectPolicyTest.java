@@ -3,6 +3,7 @@ package dev.konacode.policy;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dev.konacode.tools.Action;
 import dev.konacode.tools.DeleteFile;
 import dev.konacode.tools.Effect;
 import dev.konacode.tools.EditFile;
@@ -63,8 +64,8 @@ class EffectPolicyTest {
         }
 
         @Override
-        public Effect effect(JsonNode args) {
-            return Effect.RUNS;
+        public Action computeAction(JsonNode args) {
+            return Action.once(Effect.RUNS, "run_command");
         }
     }
 

@@ -40,74 +40,74 @@ class EffectTest {
     @Test
     void listFilesReadsInsideByDefault() {
         assertEquals(Effect.READS_INSIDE,
-                new ListFiles(workspace(), StopCheck.NEVER).effect(MAPPER.createObjectNode()));
+                new ListFiles(workspace(), StopCheck.NEVER).computeAction(MAPPER.createObjectNode()).effect());
     }
 
     @Test
     void listFilesReadsOutsideForASiblingFolder() {
         assertEquals(Effect.READS_OUTSIDE,
-                new ListFiles(workspace(), StopCheck.NEVER).effect(path(outside.toString())));
+                new ListFiles(workspace(), StopCheck.NEVER).computeAction(path(outside.toString())).effect());
     }
 
     @Test
     void listFilesReadsInsideForABlankPath() {
         assertEquals(Effect.READS_INSIDE,
-                new ListFiles(workspace(), StopCheck.NEVER).effect(path("   ")));
+                new ListFiles(workspace(), StopCheck.NEVER).computeAction(path("   ")).effect());
     }
 
     @Test
     void readFileReadsInside() {
         assertEquals(Effect.READS_INSIDE,
-                new ReadFile(workspace(), StopCheck.NEVER).effect(path("notes.txt")));
+                new ReadFile(workspace(), StopCheck.NEVER).computeAction(path("notes.txt")).effect());
     }
 
     @Test
     void readFileReadsOutside() {
         assertEquals(Effect.READS_OUTSIDE,
-                new ReadFile(workspace(), StopCheck.NEVER).effect(path("/etc/passwd")));
+                new ReadFile(workspace(), StopCheck.NEVER).computeAction(path("/etc/passwd")).effect());
     }
 
     @Test
     void readFileWithNoPathReadsOutside() {
         assertEquals(Effect.READS_OUTSIDE,
-                new ReadFile(workspace(), StopCheck.NEVER).effect(MAPPER.createObjectNode()));
+                new ReadFile(workspace(), StopCheck.NEVER).computeAction(MAPPER.createObjectNode()).effect());
     }
 
     @Test
     void editFileWritesInside() {
         assertEquals(Effect.WRITES_INSIDE,
-                new EditFile(workspace(), StopCheck.NEVER).effect(path("src/Main.java")));
+                new EditFile(workspace(), StopCheck.NEVER).computeAction(path("src/Main.java")).effect());
     }
 
     @Test
     void editFileWritesOutside() {
         assertEquals(Effect.WRITES_OUTSIDE,
                 new EditFile(workspace(), StopCheck.NEVER)
-                        .effect(path(outside.resolve("other.txt").toString())));
+                        .computeAction(path(outside.resolve("other.txt").toString())).effect());
     }
 
     @Test
     void editFileWithNoPathWritesOutside() {
         assertEquals(Effect.WRITES_OUTSIDE,
-                new EditFile(workspace(), StopCheck.NEVER).effect(MAPPER.createObjectNode()));
+                new EditFile(workspace(), StopCheck.NEVER).computeAction(MAPPER.createObjectNode()).effect());
     }
 
     @Test
     void deleteFileWritesInside() {
         assertEquals(Effect.WRITES_INSIDE,
-                new DeleteFile(workspace()).effect(path("build/old.txt")));
+                new DeleteFile(workspace()).computeAction(path("build/old.txt")).effect());
     }
 
     @Test
     void deleteFileWritesOutside() {
         assertEquals(Effect.WRITES_OUTSIDE,
-                new DeleteFile(workspace()).effect(path("~/notes.txt")));
+                new DeleteFile(workspace()).computeAction(path("~/notes.txt")).effect());
     }
 
     @Test
     void deleteFileWithNoPathWritesOutside() {
         assertEquals(Effect.WRITES_OUTSIDE,
-                new DeleteFile(workspace()).effect(MAPPER.createObjectNode()));
+                new DeleteFile(workspace()).computeAction(MAPPER.createObjectNode()).effect());
     }
 
     @Test
@@ -117,13 +117,13 @@ class EffectTest {
         String file = skills.resolve("one/SKILL.md").toString();
 
         assertEquals(Effect.READS_INSIDE,
-                new ReadFile(workspace, StopCheck.NEVER).effect(path(file)));
+                new ReadFile(workspace, StopCheck.NEVER).computeAction(path(file)).effect());
         assertEquals(Effect.READS_INSIDE,
-                new ListFiles(workspace, StopCheck.NEVER).effect(path(skills.toString())));
+                new ListFiles(workspace, StopCheck.NEVER).computeAction(path(skills.toString())).effect());
         assertEquals(Effect.WRITES_OUTSIDE,
-                new EditFile(workspace, StopCheck.NEVER).effect(path(file)));
+                new EditFile(workspace, StopCheck.NEVER).computeAction(path(file)).effect());
         assertEquals(Effect.WRITES_OUTSIDE,
-                new DeleteFile(workspace).effect(path(file)));
+                new DeleteFile(workspace).computeAction(path(file)).effect());
     }
 
     @Test
@@ -131,21 +131,21 @@ class EffectTest {
         String withNul = "a" + (char) 0 + "b";
 
         assertEquals(Effect.READS_OUTSIDE,
-                new ReadFile(workspace(), StopCheck.NEVER).effect(path(withNul)));
+                new ReadFile(workspace(), StopCheck.NEVER).computeAction(path(withNul)).effect());
         assertEquals(Effect.WRITES_OUTSIDE,
-                new EditFile(workspace(), StopCheck.NEVER).effect(path(withNul)));
+                new EditFile(workspace(), StopCheck.NEVER).computeAction(path(withNul)).effect());
     }
 
     @Test
     void aPathAboveTheRootIsOutsideForEveryTool() {
         assertEquals(Effect.READS_OUTSIDE,
-                new ReadFile(workspace(), StopCheck.NEVER).effect(path("../secret.txt")));
+                new ReadFile(workspace(), StopCheck.NEVER).computeAction(path("../secret.txt")).effect());
         assertEquals(Effect.READS_OUTSIDE,
-                new ListFiles(workspace(), StopCheck.NEVER).effect(path("..")));
+                new ListFiles(workspace(), StopCheck.NEVER).computeAction(path("..")).effect());
         assertEquals(Effect.WRITES_OUTSIDE,
-                new EditFile(workspace(), StopCheck.NEVER).effect(path("../secret.txt")));
+                new EditFile(workspace(), StopCheck.NEVER).computeAction(path("../secret.txt")).effect());
         assertEquals(Effect.WRITES_OUTSIDE,
-                new DeleteFile(workspace()).effect(path("../secret.txt")));
+                new DeleteFile(workspace()).computeAction(path("../secret.txt")).effect());
     }
 
     @Test
@@ -155,9 +155,9 @@ class EffectTest {
 
         try {
             assertEquals(Effect.WRITES_OUTSIDE,
-                    new EditFile(workspace(), StopCheck.NEVER).effect(path(link.toString())));
+                    new EditFile(workspace(), StopCheck.NEVER).computeAction(path(link.toString())).effect());
             assertEquals(Effect.WRITES_OUTSIDE,
-                    new DeleteFile(workspace()).effect(path(link.toString())));
+                    new DeleteFile(workspace()).computeAction(path(link.toString())).effect());
         } finally {
             Files.delete(link);
         }
@@ -170,10 +170,10 @@ class EffectTest {
 
         try {
             assertEquals(Effect.WRITES_OUTSIDE,
-                    new EditFile(workspace(), StopCheck.NEVER).effect(path(link.toString())),
+                    new EditFile(workspace(), StopCheck.NEVER).computeAction(path(link.toString())).effect(),
                     "edit_file reads the target, so it must ask");
             assertEquals(Effect.WRITES_INSIDE,
-                    new DeleteFile(workspace()).effect(path(link.toString())),
+                    new DeleteFile(workspace()).computeAction(path(link.toString())).effect(),
                     "delete_file removes the link and reads nothing");
         } finally {
             Files.delete(link);
