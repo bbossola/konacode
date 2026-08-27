@@ -96,6 +96,11 @@ adds planning, and expect to revisit the default.
   reaches the terminal. It is not next to a question, so it forges nothing, and it can still
   repaint the screen. `PlainUi.showAnswer` prints the answer raw. Decide whether an answer is a
   surface konacode must guard, or one the user chose to read.
+- **`ToolFinished.output` has no guard, and no printing site shows it yet.** It holds the contents
+  of a file, or what a command printed, so konacode did not write it. `TraceLine` prints the name,
+  the result and the time, and never the output. `JsonlTrace` writes it through Jackson, which
+  escapes a control character. The day a printing site shows it, it needs `Ansi.oneLine` like every
+  other such string.
 - **`Ansi.visibleLength` counts characters and not columns.** A CJK character takes two columns and
   an emoji takes two `char` values, so word wrap, table alignment and the new cut in `RichUi` are
   all one character out for those. This is one problem in the whole interface, and not a defect of
