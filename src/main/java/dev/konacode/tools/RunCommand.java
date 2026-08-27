@@ -15,6 +15,7 @@ import java.util.Objects;
  */
 public final class RunCommand implements Tool {
 
+    // execute() uses these. It arrives in the next commit.
     static final int HEAD_BYTES = 50_000;
     static final int TAIL_BYTES = 50_000;
     static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(600);
@@ -41,6 +42,10 @@ public final class RunCommand implements Tool {
     public String description() {
         return """
                 Run a shell command in the project directory and give back what it printed. \
+                Use this to build the project, to run the tests, or to run a program. \
+                Do not use this to read a file, to list a folder, to change a file or to \
+                delete a file. The tools read_file, list_files, edit_file and delete_file \
+                do those, and konacode judges the path that each one touches. \
                 The command runs with `sh -c`, so a pipe, `&&` and `;` all work. \
                 Standard output and standard error come back together, and the last line gives \
                 the exit code. A command that ends with a non-zero exit code is normal output, \
@@ -88,6 +93,16 @@ public final class RunCommand implements Tool {
         return command.asText();
     }
 
+    /**
+     * True when the line holds a character whose meaning depends on the environment or on the
+     * filesystem.
+     *
+     * <p>This reads the characters and does not parse the line, so a quote defeats it:
+     * {@code grep '$HOME' notes.txt} cannot expand, and konacode still offers no standing
+     * permission for it. That answer is the safe one. A parser that tracked a quote, an escape
+     * and a here-document would fail in the other direction, and one bug in it would give a
+     * standing permission to a line that does expand.
+     */
     static boolean expands(String line) {
         for (int index = 0; index < line.length(); index++) {
             if (EXPANDING.indexOf(line.charAt(index)) >= 0) {

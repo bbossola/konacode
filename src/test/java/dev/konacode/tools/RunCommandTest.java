@@ -41,6 +41,8 @@ class RunCommandTest {
     @Test
     void aCommandAlwaysRuns() {
         assertEquals(Effect.RUNS, tool().computeAction(command("ls")).effect());
+        assertEquals(Effect.RUNS, tool().computeAction(command("rm *.log")).effect());
+        assertEquals(Effect.RUNS, tool().computeAction(MAPPER.createObjectNode()).effect());
     }
 
     @Test
@@ -69,7 +71,10 @@ class RunCommandTest {
         for (String line : new String[] {
                 "echo $HOME", "echo `date`", "rm *.log", "ls file?.txt",
                 "ls file[12].txt", "ls ~/notes"}) {
-            assertTrue(tool().computeAction(command(line)).permission().isEmpty(),
+            Action action = tool().computeAction(command(line));
+
+            assertEquals(Effect.RUNS, action.effect(), line);
+            assertTrue(action.permission().isEmpty(),
                     "this line means something else on another day: " + line);
         }
     }
@@ -84,8 +89,24 @@ class RunCommandTest {
     }
 
     @Test
-    void aBlankCommandOffersNoPermission() {
-        assertTrue(tool().computeAction(command("   ")).permission().isEmpty());
+    void aBlankCommandOffersNoPermissionAndNamesTheTool() {
+        Action action = tool().computeAction(command("   "));
+
+        assertEquals(Effect.RUNS, action.effect());
+        assertEquals("run_command", action.operand());
+        assertTrue(action.permission().isEmpty());
+    }
+
+    @Test
+    void aCommandThatIsNotTextOffersNoPermissionAndNamesTheTool() {
+        ObjectNode args = MAPPER.createObjectNode();
+        args.put("command", 123);
+
+        Action action = tool().computeAction(args);
+
+        assertEquals(Effect.RUNS, action.effect());
+        assertEquals("run_command", action.operand());
+        assertTrue(action.permission().isEmpty());
     }
 
     @Test
@@ -95,7 +116,17 @@ class RunCommandTest {
 
     @Test
     void theDescriptionTellsTheModelThatANonZeroExitIsNormal() {
-        assertTrue(tool().description().contains("exit code"),
-                "the description is prompt text, and it must name the exit code");
+        String description = tool().description();
+
+        assertTrue(description.contains("exit code"), description);
+        assertTrue(description.contains("normal output"), description);
+    }
+
+    @Test
+    void theDescriptionSendsFileWorkToTheFileTools() {
+        String description = tool().description();
+
+        assertTrue(description.contains("read_file"), description);
+        assertTrue(description.contains("delete_file"), description);
     }
 }
