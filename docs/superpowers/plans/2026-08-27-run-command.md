@@ -1179,7 +1179,7 @@ class CappedOutputTest {
 
     @Test
     void theCapNamesTheLinesAndTheBytesItRemoved() {
-        assertEquals("A\n… 2 lines (6 bytes) removed …\nB",
+        assertEquals("A\n… 3 lines (7 bytes) removed …\nB",
                 write(1, 1, "A\nxx\nyy\nB").text());
     }
 
@@ -1315,6 +1315,11 @@ Expected: `theCapKeepsTheFirstPartAndTheLastPart` fails. Put the line back.
 git add src/main/java/dev/konacode/tools/CappedOutput.java src/test/java/dev/konacode/tools/CappedOutputTest.java
 git commit -m "feat: add CappedOutput, which keeps the first and the last part of a stream"
 ```
+
+**As built (Task 5).** The expected value above was wrong when this plan was written. It said
+2 lines and 6 bytes. The input `A\nxx\nyy\nB` is 9 bytes, the head keeps 1 and the tail keeps 1, so
+7 bytes leave the tail, and 3 of them are a line break. The byte that `B` pushes out is a removal
+like every other one. The value above is now correct. Commit `05fad7f`.
 
 ---
 
