@@ -1,6 +1,8 @@
 package dev.konacode.agent;
 
 import dev.konacode.policy.Decision;
+import dev.konacode.tools.Action;
+import dev.konacode.tools.Effect;
 import dev.konacode.tools.Permission;
 import org.junit.jupiter.api.Test;
 
@@ -51,6 +53,43 @@ class ApprovalsTest {
         return askAbout("edit_file", file);
     }
 
+    private static Action actionAbout(String toolName, String file) {
+        return Action.of(toolName, Effect.WRITES_OUTSIDE, file, new Permission.InFolder(toolName, Path.of(file).getParent()));
+    }
+
+    private static Decision.Ask askToRun(String command) {
+        return new Decision.Ask("run_command", "run a command", command, Optional.of(new Permission.ExactCommand("run_command", command)), "");
+    }
+
+    private static Action actionToRun(String command) {
+        return Action.of("run_command", Effect.RUNS, command, new Permission.ExactCommand("run_command", command));
+    }
+
+    @Test
+    void coversIsFalseWhenTheActionOffersNoPermission() {
+        Approvals approvals = new Approvals(new ScriptedApproval());
+
+        assertFalse(approvals.covers(Action.once("run_command", Effect.RUNS, "mvn -q test")));
+    }
+
+    @Test
+    void coversIsTrueOnlyAfterTheUserAnsweredAlways() {
+        Approvals approvals = new Approvals(new ScriptedApproval(ToolApproval.Answer.ALWAYS));
+
+        assertFalse(approvals.covers(actionToRun("mvn -q test")));
+        assertTrue(approvals.approve(askToRun("mvn -q test")));
+
+        assertTrue(approvals.covers(actionToRun("mvn -q test")));
+    }
+
+    @Test
+    void coversIsFalseForAnotherPermission() {
+        Approvals approvals = new Approvals(new ScriptedApproval(ToolApproval.Answer.ALWAYS));
+        approvals.approve(askToRun("mvn -q test"));
+
+        assertFalse(approvals.covers(actionToRun("git push")));
+    }
+
     @Test
     void yesRunsOnceAndAsksAgain() {
         ScriptedApproval ui = new ScriptedApproval(
@@ -76,8 +115,8 @@ class ApprovalsTest {
         Approvals approvals = new Approvals(ui);
 
         assertTrue(approvals.approve(askAbout("/notes/a.txt")));
-        assertTrue(approvals.approve(askAbout("/notes/b.txt")));
 
+        assertTrue(approvals.covers(actionAbout("edit_file", "/notes/b.txt")));
         assertEquals(1, ui.asked.size());
     }
 
@@ -126,9 +165,7 @@ class ApprovalsTest {
 
         approvals.approve(askAbout("/notes/a.txt"));
 
-        assertTrue(approvals.approve(new Decision.Ask("edit_file", "write outside this project",
-                "/notes/./b.txt",
-                Optional.of(new Permission.InFolder("edit_file", Path.of("/notes/./"))), "")));
+        assertTrue(approvals.covers(Action.of("edit_file", Effect.WRITES_OUTSIDE, "/notes/./b.txt", new Permission.InFolder("edit_file", Path.of("/notes/./")))));
         assertEquals(1, ui.asked.size());
     }
 

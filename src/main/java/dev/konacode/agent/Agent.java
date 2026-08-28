@@ -195,6 +195,10 @@ public final class Agent {
         }
 
         Action action = tool.computeAction(args);
+        // The user already decided this call, so konacode must not pay a model to reconsider it.
+        if (approvals.covers(action)) {
+            return executeUnderCancellation(tool, args);
+        }
         Decision decision = policy.check(action, userText);
         switch (decision) {
             case Decision.Allow ignored -> { }

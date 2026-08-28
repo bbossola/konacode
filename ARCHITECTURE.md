@@ -66,6 +66,13 @@ does.
  │             │  no ──────────────────────────► Err
  │             │  yes
  │             ▼
+ │        Tool.computeAction → Action
+ │             │
+ │             ▼
+ │        does a standing permission cover the Action?
+ │             │  yes ─────────────────────────► Tool.execute
+ │             │  no
+ │             ▼
  │        ToolPolicy → Decision
  │             │  Deny ────────────────────────► Err
  │             │  Ask ──► ask the user
@@ -124,6 +131,10 @@ would take a situation the model can fix and hand it to the human instead.
 would cover.** A tool that gives no permission says that no standing "always" can describe this
 call. `run_command` gives none for a line that expands, because that line means something else on
 another day.
+
+**A call that a standing permission covers never reaches a policy.** The loop tests the permission
+the user gave, and it runs the tool. No policy can refuse a call the user approved with `a`. The
+user decided once, and konacode does not pay a model to reconsider it.
 
 **Four ways a turn ends**, and all four return text: an AssistantMessage with no ToolCalls, an
 exhausted iteration budget, a transport failure, or the user pressing ESC. None of them throws.

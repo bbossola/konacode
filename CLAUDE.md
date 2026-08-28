@@ -53,7 +53,8 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 `dev.konacode.llm` from `dev.konacode.tools`, the adapter is the answer, not the import.
 
 The approval seam keeps three jobs apart. The tool states a fact, the policy decides, and the
-loop asks the user. No part does two of those jobs.
+loop asks the user. No part does two of those jobs. A standing permission is a decision the user
+already made, so the loop applies it before it consults the policy.
 
 **A question shows a string the model chose, so it goes through `Ansi.oneLine` first.** The model
 picks the path, the command line, the name of a tool and the arguments of a call. A newline in one

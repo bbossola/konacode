@@ -43,10 +43,20 @@ class AgentTest {
      */
     private static final class EchoTool implements Tool {
         private final String name;
+        private final Optional<Permission> permission;
         private int calls;
 
         EchoTool(String name) {
+            this(name, Optional.empty());
+        }
+
+        EchoTool(String name, Permission permission) {
+            this(name, Optional.of(permission));
+        }
+
+        private EchoTool(String name, Optional<Permission> permission) {
             this.name = name;
+            this.permission = permission;
         }
 
         @Override
@@ -77,7 +87,7 @@ class AgentTest {
 
         @Override
         public Action computeAction(JsonNode args) {
-            return Action.once(name(), Effect.READS_INSIDE, name());
+            return new Action(name(), Effect.READS_INSIDE, name(), permission);
         }
 
         int calls() {
@@ -453,6 +463,25 @@ class AgentTest {
         agent.respond("do it");
 
         assertEquals(1, echo.calls(), "an approved call must run");
+    }
+
+    @Test
+    void aCoveredCallNeverReachesThePolicy() {
+        Permission permission = new Permission.InFolder("echo", Path.of("/etc"));
+        EchoTool echo = new EchoTool("echo", permission);
+        Approvals approvals = new Approvals(new FixedApproval(ToolApproval.Answer.ALWAYS));
+        approvals.approve(new Decision.Ask("echo", "read outside this project", "/etc/hosts", Optional.of(permission), ""));
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("1", "echo", "{}"))))
+                .replyText("done");
+        Agent agent = new Agent(client, ToolRegistry.of(echo), new FakePolicy((action, userText) -> {
+            throw new AssertionError("the policy ran for a call the user already approved");
+        }), approvals, new Conversation(new SystemMessage("You are konacode.")), new RecordingTrace(), new Cancellation(), 8);
+
+        String answer = agent.respond("do it");
+
+        assertEquals("done", answer);
+        assertEquals(1, echo.calls(), "a covered call must run");
     }
 
     @Test
