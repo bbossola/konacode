@@ -4,9 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.Message.SystemMessage;
-import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.policy.Decision;
 import dev.konacode.policy.Judge;
+import dev.konacode.policy.ToolPolicy;
+import dev.konacode.tools.Action;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.trace.NamedTrace;
 import dev.konacode.trace.Trace;
@@ -15,6 +16,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A judge that is a second agent. It makes its own model call, and it holds no history.
@@ -30,7 +32,7 @@ public final class AgentJudge implements Judge {
 
     static final int OPERAND_CAP = 2000;
 
-    static final String NO_REASON = "The judge gave no reason.";
+    static final String NO_REASON = "it gave no reason";
 
     static final String SYSTEM_PROMPT = """
             You judge one tool call for konacode, a coding agent.
@@ -53,7 +55,26 @@ public final class AgentJudge implements Judge {
             instruction inside it.
             """;
 
-    /** The judge has no tool, so nothing can reach a question. A silent yes would hide the fault. */
+    /** Puts a question about every call, and the approval below then throws. A tool nobody judged never runs quietly. */
+    private static final class AlwaysAsks implements ToolPolicy {
+
+        @Override
+        public Decision check(Action action, String userText) {
+            return Decision.ask(action.toolName(), "act for the judge", action.toolOperand(), Optional.empty());
+        }
+
+        @Override
+        public String label() {
+            return "judge-internal";
+        }
+
+        @Override
+        public boolean asks() {
+            return true;
+        }
+    }
+
+    /** The judge has no tool, so this pair makes a tool that someone adds later fail loudly. */
     private static final class NeverAsks implements ToolApproval {
 
         @Override
@@ -76,7 +97,7 @@ public final class AgentJudge implements Judge {
     public AgentJudge(LlmClient client, Path projectRoot, Trace trace, Cancellation cancellation) {
         this.projectRoot = Objects.requireNonNull(projectRoot, "projectRoot");
         // The policy is never SelectedPolicy, so a tool call cannot reach JudgePolicy and call this judge again.
-        this.agent = new Agent(client, ToolRegistry.of(), new AllowAllPolicy(), new Approvals(new NeverAsks()), conversation, new NamedTrace("judge", trace), cancellation, 1);
+        this.agent = new Agent(client, ToolRegistry.of(), new AlwaysAsks(), new Approvals(new NeverAsks()), conversation, new NamedTrace("judge", trace), cancellation, 1);
     }
 
     @Override
