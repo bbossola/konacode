@@ -2,6 +2,7 @@ package dev.konacode.trace;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.konacode.trace.TraceEvent.FromAgent;
 import dev.konacode.trace.TraceEvent.Outcome;
 import dev.konacode.trace.TraceEvent.RequestSent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
@@ -67,6 +68,16 @@ class JsonlTraceTest {
         trace(Level.BASIC).emit(new RequestSent("http://x", "gpt-5-mini", 3, 4, "{\"big\":1}"));
 
         assertEquals("", onlyLine().get("bodyJson").asText());
+    }
+
+    @Test
+    void writesTheAgentBesideTheEventItMade() throws IOException {
+        trace(Level.FULL).emit(new FromAgent("judge", new ToolCalled(2, "read_file", "{}")));
+
+        JsonNode line = onlyLine();
+        assertEquals("judge", line.get("agent").asText());
+        assertEquals("tool_called", line.get("event").asText());
+        assertEquals(2, line.get("turn").asInt());
     }
 
     @Test

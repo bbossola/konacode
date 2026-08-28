@@ -22,6 +22,7 @@ import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
 import dev.konacode.trace.JsonlTrace;
 import dev.konacode.trace.Level;
+import dev.konacode.trace.NamedTrace;
 import dev.konacode.trace.Trace;
 
 import java.io.IOException;
@@ -101,7 +102,7 @@ public final class Main {
         SelectedPolicy policies = new SelectedPolicy(defaultPolicy(ui.canAsk()));
 
         Agent agent = new Agent(client, registry, policies, new Approvals(ui), conversation,
-                trace, cancellation, maxIterations);
+                new NamedTrace("kona", trace), cancellation, maxIterations);
 
         return new Repl(agent, ui, cancellation, new Commands(conversation, system, registry, skills, ui, fileLevel, policies));
     }

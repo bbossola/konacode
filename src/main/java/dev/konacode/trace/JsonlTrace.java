@@ -2,6 +2,7 @@ package dev.konacode.trace;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dev.konacode.trace.TraceEvent.FromAgent;
 import dev.konacode.trace.TraceEvent.IterationStarted;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.RequestSent;
@@ -123,6 +124,11 @@ public final class JsonlTrace implements Trace {
     private String line(TraceEvent event) {
         ObjectNode node = mapper.createObjectNode();
         node.put("at", Instant.now().toString());
+        fill(node, event);
+        return node.toString();
+    }
+
+    private void fill(ObjectNode node, TraceEvent event) {
         switch (event) {
             case TurnStarted e -> {
                 node.put("event", "turn_started");
@@ -180,7 +186,10 @@ public final class JsonlTrace implements Trace {
                 node.put("event", "retry_requested");
                 node.put("reason", e.reason());
             }
+            case FromAgent e -> {
+                node.put("agent", e.agent());
+                fill(node, e.event());
+            }
         }
-        return node.toString();
     }
 }

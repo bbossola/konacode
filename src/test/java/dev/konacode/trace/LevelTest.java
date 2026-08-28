@@ -1,5 +1,6 @@
 package dev.konacode.trace;
 
+import dev.konacode.trace.TraceEvent.FromAgent;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.RequestSent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
@@ -63,6 +64,22 @@ class LevelTest {
                 Level.BASIC.keep(new ToolCalled(1, "read_file", "{\"path\":\"a\"}")).orElseThrow());
 
         assertEquals("{\"path\":\"a\"}", kept.argumentsJson());
+    }
+
+    @Test
+    void basicCutsThePayloadInsideAFromAgentAndKeepsTheName() {
+        FromAgent kept = assertInstanceOf(FromAgent.class, Level.BASIC
+                .keep(new FromAgent("judge", new RequestSent("http://x", "m", 2, 3, "{\"a\":1}")))
+                .orElseThrow());
+
+        assertEquals("judge", kept.agent());
+        assertEquals(new RequestSent("http://x", "m", 2, 3, ""), kept.event());
+    }
+
+    @Test
+    void aFromAgentGoesWhenTheEventInsideItGoes() {
+        assertEquals(Optional.empty(),
+                Level.OFF.keep(new FromAgent("judge", new TokensUsed(1, 2, 3))));
     }
 
     @Test

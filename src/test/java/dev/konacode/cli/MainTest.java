@@ -13,7 +13,9 @@ import dev.konacode.policy.EffectPolicy;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.Workspace;
 import dev.konacode.trace.Level;
+import dev.konacode.trace.RecordingTrace;
 import dev.konacode.trace.Trace;
+import dev.konacode.trace.TraceEvent.FromAgent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -28,6 +30,7 @@ import java.util.Deque;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -136,6 +139,21 @@ class MainTest {
                 workspace, Duration.ofSeconds(600)).run();
 
         assertTrue(ui.answers.get(0).contains("run_command"), ui.answers.get(0));
+    }
+
+    @Test
+    void theLoopNamesEveryEventKona() {
+        Workspace workspace = new Workspace(root);
+        SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
+        ScriptedClient client = new ScriptedClient().reply(new AssistantMessage("done", List.of()));
+        RecordingTrace trace = new RecordingTrace();
+
+        Main.build(client, skills, new RecordingUi("hello"), Level.OFF, new Cancellation(), 8, trace,
+                workspace, Duration.ofSeconds(600)).run();
+
+        assertFalse(trace.events().isEmpty());
+        assertTrue(trace.events().stream().allMatch(event ->
+                event instanceof FromAgent named && named.agent().equals("kona")), trace.events().toString());
     }
 
     @Test

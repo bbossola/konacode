@@ -1,5 +1,6 @@
 package dev.konacode.trace;
 
+import dev.konacode.trace.TraceEvent.FromAgent;
 import dev.konacode.trace.TraceEvent.IterationStarted;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.RequestSent;
@@ -33,6 +34,9 @@ public enum Level {
      * a string itself.
      */
     public Optional<TraceEvent> keep(TraceEvent event) {
+        if (event instanceof FromAgent named) {
+            return keep(named.event()).map(kept -> new FromAgent(named.agent(), kept));
+        }
         return switch (this) {
             case OFF -> Optional.empty();
             case FULL -> Optional.of(event);
@@ -76,6 +80,7 @@ public enum Level {
                     new RequestSent(e.url(), e.model(), e.messageCount(), e.toolCount(), "");
             case ReplyReceived e -> new ReplyReceived(e.status(), e.millis(), "");
             case RetryRequested e -> new RetryRequested(cap(e.reason()));
+            case FromAgent e -> new FromAgent(e.agent(), cut(e.event()));
             case IterationStarted e -> e;
             case TurnEnded e -> e;
             case TokensUsed e -> e;

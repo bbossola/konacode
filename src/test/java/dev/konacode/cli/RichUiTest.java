@@ -4,6 +4,7 @@ import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.ToolApproval;
 import dev.konacode.policy.Decision;
 import dev.konacode.tools.Permission;
+import dev.konacode.trace.TraceEvent.FromAgent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.ToolFinished;
 import org.jline.reader.EndOfFileException;
@@ -213,6 +214,17 @@ class RichUiTest {
 
         assertEquals(List.of("start", "stop", "start"), spinner.calls);
         assertTrue(written().contains("tool: read_file({})"), written());
+    }
+
+    @Test
+    void stopsTheSpinnerForANamedToolCallAndStartsItAfterTheResult() {
+        RichUi ui = ui();
+        ui.thinking();
+        ui.emit(new FromAgent("judge", new ToolCalled(1, "read_file", "{}")));
+        ui.emit(new FromAgent("judge", new ToolFinished(1, "read_file", true, "content", 5)));
+
+        assertEquals(List.of("start", "stop", "start"), spinner.calls);
+        assertTrue(written().contains("tool: judge> read_file({})"), written());
     }
 
     @Test

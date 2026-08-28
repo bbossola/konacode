@@ -108,6 +108,12 @@ than the screen, or less.
 - `RequestSent` and `ReplyReceived` — the provider sends the request and reads the reply.
 - `TokensUsed` — the provider reports the token counts of the reply.
 - `RetryRequested` — the provider asks the model again, because it wrote a tool call as prose.
+- `FromAgent` — one other event, and the name of the agent that made it.
+
+konacode runs more than one agent, and the two share one stream. `NamedTrace` puts each event of
+one agent inside a `FromAgent`, so the screen shows `kona> turn 1 started`. The name travels in the
+data, and not in a thread local: a turn on another thread would take the wrong name, and nothing
+would fail.
 
 ## Invariants
 

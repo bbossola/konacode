@@ -1,6 +1,7 @@
 package dev.konacode.cli;
 
 import dev.konacode.trace.TraceEvent;
+import dev.konacode.trace.TraceEvent.FromAgent;
 import dev.konacode.trace.TraceEvent.IterationStarted;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.RequestSent;
@@ -40,7 +41,24 @@ final class TraceLine {
                     + body(e.bodyJson());
             case TokensUsed e -> "tokens " + e.prompt() + " + " + e.completion() + " = " + e.total();
             case RetryRequested e -> "retry: " + e.reason();
+            case FromAgent e -> e.agent() + "> " + of(e.event());
         };
+    }
+
+    /**
+     * The event a {@code FromAgent} holds, or the event itself.
+     *
+     * <p>An interface that matches one kind of event must reach through the name first. A match on
+     * the wrapper alone stopped printing the tool line, and the suite could not see it, because
+     * every test emitted a bare event.
+     */
+    static TraceEvent inside(TraceEvent event) {
+        return event instanceof FromAgent named ? inside(named.event()) : event;
+    }
+
+    /** The names around an event, ready to print before a line konacode writes. */
+    static String names(TraceEvent event) {
+        return event instanceof FromAgent named ? named.agent() + "> " + names(named.event()) : "";
     }
 
     /** The newline is the one konacode writes. The body is the text a provider sent. */

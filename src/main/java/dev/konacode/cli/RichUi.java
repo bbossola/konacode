@@ -213,12 +213,13 @@ final class RichUi implements Ui {
 
     @Override
     public void emit(TraceEvent event) {
-        if (event instanceof ToolCalled called) {
+        if (TraceLine.inside(event) instanceof ToolCalled called) {
             spinner.stop();
             // The model wrote this name and these arguments, and this line prints before the
             // loop asks the user, so an unguarded newline here draws a question above the real
             // one. No part of the name reaches a registry before it reaches the screen.
-            out.println(Ansi.style(toOneRow("tool: " + Ansi.oneLine(called.name()) + "("
+            out.println(Ansi.style(toOneRow("tool: " + TraceLine.names(event)
+                    + Ansi.oneLine(called.name()) + "("
                     + Ansi.oneLine(called.argumentsJson()) + ")"), Ansi.GREEN));
             return;
         }
@@ -226,7 +227,7 @@ final class RichUi implements Ui {
             spinner.stop();
             out.println(Ansi.style("trace: " + TraceLine.of(kept), Ansi.MAGENTA));
         });
-        if (event instanceof ToolFinished) {
+        if (TraceLine.inside(event) instanceof ToolFinished) {
             spinner.start();
         }
     }

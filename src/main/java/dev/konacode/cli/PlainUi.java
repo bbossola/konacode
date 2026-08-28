@@ -89,10 +89,10 @@ final class PlainUi implements Ui {
 
     @Override
     public void emit(TraceEvent event) {
-        if (event instanceof ToolCalled called) {
+        if (TraceLine.inside(event) instanceof ToolCalled called) {
             // The model wrote this name and these arguments. The rich interface guards the
             // same line.
-            out.println("tool: " + Ansi.oneLine(called.name()) + "("
+            out.println("tool: " + TraceLine.names(event) + Ansi.oneLine(called.name()) + "("
                     + Ansi.oneLine(called.argumentsJson()) + ")");
             return;
         }

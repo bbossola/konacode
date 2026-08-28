@@ -35,4 +35,7 @@ public sealed interface TraceEvent {
     record TokensUsed(int prompt, int completion, int total) implements TraceEvent {}
 
     record RetryRequested(String reason) implements TraceEvent {}
+
+    /** One event, and the agent that made it. konacode runs more than one agent. */
+    record FromAgent(String agent, TraceEvent event) implements TraceEvent {}
 }

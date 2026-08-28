@@ -20,6 +20,7 @@ import dev.konacode.tools.Schemas;
 import dev.konacode.tools.Tool;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.ToolResult;
+import dev.konacode.trace.RecordingTrace;
 import dev.konacode.trace.TraceEvent.IterationStarted;
 import dev.konacode.trace.TraceEvent.Outcome;
 import dev.konacode.trace.TraceEvent.TurnStarted;

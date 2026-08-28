@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 556 tests, all offline, no network
+mvn test                        # 567 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -134,10 +134,11 @@ guard: each tool writes its own `name()` into the `Action` it states, so `Effect
 
 | Element | Kind | Definition |
 |---|---|---|
-| `TraceEvent` | sealed interface | One thing that happened. Nine records. Each carries strings, numbers and booleans only, so this package depends on no other konacode package and both `agent` and `llm` can emit into it. |
+| `TraceEvent` | sealed interface | One thing that happened. Ten records. Each carries strings, numbers and booleans only, so this package depends on no other konacode package and both `agent` and `llm` can emit into it. `FromAgent(agent, event)` holds one other event and the name of the agent that made it, because konacode runs more than one agent and two turns share one stream. |
 | `Trace` | interface | `void emit(TraceEvent)`. `NONE` discards, `fanOut` combines. A sink never throws into the caller. |
-| `Level` | enum | `OFF`, `BASIC`, `FULL`. `keep(TraceEvent)` gives back the event a level keeps, with the payloads already cut. The rule lives here, because each sink holds its own level. |
-| `JsonlTrace` | implements `Trace` | The file sink. One JSON line for each event, in `~/.konacode/traces/`, one file for each session. It sweeps the oldest files when it opens, and it flushes every line. |
+| `NamedTrace` | implements `Trace` | Puts each event inside a `FromAgent` and passes it on. The name travels in the data, and not in a thread local, because a turn on another thread would take the wrong name and nothing would fail. |
+| `Level` | enum | `OFF`, `BASIC`, `FULL`. `keep(TraceEvent)` gives back the event a level keeps, with the payloads already cut. It reaches the event inside a `FromAgent`, and a `FromAgent` goes when the event inside it goes. The rule lives here, because each sink holds its own level. |
+| `JsonlTrace` | implements `Trace` | The file sink. One JSON line for each event, in `~/.konacode/traces/`, one file for each session. A `FromAgent` writes an `agent` field beside the fields of the event inside it, so a reader can filter by agent. It sweeps the oldest files when it opens, and it flushes every line. |
 
 ### `dev.konacode.agent`
 
@@ -163,7 +164,7 @@ guard: each tool writes its own `name()` into the `Action` it states, so `Effect
 | `Spinner` | class | One daemon thread that draws and erases a character while the agent works. `RichUi` stops it before every write of its own. It is not final, so a test can record the calls. |
 | `Banner` | final class | The art from the README, which reads `kona`. It is 41 columns wide, so a narrower terminal gets the plain name. Generated from `README.md`, not retyped. |
 | `Ansi` | final class | The escape codes, plus `strip`, `visibleLength` and `oneLine`. A code takes bytes and no columns, so word wrap and table alignment both need `visibleLength`. `oneLine` makes one line of a string the model wrote, and it lives here because every place that prints such a string needs the same guard. |
-| `TraceLine` | final class | `of(TraceEvent)`. One event as one line of text. `PlainUi` and `RichUi` both call it, so the two interfaces show the same words. It calls `Ansi.oneLine` on every payload the model or the provider chose, the name of a tool included, and on no word konacode writes, because one guard here covers both interfaces. |
+| `TraceLine` | final class | `of(TraceEvent)`. One event as one line of text. `PlainUi` and `RichUi` both call it, so the two interfaces show the same words. It calls `Ansi.oneLine` on every payload the model or the provider chose, the name of a tool included, and on no word konacode writes, because one guard here covers both interfaces. A `FromAgent` writes the agent name, then `> `, then the line of the event inside it. `inside` and `names` give an interface the event a `FromAgent` holds and the names around it, because an interface that matches one kind of event must reach through the name first. |
 | `Main` | final class | Reads the environment and every `konacode.*` system property, picks the interface, wires the parts. The only place that names a concrete implementation. `Level.configured` stays on `Level`, because it is a factory for its own type; a reader that returns a plain value belongs here. |
 
 ### `dev.konacode.cli.markdown`

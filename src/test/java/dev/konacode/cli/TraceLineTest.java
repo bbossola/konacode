@@ -1,5 +1,7 @@
 package dev.konacode.cli;
 
+import dev.konacode.trace.TraceEvent.FromAgent;
+import dev.konacode.trace.TraceEvent.IterationStarted;
 import dev.konacode.trace.TraceEvent.Outcome;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.TokensUsed;
@@ -37,6 +39,22 @@ class TraceLineTest {
         String line = TraceLine.of(new ReplyReceived(200, 15, "{\"a\":1}"));
 
         assertEquals("reply 200 in 15ms\n{\"a\":1}", line);
+    }
+
+    @Test
+    void aLinePrefixesTheAgentName() {
+        assertEquals("judge> turn 1 iteration 1 of 1",
+                TraceLine.of(new FromAgent("judge", new IterationStarted(1, 1, 1))));
+    }
+
+    @Test
+    void aNameKeepsTheGuardOnThePayloadInsideIt() {
+        String line = TraceLine.of(new FromAgent("judge",
+                new ToolCalled(1, "run_command", "{\"command\":\"echo\nrm -rf /\"}")));
+
+        assertEquals(1, line.lines().count(), line);
+        assertTrue(line.startsWith("judge> "), line);
+        assertTrue(line.contains("echo\u2400rm -rf /"), line);
     }
 
     @Test

@@ -1,8 +1,6 @@
-package dev.konacode.agent;
+package dev.konacode.trace;
 
 import dev.konacode.tools.ToolResult;
-import dev.konacode.trace.Trace;
-import dev.konacode.trace.TraceEvent;
 import dev.konacode.trace.TraceEvent.Outcome;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.ToolFinished;
@@ -12,15 +10,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** Captures what the loop reported, so tests can assert on it without capturing stdout. */
-final class RecordingTrace implements Trace {
+public final class RecordingTrace implements Trace {
 
     private final List<TraceEvent> events = new ArrayList<>();
 
-    List<TraceEvent> events() {
+    public List<TraceEvent> events() {
         return events;
     }
 
-    List<String> calls() {
+    public List<String> calls() {
         return events.stream()
                 .filter(ToolCalled.class::isInstance)
                 .map(ToolCalled.class::cast)
@@ -28,7 +26,7 @@ final class RecordingTrace implements Trace {
                 .toList();
     }
 
-    List<ToolResult> results() {
+    public List<ToolResult> results() {
         return events.stream()
                 .filter(ToolFinished.class::isInstance)
                 .map(ToolFinished.class::cast)
@@ -38,7 +36,7 @@ final class RecordingTrace implements Trace {
                 .toList();
     }
 
-    List<Outcome> outcomes() {
+    public List<Outcome> outcomes() {
         return events.stream()
                 .filter(TurnEnded.class::isInstance)
                 .map(TurnEnded.class::cast)
