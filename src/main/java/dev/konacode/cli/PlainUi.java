@@ -3,6 +3,7 @@ package dev.konacode.cli;
 import dev.konacode.policy.Decision;
 import dev.konacode.trace.Level;
 import dev.konacode.trace.TraceEvent;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 
 import java.io.BufferedReader;
@@ -94,6 +95,11 @@ final class PlainUi implements Ui {
             // same line.
             out.println("tool: " + TraceLine.names(event) + Ansi.oneLine(called.name()) + "("
                     + Ansi.oneLine(called.argumentsJson()) + ")");
+            return;
+        }
+        if (TraceLine.inside(event) instanceof Judged) {
+            // A call the judge allowed runs with no question, so this line is the only report of it.
+            out.println("trace: " + TraceLine.of(event));
             return;
         }
         live.keep(event).ifPresent(kept -> out.println("trace: " + TraceLine.of(kept)));

@@ -2,6 +2,7 @@ package dev.konacode.trace;
 
 import dev.konacode.trace.TraceEvent.FromAgent;
 import dev.konacode.trace.TraceEvent.IterationStarted;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.RequestSent;
 import dev.konacode.trace.TraceEvent.RetryRequested;
@@ -80,6 +81,7 @@ public enum Level {
                     new RequestSent(e.url(), e.model(), e.messageCount(), e.toolCount(), "");
             case ReplyReceived e -> new ReplyReceived(e.status(), e.millis(), "");
             case RetryRequested e -> new RetryRequested(cap(e.reason()));
+            case Judged e -> new Judged(e.toolName(), cap(e.toolOperand()), e.verdict());
             case FromAgent e -> new FromAgent(e.agent(), cut(e.event()));
             case IterationStarted e -> e;
             case TurnEnded e -> e;

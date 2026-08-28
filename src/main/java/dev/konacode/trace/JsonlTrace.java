@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.konacode.trace.TraceEvent.FromAgent;
 import dev.konacode.trace.TraceEvent.IterationStarted;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.RequestSent;
 import dev.konacode.trace.TraceEvent.RetryRequested;
@@ -185,6 +186,12 @@ public final class JsonlTrace implements Trace {
             case RetryRequested e -> {
                 node.put("event", "retry_requested");
                 node.put("reason", e.reason());
+            }
+            case Judged e -> {
+                node.put("event", "judged");
+                node.put("toolName", e.toolName());
+                node.put("toolOperand", e.toolOperand());
+                node.put("verdict", e.verdict());
             }
             case FromAgent e -> {
                 node.put("agent", e.agent());

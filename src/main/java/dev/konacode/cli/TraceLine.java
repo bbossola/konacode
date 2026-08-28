@@ -3,6 +3,7 @@ package dev.konacode.cli;
 import dev.konacode.trace.TraceEvent;
 import dev.konacode.trace.TraceEvent.FromAgent;
 import dev.konacode.trace.TraceEvent.IterationStarted;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.RequestSent;
 import dev.konacode.trace.TraceEvent.RetryRequested;
@@ -41,6 +42,7 @@ final class TraceLine {
                     + body(e.bodyJson());
             case TokensUsed e -> "tokens " + e.prompt() + " + " + e.completion() + " = " + e.total();
             case RetryRequested e -> "retry: " + e.reason();
+            case Judged e -> "judged " + Ansi.oneLine(e.toolName()) + " `" + Ansi.oneLine(e.toolOperand()) + "` " + e.verdict();
             case FromAgent e -> e.agent() + "> " + of(e.event());
         };
     }

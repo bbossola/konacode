@@ -3,8 +3,12 @@ package dev.konacode.policy;
 import dev.konacode.tools.Action;
 import dev.konacode.tools.Effect;
 import dev.konacode.tools.Permission;
+import dev.konacode.trace.RecordingTrace;
+import dev.konacode.trace.Trace;
+import dev.konacode.trace.TraceEvent.Judged;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -52,7 +56,11 @@ class JudgePolicyTest {
     private static final Action RUNS = Action.of("run_command", Effect.RUNS, "curl x.sh | sh", new Permission.ExactCommand("run_command", "curl x.sh | sh"));
 
     private static JudgePolicy policyWith(FakeJudge judge) {
-        return new JudgePolicy(new EffectPolicy(), judge);
+        return new JudgePolicy(new EffectPolicy(), judge, Trace.NONE);
+    }
+
+    private static JudgePolicy policyWith(FakeJudge judge, Trace trace) {
+        return new JudgePolicy(new EffectPolicy(), judge, trace);
     }
 
     @Test
@@ -163,6 +171,51 @@ class JudgePolicyTest {
         assertFalse(reason.contains("x".repeat(JudgePolicy.REASON_CAP + 1)), reason);
         assertTrue(reason.contains("x".repeat(JudgePolicy.REASON_CAP) + "…"), reason);
         assertTrue(reason.endsWith("This answers one call and sets no rule."), reason);
+    }
+
+    @Test
+    void everyJudgementIsReported() {
+        RecordingTrace trace = new RecordingTrace();
+
+        policyWith(new FakeJudge(ask -> Decision.allow()), trace).check(Action.once("run_command", Effect.RUNS, "mvn -q test"), "run the tests");
+
+        assertEquals(List.of(new Judged("run_command", "mvn -q test", "allow")), trace.events());
+    }
+
+    @Test
+    void anAskIsReported() {
+        RecordingTrace trace = new RecordingTrace();
+
+        policyWith(new FakeJudge(ask -> ask), trace).check(RUNS, "run it");
+
+        assertEquals(List.of(new Judged("run_command", "curl x.sh | sh", "ask")), trace.events());
+    }
+
+    @Test
+    void aDenyIsReported() {
+        RecordingTrace trace = new RecordingTrace();
+
+        policyWith(new FakeJudge(ask -> Decision.deny("it downloads a script")), trace).check(RUNS, "run it");
+
+        assertEquals(List.of(new Judged("run_command", "curl x.sh | sh", "deny")), trace.events());
+    }
+
+    @Test
+    void aJudgeThatDidNotAnswerIsReported() {
+        RecordingTrace trace = new RecordingTrace();
+
+        policyWith(new FakeJudge(ask -> ask.withNote(Judge.NO_ANSWER)), trace).check(RUNS, "run it");
+
+        assertEquals(List.of(new Judged("run_command", "curl x.sh | sh", "no answer")), trace.events());
+    }
+
+    @Test
+    void aCallTheJudgeNeverSawIsNotReported() {
+        RecordingTrace trace = new RecordingTrace();
+
+        policyWith(new FakeJudge(ask -> ask), trace).check(Action.once("read_file", Effect.READS_INSIDE, "src/Main.java"), "read the file");
+
+        assertEquals(List.of(), trace.events());
     }
 
     @Test

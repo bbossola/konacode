@@ -2,6 +2,7 @@ package dev.konacode.cli;
 
 import dev.konacode.trace.TraceEvent.FromAgent;
 import dev.konacode.trace.TraceEvent.IterationStarted;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.Outcome;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.TokensUsed;
@@ -55,6 +56,20 @@ class TraceLineTest {
         assertEquals(1, line.lines().count(), line);
         assertTrue(line.startsWith("judge> "), line);
         assertTrue(line.contains("echo\u2400rm -rf /"), line);
+    }
+
+    @Test
+    void showsWhatTheJudgeAnswered() {
+        assertEquals("judged run_command `mvn -q test` allow",
+                TraceLine.of(new Judged("run_command", "mvn -q test", "allow")));
+    }
+
+    @Test
+    void guardsTheNameAndTheOperandOfAJudgement() {
+        String line = TraceLine.of(new Judged("run\ncommand", "echo\nrm -rf /", "deny"));
+
+        assertEquals(1, line.lines().count(), line);
+        assertEquals("judged run\u2400command `echo\u2400rm -rf /` deny", line);
     }
 
     @Test

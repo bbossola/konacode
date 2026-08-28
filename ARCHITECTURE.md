@@ -108,7 +108,13 @@ than the screen, or less.
 - `RequestSent` and `ReplyReceived` — the provider sends the request and reads the reply.
 - `TokensUsed` — the provider reports the token counts of the reply.
 - `RetryRequested` — the provider asks the model again, because it wrote a tool call as prose.
+- `Judged` — the judge answers about one call, with the tool name, the operand and the verdict.
 - `FromAgent` — one other event, and the name of the agent that made it.
+
+`JudgePolicy` emits a `Judged` for every question it puts to the judge. A call the judge allows runs
+with no question, so without this event a user cannot tell it from a call inside the project. Both
+interfaces show it at every level, the way they show a `ToolCalled`, because a fact the user must
+see is not a diagnostic. The level `BASIC` keeps it too, so the file records it as well.
 
 konacode runs more than one agent, and the two share one stream. `NamedTrace` puts each event of
 one agent inside a `FromAgent`, so the screen shows `kona> turn 1 started`. The name travels in the

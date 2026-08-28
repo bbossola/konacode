@@ -4,7 +4,9 @@ import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.ToolApproval;
 import dev.konacode.policy.Decision;
 import dev.konacode.tools.Permission;
+import dev.konacode.trace.Level;
 import dev.konacode.trace.TraceEvent.FromAgent;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.ToolFinished;
 import org.jline.reader.EndOfFileException;
@@ -187,6 +189,23 @@ class RichUiTest {
 
         assertTrue(captured.toString(StandardCharsets.UTF_8).contains(Ansi.GREEN),
                 captured.toString(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void alwaysShowsWhatTheJudgeAnswered() {
+        ui().emit(new Judged("run_command", "ls", "allow"));
+
+        assertTrue(written().contains("trace: judged run_command `ls` allow"), written());
+    }
+
+    @Test
+    void showsAJudgementOnce() {
+        RichUi ui = ui();
+        ui.liveTrace(Level.FULL);
+
+        ui.emit(new Judged("run_command", "ls", "allow"));
+
+        assertEquals(1, written().lines().count(), written());
     }
 
     @Test

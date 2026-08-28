@@ -5,6 +5,7 @@ import dev.konacode.cli.markdown.Markdown;
 import dev.konacode.policy.Decision;
 import dev.konacode.trace.Level;
 import dev.konacode.trace.TraceEvent;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.ToolFinished;
 import org.jline.keymap.KeyMap;
@@ -221,6 +222,12 @@ final class RichUi implements Ui {
             out.println(Ansi.style(toOneRow("tool: " + TraceLine.names(event)
                     + Ansi.oneLine(called.name()) + "("
                     + Ansi.oneLine(called.argumentsJson()) + ")"), Ansi.GREEN));
+            return;
+        }
+        if (TraceLine.inside(event) instanceof Judged) {
+            spinner.stop();
+            // A call the judge allowed runs with no question, so this line is the only report of it.
+            out.println(Ansi.style(toOneRow("trace: " + TraceLine.of(event)), Ansi.MAGENTA));
             return;
         }
         live.keep(event).ifPresent(kept -> {

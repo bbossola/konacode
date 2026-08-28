@@ -1,6 +1,8 @@
 package dev.konacode.policy;
 
 import dev.konacode.tools.Action;
+import dev.konacode.trace.Trace;
+import dev.konacode.trace.TraceEvent.Judged;
 
 import java.util.Objects;
 
@@ -10,6 +12,9 @@ import java.util.Objects;
  * <p>It uses {@link EffectPolicy}, and it repeats nothing that policy does. A call that policy
  * allows runs with no judgement. It decides nothing itself: it takes the answer of the judge, and
  * for a refusal only it writes the frame around the reason.
+ *
+ * <p>It reports every judgement to the trace. A call the judge allows runs with no question, so
+ * without the report a user cannot tell it from a call inside the project.
  */
 public final class JudgePolicy implements ToolPolicy {
 
@@ -19,10 +24,12 @@ public final class JudgePolicy implements ToolPolicy {
 
     private final ToolPolicy effect;
     private final Judge judge;
+    private final Trace trace;
 
-    public JudgePolicy(ToolPolicy effect, Judge judge) {
+    public JudgePolicy(ToolPolicy effect, Judge judge, Trace trace) {
         this.effect = Objects.requireNonNull(effect, "effect");
         this.judge = Objects.requireNonNull(judge, "judge");
+        this.trace = Objects.requireNonNull(trace, "trace");
     }
 
     @Override
@@ -32,6 +39,7 @@ public final class JudgePolicy implements ToolPolicy {
             return inner;
         }
         Decision answer = judge.judge(ask, userText);
+        trace.emit(new Judged(ask.toolName(), ask.toolOperand(), verdict(answer)));
         return answer instanceof Decision.Deny(String reason) ? Decision.deny(frame(ask, reason)) : answer;
     }
 
@@ -43,6 +51,15 @@ public final class JudgePolicy implements ToolPolicy {
     @Override
     public boolean asks() {
         return true;
+    }
+
+    // A switch over the sealed Decision, so a new case there is a compile error here too.
+    private static String verdict(Decision answer) {
+        return switch (answer) {
+            case Decision.Allow ignored -> "allow";
+            case Decision.Deny ignored -> "deny";
+            case Decision.Ask a -> Judge.NO_ANSWER.equals(a.note()) ? "no answer" : "ask";
+        };
     }
 
     // The main model reads this text, so the frame names one call and denies the rule.

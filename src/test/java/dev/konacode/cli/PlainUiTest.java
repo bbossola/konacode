@@ -5,6 +5,7 @@ import dev.konacode.policy.Decision;
 import dev.konacode.tools.Permission;
 import dev.konacode.trace.Level;
 import dev.konacode.trace.TraceEvent.FromAgent;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.Outcome;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.ToolFinished;
@@ -118,6 +119,30 @@ class PlainUiTest {
         ui("").emit(new ToolCalled(1, "read_file", "{}"));
 
         assertTrue(written().contains("tool: read_file({})"), written());
+    }
+
+    @Test
+    void alwaysShowsWhatTheJudgeAnswered() {
+        ui("").emit(new Judged("run_command", "mvn -q test", "allow"));
+
+        assertEquals("trace: judged run_command `mvn -q test` allow" + System.lineSeparator(), written());
+    }
+
+    @Test
+    void showsAJudgementOnce() {
+        PlainUi ui = ui("");
+        ui.liveTrace(Level.FULL);
+
+        ui.emit(new Judged("run_command", "mvn -q test", "allow"));
+
+        assertEquals(1, written().lines().count(), written());
+    }
+
+    @Test
+    void namesTheAgentBesideAJudgement() {
+        ui("").emit(new FromAgent("kona", new Judged("run_command", "mvn -q test", "allow")));
+
+        assertEquals("trace: kona> judged run_command `mvn -q test` allow" + System.lineSeparator(), written());
     }
 
     @Test

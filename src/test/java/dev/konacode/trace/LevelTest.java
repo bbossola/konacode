@@ -1,6 +1,7 @@
 package dev.konacode.trace;
 
 import dev.konacode.trace.TraceEvent.FromAgent;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.RequestSent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
@@ -80,6 +81,23 @@ class LevelTest {
     void aFromAgentGoesWhenTheEventInsideItGoes() {
         assertEquals(Optional.empty(),
                 Level.OFF.keep(new FromAgent("judge", new TokensUsed(1, 2, 3))));
+    }
+
+    @Test
+    void basicKeepsAJudgement() {
+        Judged event = new Judged("run_command", "mvn -q test", "allow");
+
+        assertEquals(Optional.of(event), Level.BASIC.keep(event));
+    }
+
+    @Test
+    void basicCutsTheOperandOfAJudgement() {
+        Judged kept = assertInstanceOf(Judged.class,
+                Level.BASIC.keep(new Judged("run_command", "x".repeat(5000), "deny")).orElseThrow());
+
+        assertEquals(2049, kept.toolOperand().length());
+        assertTrue(kept.toolOperand().endsWith("…"), kept.toolOperand());
+        assertEquals("deny", kept.verdict());
     }
 
     @Test

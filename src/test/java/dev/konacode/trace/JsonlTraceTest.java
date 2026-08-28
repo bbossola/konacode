@@ -3,6 +3,7 @@ package dev.konacode.trace;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.konacode.trace.TraceEvent.FromAgent;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.Outcome;
 import dev.konacode.trace.TraceEvent.RequestSent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
@@ -61,6 +62,17 @@ class JsonlTraceTest {
         assertEquals("EXHAUSTED", line.get("outcome").asText());
         assertEquals(8, line.get("iterations").asInt());
         assertEquals(1234, line.get("millis").asLong());
+    }
+
+    @Test
+    void writesWhatTheJudgeAnswered() throws IOException {
+        trace(Level.BASIC).emit(new Judged("run_command", "mvn -q test", "allow"));
+
+        JsonNode line = onlyLine();
+        assertEquals("judged", line.get("event").asText());
+        assertEquals("run_command", line.get("toolName").asText());
+        assertEquals("mvn -q test", line.get("toolOperand").asText());
+        assertEquals("allow", line.get("verdict").asText());
     }
 
     @Test
