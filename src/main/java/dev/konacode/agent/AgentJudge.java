@@ -68,9 +68,10 @@ public final class AgentJudge implements Judge {
             return "judge-internal";
         }
 
+        /** The judge has no tool, so no call reaches this policy and nothing shows these words. */
         @Override
-        public boolean asks() {
-            return true;
+        public Optional<String> refusal() {
+            return Optional.of("refuses every call");
         }
     }
 

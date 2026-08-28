@@ -2,6 +2,8 @@ package dev.konacode.policy;
 
 import dev.konacode.tools.Action;
 
+import java.util.Optional;
+
 /**
  * Allows every call, and asks nothing.
  *
@@ -21,7 +23,7 @@ public final class AllowAllPolicy implements ToolPolicy {
     }
 
     @Override
-    public boolean asks() {
-        return false;
+    public Optional<String> refusal() {
+        return Optional.empty();
     }
 }

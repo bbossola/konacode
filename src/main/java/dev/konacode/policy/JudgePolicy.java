@@ -5,6 +5,7 @@ import dev.konacode.trace.Trace;
 import dev.konacode.trace.TraceEvent.Judged;
 
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Asks a judge about every question another policy writes.
@@ -38,8 +39,10 @@ public final class JudgePolicy implements ToolPolicy {
         if (!(inner instanceof Decision.Ask ask)) {
             return inner;
         }
+        long started = System.nanoTime();
         Decision answer = judge.judge(ask, userText);
-        trace.emit(new Judged(ask.toolName(), ask.toolOperand(), verdict(answer)));
+        // The judgement is the cost of this policy, so the line that reports it names the time.
+        trace.emit(new Judged(ask.toolName(), verdict(answer), (System.nanoTime() - started) / 1_000_000, ask.toolOperand()));
         return answer instanceof Decision.Deny(String reason) ? Decision.deny(frame(ask, reason)) : answer;
     }
 
@@ -48,9 +51,10 @@ public final class JudgePolicy implements ToolPolicy {
         return "judge";
     }
 
+    /** It names the two kinds of call it judges. A call inside this project reaches no judge. */
     @Override
-    public boolean asks() {
-        return true;
+    public Optional<String> refusal() {
+        return Optional.of("refuses every call outside this project, and every command, that the judge does not allow");
     }
 
     // One word, because the line that shows it puts no delimiter between the fields.

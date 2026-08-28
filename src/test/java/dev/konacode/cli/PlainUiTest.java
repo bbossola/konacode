@@ -123,9 +123,9 @@ class PlainUiTest {
 
     @Test
     void alwaysShowsWhatTheJudgeAnswered() {
-        ui("").emit(new Judged("run_command", "mvn -q test", "allow"));
+        ui("").emit(new Judged("run_command", "allow", 412, "mvn -q test"));
 
-        assertEquals("judged: allow run_command mvn -q test" + System.lineSeparator(), written());
+        assertEquals("judged: allow run_command 412ms mvn -q test" + System.lineSeparator(), written());
     }
 
     @Test
@@ -133,16 +133,16 @@ class PlainUiTest {
         PlainUi ui = ui("");
         ui.liveTrace(Level.FULL);
 
-        ui.emit(new Judged("run_command", "mvn -q test", "allow"));
+        ui.emit(new Judged("run_command", "allow", 412, "mvn -q test"));
 
         assertEquals(1, written().lines().count(), written());
     }
 
     @Test
     void namesTheAgentBesideAJudgement() {
-        ui("").emit(new FromAgent("kona", new Judged("run_command", "mvn -q test", "allow")));
+        ui("").emit(new FromAgent("kona", new Judged("run_command", "allow", 412, "mvn -q test")));
 
-        assertEquals("judged: kona> allow run_command mvn -q test" + System.lineSeparator(), written());
+        assertEquals("judged: kona> allow run_command 412ms mvn -q test" + System.lineSeparator(), written());
     }
 
     @Test

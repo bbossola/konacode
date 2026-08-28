@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+
+import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -267,11 +269,11 @@ class EffectPolicyTest {
     }
 
     @Test
-    void itNamesItselfAndAsks() {
+    void itNamesItselfAndNamesWhatItRefuses() {
         ToolPolicy policy = new EffectPolicy();
 
         assertEquals("effect", policy.label());
-        assertTrue(policy.asks());
+        assertEquals(Optional.of("refuses every call outside this project"), policy.refusal());
     }
 
     private static String verbOf(Decision.Ask ask) {

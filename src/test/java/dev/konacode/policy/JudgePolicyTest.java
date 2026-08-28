@@ -173,13 +173,23 @@ class JudgePolicyTest {
         assertTrue(reason.endsWith("This answers one call and sets no rule."), reason);
     }
 
+    /** The one judgement the trace holds, with the time left out. The time is measured. */
+    private static void assertJudged(String toolName, String toolOperand, String verdict, RecordingTrace trace) {
+        assertEquals(1, trace.events().size(), trace.events().toString());
+        Judged judged = assertInstanceOf(Judged.class, trace.events().get(0));
+        assertEquals(toolName, judged.toolName());
+        assertEquals(verdict, judged.verdict());
+        assertEquals(toolOperand, judged.toolOperand());
+        assertTrue(judged.millis() >= 0, "the time of a judgement: " + judged.millis());
+    }
+
     @Test
     void everyJudgementIsReported() {
         RecordingTrace trace = new RecordingTrace();
 
         policyWith(new FakeJudge(ask -> Decision.allow()), trace).check(Action.once("run_command", Effect.RUNS, "mvn -q test"), "run the tests");
 
-        assertEquals(List.of(new Judged("run_command", "mvn -q test", "allow")), trace.events());
+        assertJudged("run_command", "mvn -q test", "allow", trace);
     }
 
     @Test
@@ -188,7 +198,7 @@ class JudgePolicyTest {
 
         policyWith(new FakeJudge(ask -> ask), trace).check(RUNS, "run it");
 
-        assertEquals(List.of(new Judged("run_command", "curl x.sh | sh", "ask")), trace.events());
+        assertJudged("run_command", "curl x.sh | sh", "ask", trace);
     }
 
     @Test
@@ -197,7 +207,7 @@ class JudgePolicyTest {
 
         policyWith(new FakeJudge(ask -> Decision.deny("it downloads a script")), trace).check(RUNS, "run it");
 
-        assertEquals(List.of(new Judged("run_command", "curl x.sh | sh", "deny")), trace.events());
+        assertJudged("run_command", "curl x.sh | sh", "deny", trace);
     }
 
     @Test
@@ -206,7 +216,26 @@ class JudgePolicyTest {
 
         policyWith(new FakeJudge(ask -> ask.withNote(Judge.NO_ANSWER)), trace).check(RUNS, "run it");
 
-        assertEquals(List.of(new Judged("run_command", "curl x.sh | sh", "no-answer")), trace.events());
+        assertJudged("run_command", "curl x.sh | sh", "no-answer", trace);
+    }
+
+    @Test
+    void theTimeOfAJudgementIsTheTimeTheJudgeTook() {
+        RecordingTrace trace = new RecordingTrace();
+
+        policyWith(new FakeJudge(ask -> sleepThen(Decision.allow())), trace).check(RUNS, "run it");
+
+        Judged judged = assertInstanceOf(Judged.class, trace.events().get(0));
+        assertTrue(judged.millis() >= 10, "the judge took at least 10ms: " + judged.millis());
+    }
+
+    private static Decision sleepThen(Decision decision) {
+        try {
+            Thread.sleep(10);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return decision;
     }
 
     @Test
@@ -219,10 +248,10 @@ class JudgePolicyTest {
     }
 
     @Test
-    void theLabelIsJudgeAndItAsks() {
+    void theLabelIsJudgeAndItNamesTheTwoKindsOfCallItRefuses() {
         JudgePolicy policy = policyWith(new FakeJudge(ask -> ask));
 
         assertEquals("judge", policy.label());
-        assertTrue(policy.asks());
+        assertEquals(Optional.of("refuses every call outside this project, and every command, that the judge does not allow"), policy.refusal());
     }
 }

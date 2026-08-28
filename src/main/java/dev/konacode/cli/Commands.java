@@ -113,10 +113,8 @@ final class Commands {
 
     private void policy(String name) {
         if (name.isEmpty()) {
-            String note = ui.canAsk() || !policies.selected().asks()
-                    ? ""
-                    : "\n\nThis interface cannot ask a question, so `"
-                            + policies.selected().label() + "` " + refuses() + ".";
+            String note = ui.canAsk() ? "" : refusal()
+                    .map(refusal -> "\n\nThis interface cannot ask a question, so `" + policies.selected().label() + "` " + refusal + ".").orElse("");
             ui.showAnswer("konacode uses `" + policies.selected().label() + "`.\n\n"
                     + "- `allow-all` — allow every call\n"
                     + "- `effect` — ask before a read or a write outside this project\n"
@@ -133,26 +131,17 @@ final class Commands {
                 return;
             }
         }
-        if (!ui.canAsk() && policies.selected().asks()) {
-            ui.showAnswer("konacode now uses `" + name + "`. This interface cannot ask a question,"
-                    + " so it " + refuses() + ".");
+        Optional<String> refusal = ui.canAsk() ? Optional.empty() : refusal();
+        if (refusal.isPresent()) {
+            ui.showAnswer("konacode now uses `" + name + "`. This interface cannot ask a question, so it " + refusal.get() + ".");
             return;
         }
         ui.showAnswer("konacode now uses `" + name + "`.");
     }
 
-    /**
-     * What the policy in use refuses when nothing can answer its question.
-     *
-     * <p>The judge sentence names the two kinds of call {@code JudgePolicy} judges. A call inside
-     * this project reaches no judge, so a sentence that named every call would be wrong, and wrong
-     * in the direction that tells a user konacode is stricter than it is.
-     */
-    private String refuses() {
-        return policies.selected() instanceof JudgePolicy
-                ? "refuses every call outside this project, and every command, that the judge does"
-                        + " not allow"
-                : "refuses every call outside this project";
+    /** The policy owns the words, so a policy added later cannot take the sentence of another one. */
+    private Optional<String> refusal() {
+        return policies.selected().refusal();
     }
 
     private void tools() {

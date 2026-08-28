@@ -85,7 +85,7 @@ class LevelTest {
 
     @Test
     void basicKeepsAJudgement() {
-        Judged event = new Judged("run_command", "mvn -q test", "allow");
+        Judged event = new Judged("run_command", "allow", 412, "mvn -q test");
 
         assertEquals(Optional.of(event), Level.BASIC.keep(event));
     }
@@ -93,7 +93,7 @@ class LevelTest {
     @Test
     void basicCutsTheOperandOfAJudgement() {
         Judged kept = assertInstanceOf(Judged.class,
-                Level.BASIC.keep(new Judged("run_command", "x".repeat(5000), "deny")).orElseThrow());
+                Level.BASIC.keep(new Judged("run_command", "deny", 412, "x".repeat(5000))).orElseThrow());
 
         assertEquals(2049, kept.toolOperand().length());
         assertTrue(kept.toolOperand().endsWith("…"), kept.toolOperand());
@@ -103,11 +103,11 @@ class LevelTest {
     @Test
     void basicCutsTheOperandInsideAFromAgent() {
         FromAgent kept = assertInstanceOf(FromAgent.class, Level.BASIC
-                .keep(new FromAgent("kona", new Judged("run_command", "x".repeat(5000), "allow")))
+                .keep(new FromAgent("kona", new Judged("run_command", "allow", 412, "x".repeat(5000))))
                 .orElseThrow());
 
         assertEquals("kona", kept.agent());
-        assertEquals(new Judged("run_command", "x".repeat(2048) + "…", "allow"), kept.event());
+        assertEquals(new Judged("run_command", "allow", 412, "x".repeat(2048) + "…"), kept.event());
     }
 
     @Test

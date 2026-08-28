@@ -36,8 +36,8 @@ public sealed interface TraceEvent {
 
     record RetryRequested(String reason) implements TraceEvent {}
 
-    /** What the judge answered about one call. */
-    record Judged(String toolName, String toolOperand, String verdict) implements TraceEvent {}
+    /** What the judge answered about one call, and the time it took. The operand is last, because the model wrote it. */
+    record Judged(String toolName, String verdict, long millis, String toolOperand) implements TraceEvent {}
 
     /** One event, and the agent that made it. konacode runs more than one agent. */
     record FromAgent(String agent, TraceEvent event) implements TraceEvent {}

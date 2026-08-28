@@ -193,9 +193,9 @@ class RichUiTest {
 
     @Test
     void alwaysShowsWhatTheJudgeAnswered() {
-        ui().emit(new Judged("run_command", "ls", "allow"));
+        ui().emit(new Judged("run_command", "allow", 412, "ls"));
 
-        assertTrue(written().contains("judged: allow run_command ls"), written());
+        assertTrue(written().contains("judged: allow run_command 412ms ls"), written());
     }
 
     @Test
@@ -203,7 +203,7 @@ class RichUiTest {
         RichUi ui = ui();
         ui.liveTrace(Level.FULL);
 
-        ui.emit(new Judged("run_command", "ls", "allow"));
+        ui.emit(new Judged("run_command", "allow", 412, "ls"));
 
         assertEquals(1, written().lines().count(), written());
     }

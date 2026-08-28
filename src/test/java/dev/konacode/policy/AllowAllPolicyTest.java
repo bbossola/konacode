@@ -9,8 +9,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 
+
+import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 class AllowAllPolicyTest {
@@ -30,11 +31,11 @@ class AllowAllPolicyTest {
     }
 
     @Test
-    void itNamesItselfAndAsksNothing() {
+    void itNamesItselfAndRefusesNothing() {
         ToolPolicy policy = new AllowAllPolicy();
 
         assertEquals("allow-all", policy.label());
-        assertFalse(policy.asks());
+        assertEquals(Optional.empty(), policy.refusal());
     }
 
     @Test

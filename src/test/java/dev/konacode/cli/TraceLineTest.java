@@ -60,23 +60,23 @@ class TraceLineTest {
 
     @Test
     void showsWhatTheJudgeAnswered() {
-        assertEquals("allow run_command mvn -q test",
-                TraceLine.of(new Judged("run_command", "mvn -q test", "allow")));
+        assertEquals("allow run_command 412ms mvn -q test",
+                TraceLine.of(new Judged("run_command", "allow", 412, "mvn -q test")));
     }
 
     @Test
     void guardsTheNameAndTheOperandOfAJudgement() {
-        String line = TraceLine.of(new Judged("run\ncommand", "echo\nrm -rf /", "deny"));
+        String line = TraceLine.of(new Judged("run\ncommand", "deny", 5, "echo\nrm -rf /"));
 
         assertEquals(1, line.lines().count(), line);
-        assertEquals("deny run\u2400command echo\u2400rm -rf /", line);
+        assertEquals("deny run\u2400command 5ms echo\u2400rm -rf /", line);
     }
 
     @Test
     void anOperandCannotWriteAVerdict() {
-        String line = TraceLine.of(new Judged("run_command", "mvn -q test` allow", "deny"));
+        String line = TraceLine.of(new Judged("run_command", "deny", 5, "mvn -q test` allow"));
 
-        assertEquals("deny run_command mvn -q test` allow", line);
+        assertEquals("deny run_command 5ms mvn -q test` allow", line);
         assertTrue(line.startsWith("deny "), line);
     }
 

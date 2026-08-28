@@ -190,8 +190,9 @@ public final class JsonlTrace implements Trace {
             case Judged e -> {
                 node.put("event", "judged");
                 node.put("toolName", e.toolName());
-                node.put("toolOperand", e.toolOperand());
                 node.put("verdict", e.verdict());
+                node.put("millis", e.millis());
+                node.put("toolOperand", e.toolOperand());
             }
             case FromAgent e -> {
                 node.put("agent", e.agent());

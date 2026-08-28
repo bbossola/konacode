@@ -66,13 +66,14 @@ class JsonlTraceTest {
 
     @Test
     void writesWhatTheJudgeAnswered() throws IOException {
-        trace(Level.BASIC).emit(new Judged("run_command", "mvn -q test", "allow"));
+        trace(Level.BASIC).emit(new Judged("run_command", "allow", 412, "mvn -q test"));
 
         JsonNode line = onlyLine();
         assertEquals("judged", line.get("event").asText());
         assertEquals("run_command", line.get("toolName").asText());
         assertEquals("mvn -q test", line.get("toolOperand").asText());
         assertEquals("allow", line.get("verdict").asText());
+        assertEquals(412, line.get("millis").asLong());
     }
 
     @Test

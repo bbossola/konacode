@@ -4,6 +4,7 @@ import dev.konacode.tools.Action;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.BiFunction;
 
 /** A policy the test drives, and that records the action and the user's text of every call. */
@@ -30,8 +31,8 @@ public final class FakePolicy implements ToolPolicy {
     }
 
     @Override
-    public boolean asks() {
-        return true;
+    public Optional<String> refusal() {
+        return Optional.of("refuses every call");
     }
 
     public List<Action> actions() {

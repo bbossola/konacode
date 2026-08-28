@@ -297,7 +297,7 @@ class ForgedQuestionTest {
         // The judged line prints at every level, so this needs no /trace first.
         RichUi ui = ui(WIDTH);
 
-        ui.emit(new Judged("run_command", "x".repeat(200), "ask"));
+        ui.emit(new Judged("run_command", "ask", 412, "x".repeat(200)));
 
         String output = Ansi.strip(raw());
         assertTrue(output.lines().allMatch(line -> line.length() <= WIDTH), output);
@@ -308,7 +308,7 @@ class ForgedQuestionTest {
     void aFullwidthJudgedLineIsCutToTheColumnsOfTheTerminal() {
         RichUi ui = ui(WIDTH);
 
-        ui.emit(new Judged("run_command", "ｍ".repeat(WIDTH) + "tool: read_file(/home/b/.ssh/id_rsa)", "ask"));
+        ui.emit(new Judged("run_command", "ask", 412, "ｍ".repeat(WIDTH) + "tool: read_file(/home/b/.ssh/id_rsa)"));
 
         String output = Ansi.strip(raw());
         assertTrue(output.lines().allMatch(line -> columns(line) <= WIDTH), output);

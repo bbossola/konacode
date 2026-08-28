@@ -2,6 +2,8 @@ package dev.konacode.policy;
 
 import dev.konacode.tools.Action;
 
+import java.util.Optional;
+
 /**
  * Allows a call inside the launch directory, and asks about every other one.
  *
@@ -30,8 +32,8 @@ public final class EffectPolicy implements ToolPolicy {
     }
 
     @Override
-    public boolean asks() {
-        return true;
+    public Optional<String> refusal() {
+        return Optional.of("refuses every call outside this project");
     }
 
     private static Decision ask(String toolIntent, Action action) {

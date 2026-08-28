@@ -3,6 +3,7 @@ package dev.konacode.policy;
 import dev.konacode.tools.Action;
 
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * The policy in use now. {@code /policy} changes it while a session runs.
@@ -31,8 +32,8 @@ public final class SelectedPolicy implements ToolPolicy {
     }
 
     @Override
-    public boolean asks() {
-        return current.asks();
+    public Optional<String> refusal() {
+        return current.refusal();
     }
 
     public void select(ToolPolicy policy) {

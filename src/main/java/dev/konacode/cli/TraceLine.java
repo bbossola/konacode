@@ -46,8 +46,8 @@ final class TraceLine {
                     + body(e.bodyJson());
             case TokensUsed e -> "tokens " + e.prompt() + " + " + e.completion() + " = " + e.total();
             case RetryRequested e -> "retry: " + e.reason();
-            case Judged e -> e.verdict() + " " + Ansi.oneLine(e.toolName()) + " "
-                    + Ansi.oneLine(e.toolOperand());
+            case Judged e -> e.verdict() + " " + Ansi.oneLine(e.toolName()) + " " + e.millis()
+                    + "ms " + Ansi.oneLine(e.toolOperand());
             case FromAgent e -> e.agent() + "> " + of(e.event());
         };
     }

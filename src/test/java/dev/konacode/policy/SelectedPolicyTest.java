@@ -4,11 +4,11 @@ import dev.konacode.tools.Action;
 import dev.konacode.tools.Effect;
 import org.junit.jupiter.api.Test;
 
+
+import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SelectedPolicyTest {
 
@@ -39,16 +39,16 @@ class SelectedPolicyTest {
     }
 
     @Test
-    void itPassesTheNameAndTheQuestionThrough() {
+    void itPassesTheNameAndTheRefusalThrough() {
         SelectedPolicy selected = new SelectedPolicy(new AllowAllPolicy());
 
         assertEquals("allow-all", selected.label());
-        assertFalse(selected.asks());
+        assertEquals(Optional.empty(), selected.refusal());
 
         selected.select(new EffectPolicy());
 
         assertEquals("effect", selected.label());
-        assertTrue(selected.asks());
+        assertEquals(Optional.of("refuses every call outside this project"), selected.refusal());
     }
 
     @Test
