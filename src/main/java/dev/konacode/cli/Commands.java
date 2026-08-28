@@ -6,8 +6,8 @@ import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.policy.EffectPolicy;
+import dev.konacode.policy.JudgePolicy;
 import dev.konacode.policy.SelectedPolicy;
-import dev.konacode.policy.ToolPolicy;
 import dev.konacode.skills.Skill;
 import dev.konacode.skills.SkillException;
 import dev.konacode.skills.SkillRegistry;
@@ -32,10 +32,11 @@ final class Commands {
     private final Ui ui;
     private final Level fileLevel;
     private final SelectedPolicy policies;
-    private final ToolPolicy judge;
+    private final JudgePolicy judge;
 
     Commands(Conversation conversation, Message systemMessage, ToolRegistry registry,
-             SkillRegistry skills, Ui ui, Level fileLevel, SelectedPolicy policies, ToolPolicy judge) {
+             SkillRegistry skills, Ui ui, Level fileLevel, SelectedPolicy policies,
+             JudgePolicy judge) {
         this.conversation = conversation;
         this.systemMessage = systemMessage;
         this.registry = registry;
@@ -112,10 +113,10 @@ final class Commands {
 
     private void policy(String name) {
         if (name.isEmpty()) {
-            String note = ui.canAsk()
+            String note = ui.canAsk() || !policies.selected().asks()
                     ? ""
-                    : "\n\nThis interface cannot ask a question, so `effect` refuses every call"
-                            + " outside this project.";
+                    : "\n\nThis interface cannot ask a question, so `"
+                            + policies.selected().label() + "` " + refuses() + ".";
             ui.showAnswer("konacode uses `" + policies.selected().label() + "`.\n\n"
                     + "- `allow-all` — allow every call\n"
                     + "- `effect` — ask before a read or a write outside this project\n"
@@ -133,11 +134,25 @@ final class Commands {
             }
         }
         if (!ui.canAsk() && policies.selected().asks()) {
-            String refuses = "judge".equals(policies.selected().label()) ? "the judge does not allow" : "outside this project";
-            ui.showAnswer("konacode now uses `" + name + "`. This interface cannot ask a question, so it refuses every call " + refuses + ".");
+            ui.showAnswer("konacode now uses `" + name + "`. This interface cannot ask a question,"
+                    + " so it " + refuses() + ".");
             return;
         }
         ui.showAnswer("konacode now uses `" + name + "`.");
+    }
+
+    /**
+     * What the policy in use refuses when nothing can answer its question.
+     *
+     * <p>The judge sentence names the two kinds of call {@code JudgePolicy} judges. A call inside
+     * this project reaches no judge, so a sentence that named every call would be wrong, and wrong
+     * in the direction that tells a user konacode is stricter than it is.
+     */
+    private String refuses() {
+        return policies.selected() instanceof JudgePolicy
+                ? "refuses every call outside this project, and every command, that the judge does"
+                        + " not allow"
+                : "refuses every call outside this project";
     }
 
     private void tools() {

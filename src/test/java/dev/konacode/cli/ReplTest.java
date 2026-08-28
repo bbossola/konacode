@@ -10,6 +10,8 @@ import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.ToolSpec;
 import dev.konacode.policy.AllowAllPolicy;
+import dev.konacode.policy.EffectPolicy;
+import dev.konacode.policy.JudgePolicy;
 import dev.konacode.policy.SelectedPolicy;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.ToolRegistry;
@@ -17,6 +19,7 @@ import dev.konacode.tools.Workspace;
 import dev.konacode.tools.ListFiles;
 import dev.konacode.tools.StopCheck;
 import dev.konacode.trace.Level;
+import dev.konacode.trace.Trace;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -48,7 +51,8 @@ class ReplTest {
                 conversation, ui, cancellation, 8);
         return new Repl(agent, ui, cancellation,
                 new Commands(conversation, SYSTEM, registry, skills, ui, Level.OFF,
-                        new SelectedPolicy(new AllowAllPolicy()), new AllowAllPolicy()));
+                        new SelectedPolicy(new AllowAllPolicy()),
+                        new JudgePolicy(new EffectPolicy(), (ask, userText) -> ask, Trace.NONE)));
     }
 
     @Test

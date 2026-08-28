@@ -77,9 +77,9 @@ public final class Main {
         Workspace workspace = workspace();
         SkillRegistry skills = new SkillRegistry(new Workspace(skillsRoot()));
 
-        Clients clients = clients(config, HttpClient.newBuilder().connectTimeout(config.timeout()).build(), trace);
-
         try (ui; file) {
+            HttpClient http = HttpClient.newBuilder().connectTimeout(config.timeout()).build();
+            Clients clients = clients(config, http, trace);
             build(clients.loop(), clients.judge(), skills, ui, fileLevel, cancellation,
                     maxIterations, trace, workspace, commandTimeout).run();
         } catch (Exception e) {
@@ -110,9 +110,12 @@ public final class Main {
         JudgePolicy judgePolicy = new JudgePolicy(new EffectPolicy(), judge, kona);
         SelectedPolicy policies = new SelectedPolicy(judgePolicy);
 
-        Agent agent = new Agent(client, registry, policies, new Approvals(ui), conversation, kona, cancellation, maxIterations);
+        Agent agent = new Agent(client, registry, policies, new Approvals(ui), conversation, kona,
+                cancellation, maxIterations);
+        Commands commands = new Commands(conversation, system, registry, skills, ui, fileLevel,
+                policies, judgePolicy);
 
-        return new Repl(agent, ui, cancellation, new Commands(conversation, system, registry, skills, ui, fileLevel, policies, judgePolicy));
+        return new Repl(agent, ui, cancellation, commands);
     }
 
     /**
@@ -175,7 +178,7 @@ public final class Main {
         return Duration.ofSeconds(seconds);
     }
 
-    /** The loop's client and the judge's client. Each names its own events, so the two cannot mix. */
+    /** The loop's client and the judge's client. Each names its own events, so the two stay apart. */
     record Clients(LlmClient loop, LlmClient judge) {
     }
 

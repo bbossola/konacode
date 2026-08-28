@@ -508,7 +508,35 @@ class CommandsTest {
 
         String shown = ui.answers.get(ui.answers.size() - 1);
         assertTrue(shown.contains("cannot ask a question"), shown);
-        assertTrue(shown.contains("refuses every call the judge does not allow"), shown);
+        assertTrue(shown.contains("refuses every call outside this project, and every command,"
+                + " that the judge does not allow"), shown);
+    }
+
+    @Test
+    void policyWithNoNameNotesWhatTheJudgeRefusesWhenTheInterfaceCannotAsk() {
+        RecordingUi ui = new RecordingUi();
+        ui.canAsk = false;
+        Commands commands = commands(ui, new Conversation(SYSTEM));
+        commands.run("/policy judge");
+
+        commands.run("/policy");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertTrue(shown.contains("so `judge` refuses every call outside this project, and every"
+                + " command, that the judge does not allow"), shown);
+    }
+
+    @Test
+    void policyWithNoNameAddsNoNoteForAPolicyThatRefusesNothing() {
+        RecordingUi ui = new RecordingUi();
+        ui.canAsk = false;
+        Commands commands = commands(ui, new Conversation(SYSTEM));
+        commands.run("/policy allow-all");
+
+        commands.run("/policy");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertFalse(shown.contains("cannot ask"), shown);
     }
 
     @Test
