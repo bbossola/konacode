@@ -19,6 +19,7 @@ final class FakeLlmClient implements LlmClient {
 
     private final Deque<AssistantMessage> script = new ArrayDeque<>();
     private final List<List<Message>> receivedHistories = new ArrayList<>();
+    private final List<List<ToolSpec>> receivedTools = new ArrayList<>();
     private RuntimeException failure;
     private Runnable beforeReply = () -> {
     };
@@ -48,9 +49,15 @@ final class FakeLlmClient implements LlmClient {
         return receivedHistories;
     }
 
+    /** What the agent advertised, so a test can prove that an agent has no tool. */
+    List<List<ToolSpec>> receivedTools() {
+        return receivedTools;
+    }
+
     @Override
     public AssistantMessage chat(List<Message> history, List<ToolSpec> tools) {
         receivedHistories.add(List.copyOf(history));
+        receivedTools.add(List.copyOf(tools));
         beforeReply.run();
         if (failure != null) {
             throw failure;

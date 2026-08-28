@@ -81,8 +81,9 @@ public enum Level {
                     new RequestSent(e.url(), e.model(), e.messageCount(), e.toolCount(), "");
             case ReplyReceived e -> new ReplyReceived(e.status(), e.millis(), "");
             case RetryRequested e -> new RetryRequested(cap(e.reason()));
-            case Judged e -> new Judged(e.toolName(), cap(e.toolOperand()), e.verdict());
-            case FromAgent e -> new FromAgent(e.agent(), cut(e.event()));
+            case Judged e -> new Judged(e.toolName(), e.verdict(), e.millis(), cap(e.toolOperand()));
+            // keep unwraps a FromAgent before it calls cut, so this arm is here for the switch only.
+            case FromAgent e -> throw new IllegalStateException("cut got a FromAgent from " + e.agent());
             case IterationStarted e -> e;
             case TurnEnded e -> e;
             case TokensUsed e -> e;

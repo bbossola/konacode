@@ -175,6 +175,14 @@ class AgentJudgeTest {
     }
 
     @Test
+    void theJudgeAdvertisesNoTool() {
+        // The judge must not act, and only the empty registry stops it.
+        judged("allow\nRoutine.", "mvn test", "run the tests");
+
+        assertEquals(List.of(), client.receivedTools().get(0));
+    }
+
+    @Test
     void theJudgeGetsTheSystemPromptAndNothingElseBeforeTheQuestion() {
         judged("allow\nRoutine.", "mvn test", "run the tests");
 
