@@ -49,8 +49,8 @@ class ActionsTest {
         Action action = read(path("notes.txt"));
 
         assertEquals(Effect.READS_INSIDE, action.effect());
-        assertEquals(root.resolve("notes.txt").toString(), action.operand());
-        assertTrue(action.permission().isEmpty(), "a call inside is never asked about");
+        assertEquals(root.resolve("notes.txt").toString(), action.toolOperand());
+        assertTrue(action.standingPermission().isEmpty(), "a call inside is never asked about");
     }
 
     @Test
@@ -60,9 +60,9 @@ class ActionsTest {
         Action action = read(path(file.toString()));
 
         assertEquals(Effect.READS_OUTSIDE, action.effect());
-        assertEquals(file.toString(), action.operand());
+        assertEquals(file.toString(), action.toolOperand());
         assertEquals(new Permission.InFolder("read_file", outside.toRealPath()),
-                action.permission().orElseThrow());
+                action.standingPermission().orElseThrow());
     }
 
     @Test
@@ -73,9 +73,9 @@ class ActionsTest {
         try {
             Action action = read(path(link.toString()));
 
-            assertEquals(secret.toRealPath().toString(), action.operand());
+            assertEquals(secret.toRealPath().toString(), action.toolOperand());
             assertEquals(new Permission.InFolder("read_file", outside.toRealPath()),
-                    action.permission().orElseThrow());
+                    action.standingPermission().orElseThrow());
         } finally {
             Files.delete(link);
         }
@@ -89,7 +89,7 @@ class ActionsTest {
             Action action = read(path(link.toString()));
 
             assertEquals(Effect.READS_OUTSIDE, action.effect());
-            assertTrue(action.permission().isEmpty(), "a call that reaches nothing offers none");
+            assertTrue(action.standingPermission().isEmpty(), "a call that reaches nothing offers none");
         } finally {
             Files.delete(link);
         }
@@ -103,8 +103,8 @@ class ActionsTest {
         Action action = read(args);
 
         assertEquals(Effect.READS_OUTSIDE, action.effect());
-        assertEquals("read_file", action.operand());
-        assertTrue(action.permission().isEmpty());
+        assertEquals("read_file", action.toolOperand());
+        assertTrue(action.standingPermission().isEmpty());
     }
 
     @Test
@@ -114,9 +114,9 @@ class ActionsTest {
         Action action = read(path(withNul));
 
         assertEquals(Effect.READS_OUTSIDE, action.effect());
-        assertEquals(withNul, action.operand(),
+        assertEquals(withNul, action.toolOperand(),
                 "the operand is the path as the model wrote it");
-        assertTrue(action.permission().isEmpty());
+        assertTrue(action.standingPermission().isEmpty());
     }
 
     @Test
@@ -128,10 +128,10 @@ class ActionsTest {
             Action action = write(path(link.toString()));
 
             assertEquals(Effect.WRITES_OUTSIDE, action.effect());
-            assertEquals(link.toString(), action.operand(),
+            assertEquals(link.toString(), action.toolOperand(),
                     "a write replaces the entry, so the entry is the operand");
             assertEquals(new Permission.InFolder("delete_file", outside.toRealPath()),
-                    action.permission().orElseThrow());
+                    action.standingPermission().orElseThrow());
         } finally {
             Files.delete(link);
         }
@@ -147,7 +147,7 @@ class ActionsTest {
 
             assertEquals(Effect.WRITES_OUTSIDE, action.effect(),
                     "edit_file reads the target, so it must ask");
-            assertEquals(link.toString(), action.operand(),
+            assertEquals(link.toString(), action.toolOperand(),
                     "the write replaces the entry, so the entry is the operand");
         } finally {
             Files.delete(link);

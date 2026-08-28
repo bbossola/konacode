@@ -63,7 +63,7 @@ class RunCommandTest {
 
     @Test
     void theOperandIsTheCommandLine() {
-        assertEquals("mvn -q test", tool().computeAction(command("mvn -q test")).operand());
+        assertEquals("mvn -q test", tool().computeAction(command("mvn -q test")).toolOperand());
     }
 
     @Test
@@ -71,14 +71,14 @@ class RunCommandTest {
         Action action = tool().computeAction(command("mvn -q test"));
 
         assertEquals(new Permission.ExactCommand("run_command", "mvn -q test"),
-                action.permission().orElseThrow());
+                action.standingPermission().orElseThrow());
     }
 
     @Test
     void aLineThatJoinsCommandsStillOffersTheExactLine() {
         Action action = tool().computeAction(command("git add -A && git status | head -5; true"));
 
-        assertTrue(action.permission().isPresent(),
+        assertTrue(action.standingPermission().isPresent(),
                 "a pipe, && and ; mean the same thing on the next day");
     }
 
@@ -90,7 +90,7 @@ class RunCommandTest {
             Action action = tool().computeAction(command(line));
 
             assertEquals(Effect.RUNS, action.effect(), line);
-            assertTrue(action.permission().isEmpty(),
+            assertTrue(action.standingPermission().isEmpty(),
                     "this line means something else on another day: " + line);
         }
     }
@@ -100,8 +100,8 @@ class RunCommandTest {
         Action action = tool().computeAction(MAPPER.createObjectNode());
 
         assertEquals(Effect.RUNS, action.effect());
-        assertEquals("run_command", action.operand());
-        assertTrue(action.permission().isEmpty());
+        assertEquals("run_command", action.toolOperand());
+        assertTrue(action.standingPermission().isEmpty());
     }
 
     @Test
@@ -109,8 +109,8 @@ class RunCommandTest {
         Action action = tool().computeAction(command("   "));
 
         assertEquals(Effect.RUNS, action.effect());
-        assertEquals("run_command", action.operand());
-        assertTrue(action.permission().isEmpty());
+        assertEquals("run_command", action.toolOperand());
+        assertTrue(action.standingPermission().isEmpty());
     }
 
     @Test
@@ -121,8 +121,8 @@ class RunCommandTest {
         Action action = tool().computeAction(args);
 
         assertEquals(Effect.RUNS, action.effect());
-        assertEquals("run_command", action.operand());
-        assertTrue(action.permission().isEmpty());
+        assertEquals("run_command", action.toolOperand());
+        assertTrue(action.standingPermission().isEmpty());
     }
 
     @Test

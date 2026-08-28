@@ -86,7 +86,7 @@ public final class ListFiles implements Tool {
         if (!pathNode.isTextual() || pathNode.asText().isBlank()) {
             // No path means the root, and a root is inside itself. execute() reaches the same
             // place through resolve("."), so the two agree while a Workspace has one root.
-            return Action.once(Effect.READS_INSIDE, workspace.root().toString());
+            return Action.once(name(), Effect.READS_INSIDE, workspace.root().toString());
         }
         return Actions.read(name(), workspace, pathNode);
     }

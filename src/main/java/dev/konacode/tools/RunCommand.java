@@ -88,13 +88,13 @@ public final class RunCommand implements Tool {
     public Action computeAction(JsonNode args) {
         String line = line(args);
         if (line == null) {
-            return Action.once(Effect.RUNS, name());
+            return Action.once(name(), Effect.RUNS, name());
         }
         if (expands(line)) {
             // The line means something else on another day, so no standing permission is honest.
-            return Action.once(Effect.RUNS, line);
+            return Action.once(name(), Effect.RUNS, line);
         }
-        return Action.of(Effect.RUNS, line, new Permission.ExactCommand(name(), line));
+        return Action.of(name(), Effect.RUNS, line, new Permission.ExactCommand(name(), line));
     }
 
     @Override

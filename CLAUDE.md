@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 539 tests, all offline, no network
+mvn test                        # 541 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -60,8 +60,8 @@ picks the path, the command line, the name of a tool and the arguments of a call
 of those draws a second question below the real one, and an escape code repaints the screen, so the
 user approves something they did not read. A user cannot approve what they cannot read. The two
 words konacode writes, the name in the first line of a question and the sentence beside it, need no
-guard: `Agent` finds the tool in the registry before it calls `policy.check`, so `EffectPolicy`
-writes `tool.name()` and never `call.name()`.
+guard: each tool writes its own `name()` into the `Action` it states, so `EffectPolicy` writes
+`action.toolName()` and never `call.name()`.
 
 ## Definitions
 
@@ -95,7 +95,7 @@ writes `tool.name()` and never `call.name()`.
 |---|---|---|
 | `Tool` | interface | `name()`, `description()`, `inputSchema()`, `ToolResult execute(JsonNode args)`, `boolean stopsOnInterrupt()`, `Action computeAction(JsonNode args)`. The description is written for the model to read — it is prompt text, not a code comment. `stopsOnInterrupt` and `computeAction` are abstract and not a default, so a new tool must answer both, the way the sealed `Decision` makes a new case a compile error everywhere. |
 | `Effect` | enum | `READS_INSIDE`, `READS_OUTSIDE`, `WRITES_INSIDE`, `WRITES_OUTSIDE`, `RUNS`. What one call to a tool does. The tool states this fact and decides nothing; a `ToolPolicy` reads it and decides. |
-| `Action` | record `(Effect effect, String operand, Optional<Permission> permission)` | What one call does, what it acts on, and what a standing "always" would cover. An empty permission says that no standing "always" can describe this call. |
+| `Action` | record `(String toolName, Effect effect, String toolOperand, Optional<Permission> standingPermission)` | The name of the tool that states the action, what one call does, what it acts on, and what a standing "always" would cover. An empty permission says that no standing "always" can describe this call. |
 | `Permission` | sealed interface | `InFolder(toolName, folder)` or `ExactCommand(toolName, command)`. konacode compares two permissions and never examines one, so a record gives the whole lookup, and a sealed set makes a third kind a compile error at `inWords`. |
 | `Actions` | static helper, package-private | `read`, `write` and `readThenWrite` build the `Action` of a tool that acts on one path. Three named entry points, because the two questions a path needs must agree, and two loose lambdas let a caller pair them wrongly. |
 | `ToolResult` | sealed interface | `Ok(String text)` or `Err(String message)`. Typed rather than a bare string so the loop and the policy can react to failure without sniffing for `"<error>"`. |

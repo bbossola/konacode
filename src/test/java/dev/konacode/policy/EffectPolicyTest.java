@@ -67,7 +67,7 @@ class EffectPolicyTest {
 
         @Override
         public Action computeAction(JsonNode args) {
-            return Action.once(Effect.RUNS, "run_command");
+            return Action.once(name(), Effect.RUNS, "run_command");
         }
     }
 
@@ -193,8 +193,8 @@ class EffectPolicyTest {
         Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
                 policy().check(tool, path(file.toString())));
 
-        assertEquals(action.operand(), ask.operand());
-        assertEquals(action.permission(), ask.permission());
+        assertEquals(action.toolOperand(), ask.operand());
+        assertEquals(action.standingPermission(), ask.permission());
     }
 
     @Test
