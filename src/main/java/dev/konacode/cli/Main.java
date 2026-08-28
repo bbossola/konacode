@@ -17,6 +17,7 @@ import dev.konacode.tools.DeleteFile;
 import dev.konacode.tools.EditFile;
 import dev.konacode.tools.ListFiles;
 import dev.konacode.tools.ReadFile;
+import dev.konacode.tools.RunCommand;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.Workspace;
 import dev.konacode.trace.JsonlTrace;
@@ -25,6 +26,7 @@ import dev.konacode.trace.Trace;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 
 public final class Main {
@@ -40,12 +42,14 @@ public final class Main {
         int maxIterations;
         Level traceLevel;
         int maxTraceFiles;
+        Duration commandTimeout;
         Ui ui;
         try {
             config = OpenAiConfig.fromEnvironment(System.getenv());
             maxIterations = Agent.configuredMaxIterations();
             traceLevel = Level.configured();
             maxTraceFiles = JsonlTrace.configuredMaxFiles();
+            commandTimeout = RunCommand.configuredTimeout();
             ui = selectUi(cancellation);
         } catch (IllegalArgumentException | IOException e) {
             System.err.println(e.getMessage());
@@ -66,7 +70,7 @@ public final class Main {
 
         try (ui; file) {
             build(new OpenAiClient(config, trace), skills, ui, fileLevel, cancellation,
-                    maxIterations, trace, workspace).run();
+                    maxIterations, trace, workspace, commandTimeout).run();
         } catch (Exception e) {
             System.err.println(e.getMessage());
             System.exit(1);
@@ -81,21 +85,22 @@ public final class Main {
      */
     static Repl build(LlmClient client, SkillRegistry skills, Ui ui, Level fileLevel,
                        Cancellation cancellation, int maxIterations, Trace trace,
-                       Workspace workspace) {
+                       Workspace workspace, Duration commandTimeout) {
         ToolRegistry registry = ToolRegistry.of(
                 new ListFiles(workspace, cancellation),
                 new ReadFile(workspace, cancellation),
                 new EditFile(workspace, cancellation),
-                new DeleteFile(workspace));
+                new DeleteFile(workspace),
+                new RunCommand(workspace, cancellation, commandTimeout));
         SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
         Conversation conversation = new Conversation(system);
-        SelectedPolicy policies = new SelectedPolicy(defaultPolicy(ui.canAsk(), workspace));
+        SelectedPolicy policies = new SelectedPolicy(defaultPolicy(ui.canAsk()));
 
         Agent agent = new Agent(client, registry, policies, new Approvals(ui), conversation,
                 trace, cancellation, maxIterations);
 
         return new Repl(agent, ui, new Commands(conversation, system, registry, skills, ui,
-                fileLevel, policies, workspace));
+                fileLevel, policies));
     }
 
     static Path skillsRoot() {
@@ -111,8 +116,8 @@ public final class Main {
      * An interface that cannot ask a question keeps today's behaviour, because a question there
      * would refuse every call outside the project. An interface that can ask uses the new policy.
      */
-    static ToolPolicy defaultPolicy(boolean canAsk, Workspace workspace) {
-        return canAsk ? new EffectPolicy(workspace) : new AllowAllPolicy();
+    static ToolPolicy defaultPolicy(boolean canAsk) {
+        return canAsk ? new EffectPolicy() : new AllowAllPolicy();
     }
 
     static Ui selectUi(Cancellation cancellation) throws IOException {

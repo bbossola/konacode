@@ -16,17 +16,16 @@ public interface ToolApproval {
         YES,
         /** Refuses this one call. */
         NO,
-        /** Runs this call, and every later call the same tool makes directly in the same folder. */
+        /** Runs this call, and every later call the permission covers. */
         ALWAYS
     }
 
     /**
-     * @param toolName the tool the model wants to call
-     * @param ask what the policy needs decided. A caller that draws the question should offer
-     *     {@code ALWAYS} only when {@code ask.alwaysFolder()} is not null. An {@code ALWAYS} with
-     *     a null folder is legal, and it approves this call only.
+     * @param ask what the policy needs decided. A caller that draws the question offers
+     *     {@code ALWAYS} only when {@code ask.permission()} is present. An {@code ALWAYS} with an
+     *     empty permission is legal, and it approves this call only.
      */
-    Answer ask(String toolName, Decision.Ask ask);
+    Answer ask(Decision.Ask ask);
 
     /** True when this interface can put a question to a user. */
     boolean canAsk();

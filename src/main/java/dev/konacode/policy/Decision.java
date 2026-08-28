@@ -1,6 +1,9 @@
 package dev.konacode.policy;
 
-import java.nio.file.Path;
+import dev.konacode.tools.Permission;
+
+import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Whether a tool call may proceed.
@@ -14,15 +17,26 @@ public sealed interface Decision {
     record Deny(String reason) implements Decision {}
 
     /**
-     * The policy needs the user to decide.
+     * A question, written and not yet put. The policy needs the user to decide.
      *
-     * @param action what the tool wants to do, for example "write outside this project". The
+     * @param toolName the tool that wants to act. The question begins with it, and it is present
+     *     even when the permission is empty.
+     * @param intent what the tool wants to do, for example "write outside this project". The
      *     first word is an imperative verb, because the question builds a line from it.
-     * @param subject the absolute path the question is about
-     * @param alwaysFolder the folder that an "always" answer covers, or {@code null} when konacode
-     *     offers no "always". The question then shows yes and no only.
+     * @param operand what the call acts on, in words
+     * @param permission what an "always" answer covers, or empty when konacode offers no
+     *     "always". The question then shows yes and no only.
      */
-    record Ask(String action, String subject, Path alwaysFolder) implements Decision {}
+    record Ask(String toolName, String intent, String operand, Optional<Permission> permission)
+            implements Decision {
+
+        public Ask {
+            Objects.requireNonNull(toolName, "toolName");
+            Objects.requireNonNull(intent, "intent");
+            Objects.requireNonNull(operand, "operand");
+            Objects.requireNonNull(permission, "permission");
+        }
+    }
 
     static Decision allow() {
         return new Allow();
@@ -32,7 +46,8 @@ public sealed interface Decision {
         return new Deny(reason);
     }
 
-    static Decision ask(String action, String subject, Path alwaysFolder) {
-        return new Ask(action, subject, alwaysFolder);
+    static Decision ask(String toolName, String intent, String operand,
+                        Optional<Permission> permission) {
+        return new Ask(toolName, intent, operand, permission);
     }
 }

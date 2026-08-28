@@ -68,7 +68,7 @@ final class PlainUi implements Ui {
 
     /** This interface cannot ask a question, so konacode refuses rather than guess. */
     @Override
-    public Answer ask(String toolName, Decision.Ask ask) {
+    public Answer ask(Decision.Ask ask) {
         return Answer.NO;
     }
 
@@ -90,7 +90,10 @@ final class PlainUi implements Ui {
     @Override
     public void emit(TraceEvent event) {
         if (event instanceof ToolCalled called) {
-            out.println("tool: " + called.name() + "(" + called.argumentsJson() + ")");
+            // The model wrote this name and these arguments. The rich interface guards the
+            // same line.
+            out.println("tool: " + Ansi.oneLine(called.name()) + "("
+                    + Ansi.oneLine(called.argumentsJson()) + ")");
             return;
         }
         live.keep(event).ifPresent(kept -> out.println("trace: " + TraceLine.of(kept)));

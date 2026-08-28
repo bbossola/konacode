@@ -237,7 +237,7 @@ public final class Agent {
             case Decision.Ask ask -> {
                 boolean approved;
                 try {
-                    approved = approvals.approve(call.name(), ask);
+                    approved = approvals.approve(ask);
                 } catch (RuntimeException e) {
                     // A user interface that fails must not end the session, for the same reason a
                     // misbehaving tool must not. konacode then has no approval.
@@ -249,7 +249,7 @@ public final class Agent {
                     // stopped calling the tool at all, so konacode never asked again. The message
                     // now describes one call and denies the rule.
                     return ToolResult.err("konacode has no approval for this call: " + call.name()
-                            + " on " + ask.subject() + ". This answers one call and sets no rule."
+                            + " on " + ask.operand() + ". This answers one call and sets no rule."
                             + " Call the tool again when the user asks, and let konacode put the"
                             + " question.");
                 }

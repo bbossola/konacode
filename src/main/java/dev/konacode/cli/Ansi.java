@@ -33,6 +33,27 @@ public final class Ansi {
         return CODE.matcher(text).replaceAll("");
     }
 
+    /**
+     * One line of a string the model wrote.
+     *
+     * <p>The model chooses a path, a command line and the arguments of a call. A newline there
+     * draws a second question below the real one, and an escape code repaints the screen, so the
+     * user approves something they did not read. A user cannot approve what they cannot read.
+     *
+     * <p>{@link #strip} runs first, because it removes a whole colour code. The replace then
+     * covers every byte that is left, and it must not run first: a stripped escape byte would
+     * become a picture that {@link #strip} can never match.
+     *
+     * <p>The four categories are chosen, and not guessed. {@code Cc} covers every control
+     * character, and {@code \p{Cntrl}} would miss U+0080 to U+009F, where U+009B is the eight bit
+     * form of {@code ESC [}. {@code Cf} covers a direction override, where U+202E reverses how a
+     * terminal draws a line. {@code Zl} and {@code Zp} end a line by definition. An accented
+     * character, a CJK character and an emoji are in none of them, and they survive.
+     */
+    public static String oneLine(String text) {
+        return strip(text).replaceAll("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}]", "\u2400");
+    }
+
     public static int visibleLength(String text) {
         return strip(text).length();
     }

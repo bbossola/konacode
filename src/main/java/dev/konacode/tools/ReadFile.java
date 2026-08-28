@@ -79,10 +79,7 @@ public final class ReadFile implements Tool {
     }
 
     @Override
-    public Effect effect(JsonNode args) {
-        return workspace.tryResolve(args.path("path"))
-                .filter(workspace::readable)
-                .map(path -> Effect.READS_INSIDE)
-                .orElse(Effect.READS_OUTSIDE);
+    public Action computeAction(JsonNode args) {
+        return Actions.read(name(), workspace, args.path("path"));
     }
 }

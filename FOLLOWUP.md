@@ -88,8 +88,32 @@ adds planning, and expect to revisit the default.
   calls `conversation.restart(List.of(systemMessage, summary))`. It needs the `LlmClient`, which
   `Commands` does not hold today. This replaces the older plan to swap the conversation for one
   with a token budget. The user asks for it, and no policy decides.
-- **A `run_command` tool.** One class, and a genuine safety question — it is the point at which
-  `AllowAllPolicy` stops being a defensible default.
+- **A `run_command` tool — built.** It runs one shell line with `sh -c`. See
+  [the design](docs/superpowers/specs/2026-08-27-run-command-design.md).
+- **`showAnswer` prints the model's answer with no guard.** Every other place that prints text the
+  model wrote goes through `Ansi.oneLine`, because a control character there forges an approval
+  question. `RichUi.showAnswer` renders the answer through `Markdown.render`, and an escape code
+  reaches the terminal. It is not next to a question, so it forges nothing, and it can still
+  repaint the screen. `PlainUi.showAnswer` prints the answer raw. Decide whether an answer is a
+  surface konacode must guard, or one the user chose to read.
+- **`ToolFinished.output` has no guard, and no printing site shows it yet.** It holds the contents
+  of a file, or what a command printed, so konacode did not write it. `TraceLine` prints the name,
+  the result and the time, and never the output. `JsonlTrace` writes it through Jackson, which
+  escapes a control character. The day a printing site shows it, it needs `Ansi.oneLine` like every
+  other such string.
+- **`Ansi.visibleLength` counts characters and not columns.** A CJK character takes two columns and
+  an emoji takes two `char` values, so word wrap, table alignment and the new cut in `RichUi` are
+  all one character out for those. This is one problem in the whole interface, and not a defect of
+  one caller.
+- **An approved command line can run code written later.** `a` remembers the exact line, and the
+  line is honest. Its meaning is not: `make` reads a `Makefile`, and the model may change that file
+  inside the project with no question, then run the approved line again with no question. No test
+  of the characters in a line can see this. Decide whether an `ExactCommand` permission should end
+  when a file inside the project changes.
+- **`AllowAllPolicy` is the default for a piped session, and `run_command` now exists.** A pipe
+  has no user to answer a question, so konacode allows every call there. That was one risk while
+  every tool acted on a path. It is a larger one now, because a piped session runs any shell line
+  with no question. Decide whether a pipe should refuse a `RUNS` call instead of allowing it.
 - **Bounded retry in `OpenAiClient`.** The client makes exactly one attempt, so a single transient
   `429` or `5xx` discards a whole turn — costly for a loop that may make eight round trips per
   user message. Two or three attempts with backoff, scoped to `429`, `502`, `503`, `504` and
@@ -111,14 +135,6 @@ adds planning, and expect to revisit the default.
   that says whether a policy asks questions, closes both. It is not worth the cost while two
   policies exist, because `ToolPolicy` has one method on purpose and the tests use it as a
   lambda.
-- **`EffectPolicy` knows one argument name.** It reads `path`. A tool with another key answers
-  its effect correctly and then produces a question that names only the tool and offers no
-  "always", with no compile error and no failing test. `run_command` is the first tool with a
-  different shape.
-- **A question about a command has no useful subject.** The `RUNS` arm uses the tool's own name,
-  so the screen would read "run_command wants to run a command." above a line saying
-  `run_command`. The command string belongs there. `Decision.Ask.subject` is documented as a
-  path, and that wording changes in the same piece.
 - **Nothing proves the tools and the policy share a root.** `Main.build` builds both from one
   `Workspace`, so no caller can pass a mismatch. If someone changed `build` to use two, no test
   would notice: both wiring tests use an absolute path outside the project, and

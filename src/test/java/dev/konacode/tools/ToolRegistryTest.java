@@ -35,8 +35,8 @@ class ToolRegistryTest {
         }
 
         @Override
-        public Effect effect(JsonNode args) {
-            return Effect.READS_INSIDE;
+        public Action computeAction(JsonNode args) {
+            return Action.once(Effect.READS_INSIDE, name);
         }
     }
 

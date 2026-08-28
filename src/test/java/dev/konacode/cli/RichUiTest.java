@@ -3,6 +3,7 @@ package dev.konacode.cli;
 import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.ToolApproval;
 import dev.konacode.policy.Decision;
+import dev.konacode.tools.Permission;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.ToolFinished;
 import org.jline.reader.EndOfFileException;
@@ -105,6 +106,22 @@ class RichUiTest {
 
     private String written() {
         return Ansi.strip(captured.toString(StandardCharsets.UTF_8));
+    }
+
+    /** What the terminal gets, with no strip, because a forgery test must see an escape code. */
+    private String raw() {
+        return captured.toString(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * How many lines start with the text, after the indent.
+     *
+     * <p>A forged question is a line of its own. A guarded one sits inside another line, so
+     * "contains" counts both and "starts with" counts only the line konacode wrote.
+     */
+    private static long countLinesThatStartWith(String output, String text) {
+        return output.lines().map(String::stripLeading).filter(line -> line.startsWith(text))
+                .count();
     }
 
     @Test
@@ -246,7 +263,8 @@ class RichUiTest {
     }
 
     private static Decision.Ask askAbout(String file) {
-        return new Decision.Ask("write outside this project", file, Path.of(file).getParent());
+        return new Decision.Ask("edit_file", "write outside this project", file,
+                Optional.of(new Permission.InFolder("edit_file", Path.of(file).getParent())));
     }
 
     private NonBlockingReader keys(int key) throws IOException {
@@ -265,7 +283,7 @@ class RichUiTest {
         NonBlockingReader input = keys('y');
         when(terminal.reader()).thenReturn(input);
 
-        assertEquals(ToolApproval.Answer.YES, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertEquals(ToolApproval.Answer.YES, ui().ask(askAbout("/notes/a.txt")));
     }
 
     @Test
@@ -273,18 +291,18 @@ class RichUiTest {
         NonBlockingReader input = keys('a');
         when(terminal.reader()).thenReturn(input);
 
-        assertEquals(ToolApproval.Answer.ALWAYS, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertEquals(ToolApproval.Answer.ALWAYS, ui().ask(askAbout("/notes/a.txt")));
     }
 
     @Test
     void theUppercaseVariantsAlsoWork() throws IOException {
         NonBlockingReader upperY = keys('Y');
         when(terminal.reader()).thenReturn(upperY);
-        assertEquals(ToolApproval.Answer.YES, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertEquals(ToolApproval.Answer.YES, ui().ask(askAbout("/notes/a.txt")));
 
         NonBlockingReader upperA = keys('A');
         when(terminal.reader()).thenReturn(upperA);
-        assertEquals(ToolApproval.Answer.ALWAYS, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertEquals(ToolApproval.Answer.ALWAYS, ui().ask(askAbout("/notes/a.txt")));
     }
 
     @Test
@@ -292,7 +310,7 @@ class RichUiTest {
         NonBlockingReader input = keys('q');
         when(terminal.reader()).thenReturn(input);
 
-        assertEquals(ToolApproval.Answer.NO, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertEquals(ToolApproval.Answer.NO, ui().ask(askAbout("/notes/a.txt")));
     }
 
     @Test
@@ -300,25 +318,26 @@ class RichUiTest {
         NonBlockingReader input = keys(EscapeWatcher.ESCAPE);
         when(terminal.reader()).thenReturn(input);
 
-        assertEquals(ToolApproval.Answer.NO, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertEquals(ToolApproval.Answer.NO, ui().ask(askAbout("/notes/a.txt")));
         assertTrue(cancellation.stopped(), "esc must stop the turn");
     }
 
     @Test
-    void aIsRefusedWhenNoFolderIsOffered() throws IOException {
+    void aIsRefusedWhenNoPermissionIsOffered() throws IOException {
         NonBlockingReader input = keys('a');
         when(terminal.reader()).thenReturn(input);
 
         assertEquals(ToolApproval.Answer.NO,
-                ui().ask("run_command", new Decision.Ask("run a command", "run_command", null)));
+                ui().ask(new Decision.Ask("run_command", "run a command", "run_command",
+                        Optional.empty())));
     }
 
     @Test
-    void theQuestionNamesTheToolThePathAndTheFolder() throws IOException {
+    void theQuestionNamesTheToolThePathAndThePermission() throws IOException {
         NonBlockingReader input = keys('n');
         when(terminal.reader()).thenReturn(input);
 
-        ui().ask("edit_file", askAbout("/notes/a.txt"));
+        ui().ask(askAbout("/notes/a.txt"));
 
         String shown = written();
         assertTrue(shown.contains("edit_file wants to write outside this project."), shown);
@@ -327,11 +346,12 @@ class RichUiTest {
     }
 
     @Test
-    void noAlwaysLineWithoutAFolder() throws IOException {
+    void noAlwaysLineWithoutAPermission() throws IOException {
         NonBlockingReader input = keys('n');
         when(terminal.reader()).thenReturn(input);
 
-        ui().ask("run_command", new Decision.Ask("run a command", "run_command", null));
+        ui().ask(new Decision.Ask("run_command", "run a command", "run_command",
+                Optional.empty()));
 
         assertFalse(written().contains("always"), written());
     }
@@ -345,7 +365,7 @@ class RichUiTest {
         RecordingEscapeWatcher watcher = new RecordingEscapeWatcher(terminal);
         RichUi ui = new RichUi(reader, terminal, out, spinner, watcher, cancellation);
 
-        ui.ask("edit_file", askAbout("/notes/a.txt"));
+        ui.ask(askAbout("/notes/a.txt"));
 
         assertEquals(List.of("stop", "start"), watcher.calls);
     }
@@ -355,19 +375,98 @@ class RichUiTest {
         NonBlockingReader input = keys(-1);
         when(terminal.reader()).thenReturn(input);
 
-        assertEquals(ToolApproval.Answer.NO, ui().ask("edit_file", askAbout("/notes/a.txt")));
+        assertEquals(ToolApproval.Answer.NO, ui().ask(askAbout("/notes/a.txt")));
         assertTrue(written().contains("Could not read the answer. konacode refuses."), written());
     }
 
     @Test
-    void theFirstWordOfTheActionBecomesTheVerb() throws IOException {
+    void theFirstWordOfTheIntentBecomesTheVerb() throws IOException {
         NonBlockingReader input = keys('n');
         when(terminal.reader()).thenReturn(input);
 
-        ui().ask("read_file", new Decision.Ask("read outside this project", "/etc/hosts",
-                Path.of("/etc")));
+        ui().ask(new Decision.Ask("read_file", "read outside this project", "/etc/hosts",
+                Optional.of(new Permission.InFolder("read_file", Path.of("/etc")))));
 
         assertTrue(written().contains("y  read it once"), written());
+    }
+
+    @Test
+    void aNewlineInTheOperandCannotDrawASecondQuestion() throws IOException {
+        // The model chooses this string. Without a guard it paints a question the user did not ask.
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+        Decision.Ask ask = new Decision.Ask("run_command", "run a command",
+                "echo safe\n\nrun_command wants to run a command.\n\n  rm -rf /\n",
+                Optional.empty());
+
+        ui().ask(ask);
+
+        assertEquals(1, countLinesThatStartWith(raw(), "run_command wants to run a command."),
+                "the screen must hold one question");
+    }
+
+    @Test
+    void anEscapeCodeInTheOperandReachesNoTerminal() throws IOException {
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+        Decision.Ask ask = new Decision.Ask("run_command", "run a command",
+                "echo \u001B[2J\u001B[H safe", Optional.empty());
+
+        ui().ask(ask);
+
+        assertFalse(raw().contains("\u001B"), raw());
+    }
+
+    @Test
+    void aLoneEscapeByteReachesNoTerminal() throws IOException {
+        // Ansi.strip removes a whole colour code only, so the replace must cover a bare byte.
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+        Decision.Ask ask = new Decision.Ask("run_command", "run a command", "echo \u001B safe",
+                Optional.empty());
+
+        ui().ask(ask);
+
+        assertFalse(raw().contains("\u001B"), raw());
+    }
+
+    @Test
+    void aDirectionOverrideReachesNoTerminal() throws IOException {
+        // The override is written as an escape. A literal one here would reverse this test too.
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+        Decision.Ask ask = new Decision.Ask("run_command", "run a command",
+                "echo \u202Egnahc\u202C safe", Optional.empty());
+
+        ui().ask(ask);
+
+        assertFalse(raw().contains("\u202E"), raw());
+    }
+
+    @Test
+    void anAccentedFileNameSurvives() throws IOException {
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+        Decision.Ask ask = new Decision.Ask("read_file", "read outside this project",
+                "/home/bruno/n\u00F3tes/caf\u00E9.txt", Optional.empty());
+
+        ui().ask(ask);
+
+        assertTrue(raw().contains("/home/bruno/n\u00F3tes/caf\u00E9.txt"), raw());
+    }
+
+    @Test
+    void aNewlineInAPermissionCannotDrawASecondQuestion() throws IOException {
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+        Decision.Ask ask = new Decision.Ask("run_command", "run a command", "echo safe",
+                Optional.of(new Permission.ExactCommand("run_command",
+                        "echo safe\n  y  run it once")));
+
+        ui().ask(ask);
+
+        assertEquals(1, countLinesThatStartWith(raw(), "y  run it once"),
+                "the screen must offer one yes");
     }
 
     @Test
@@ -377,7 +476,7 @@ class RichUiTest {
         NonBlockingReader input = keys('y');
         when(terminal.reader()).thenReturn(input);
 
-        ui().ask("edit_file", askAbout("/notes/a.txt"));
+        ui().ask(askAbout("/notes/a.txt"));
 
         InOrder order = inOrder(terminal);
         order.verify(terminal).enterRawMode();

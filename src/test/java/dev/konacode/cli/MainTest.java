@@ -21,6 +21,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -121,9 +122,20 @@ class MainTest {
 
     @Test
     void anInterfaceThatCanAskGetsTheNewPolicy() {
-        assertInstanceOf(EffectPolicy.class, Main.defaultPolicy(true, new Workspace(Path.of("."))));
-        assertInstanceOf(AllowAllPolicy.class,
-                Main.defaultPolicy(false, new Workspace(Path.of("."))));
+        assertInstanceOf(EffectPolicy.class, Main.defaultPolicy(true));
+        assertInstanceOf(AllowAllPolicy.class, Main.defaultPolicy(false));
+    }
+
+    @Test
+    void theRegistryHoldsRunCommand() {
+        Workspace workspace = new Workspace(root);
+        SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
+        RecordingUi ui = new RecordingUi("/tools");
+
+        Main.build(new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
+                workspace, Duration.ofSeconds(600)).run();
+
+        assertTrue(ui.answers.get(0).contains("run_command"), ui.answers.get(0));
     }
 
     @Test
@@ -141,7 +153,7 @@ class MainTest {
                 "read it");
 
         Main.build(client, skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
-                workspace).run();
+                workspace, Duration.ofSeconds(600)).run();
 
         assertEquals(4, client.histories.size(), "each turn calls chat twice");
         assertTrue(lastToolMessage(client.histories.get(1)).content().contains("OUTSIDE-CONTENT"),
@@ -167,7 +179,7 @@ class MainTest {
         ui.nextAsk = Answer.ALWAYS;
 
         Main.build(client, skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
-                workspace).run();
+                workspace, Duration.ofSeconds(600)).run();
 
         assertEquals(1, ui.askCount, "the memory in Approvals must survive the policy change");
         assertTrue(lastToolMessage(client.histories.get(3)).content().contains("OUTSIDE-CONTENT"),

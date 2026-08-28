@@ -28,10 +28,12 @@ public interface Tool {
      * What this call does. Abstract and never a default, so a new tool must answer it, the way
      * {@link #stopsOnInterrupt()} already does.
      *
-     * <p>The answer must name the file that {@link #execute} will touch. A tool that cannot name
-     * that file answers the {@code OUTSIDE} value of its kind, and konacode then asks the user.
+     * <p>The answer must name the place that {@link #execute} will touch. A tool that cannot name
+     * that place answers the {@code OUTSIDE} value of its kind, and konacode then asks the user.
+     * A tool that runs a command names no place, so it answers {@code RUNS} and gives the
+     * command line as the operand.
      *
-     * <p>No policy reads this answer yet, and {@code EffectPolicy} will.
+     * <p>A tool that gives no permission says that no standing "always" can describe this call.
      */
-    Effect effect(JsonNode args);
+    Action computeAction(JsonNode args);
 }

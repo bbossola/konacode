@@ -123,30 +123,47 @@ final class RichUi implements Ui {
      * while the key is read, so it cannot see ESC there; the question reports the stop itself.
      */
     @Override
-    public Answer ask(String toolName, Decision.Ask ask) {
+    public Answer ask(Decision.Ask ask) {
         spinner.stop();
         watcher.stop();
         try {
-            show(toolName, ask);
-            return answer(read(), ask.alwaysFolder() != null);
+            show(ask);
+            return answer(read(), ask.permission().isPresent());
         } finally {
             watcher.start();
         }
     }
 
-    private void show(String toolName, Decision.Ask ask) {
-        String verb = ask.action().split(" ", 2)[0];
+    private void show(Decision.Ask ask) {
+        String verb = ask.intent().split(" ", 2)[0];
         out.println();
-        out.println(toolName + " wants to " + ask.action() + ".");
+        out.println(ask.toolName() + " wants to " + ask.intent() + ".");
         out.println();
-        out.println("  " + ask.subject());
+        out.println(toOneRow("  " + Ansi.oneLine(ask.operand())));
         out.println();
         out.println("  y  " + verb + " it once");
         out.println("  n  refuse");
-        if (ask.alwaysFolder() != null) {
-            out.println("  a  always, for " + toolName + " in " + ask.alwaysFolder());
-        }
+        ask.permission().ifPresent(permission -> out.println(
+                toOneRow("  a  always, for " + Ansi.oneLine(permission.inWords()))));
         out.flush();
+    }
+
+    /**
+     * Cuts one line to the width of the terminal, so a long operand cannot wrap and forge a line.
+     *
+     * <p>The model can pad the operand to the width it guesses. The wrapped part then starts at
+     * column 0, and it reads as a line konacode wrote. The beginning of the line stays, because a
+     * user judges a path by the folder it is in, and the mark says that more text is there.
+     *
+     * <p>The count is characters and not columns, so a CJK character or an emoji can still wrap.
+     * {@link Ansi#visibleLength} has the same limit, and so does every caller of it.
+     */
+    private String toOneRow(String text) {
+        int room = terminal.getWidth() - 4;
+        if (room < 20 || text.length() <= room) {
+            return text;
+        }
+        return text.substring(0, room - 1) + "\u2026";
     }
 
     private int read() {
@@ -160,7 +177,7 @@ final class RichUi implements Ui {
         }
     }
 
-    private Answer answer(int key, boolean folderOffered) {
+    private Answer answer(int key, boolean alwaysOffered) {
         if (key == -1) {
             out.println();
             out.println("Could not read the answer. konacode refuses.");
@@ -174,7 +191,7 @@ final class RichUi implements Ui {
         if (key == 'y' || key == 'Y') {
             return Answer.YES;
         }
-        if (folderOffered && (key == 'a' || key == 'A')) {
+        if (alwaysOffered && (key == 'a' || key == 'A')) {
             return Answer.ALWAYS;
         }
         return Answer.NO;
@@ -194,8 +211,11 @@ final class RichUi implements Ui {
     public void emit(TraceEvent event) {
         if (event instanceof ToolCalled called) {
             spinner.stop();
-            out.println(Ansi.style(
-                    "tool: " + called.name() + "(" + called.argumentsJson() + ")", Ansi.GREEN));
+            // The model wrote this name and these arguments, and this line prints before the
+            // loop asks the user, so an unguarded newline here draws a question above the real
+            // one. No part of the name reaches a registry before it reaches the screen.
+            out.println(Ansi.style(toOneRow("tool: " + Ansi.oneLine(called.name()) + "("
+                    + Ansi.oneLine(called.argumentsJson()) + ")"), Ansi.GREEN));
             return;
         }
         live.keep(event).ifPresent(kept -> {

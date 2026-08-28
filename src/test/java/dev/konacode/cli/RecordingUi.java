@@ -55,7 +55,7 @@ final class RecordingUi implements Ui {
     }
 
     @Override
-    public Answer ask(String toolName, Decision.Ask ask) {
+    public Answer ask(Decision.Ask ask) {
         askCount++;
         return nextAsk;
     }

@@ -2,6 +2,7 @@ package dev.konacode.cli;
 
 import dev.konacode.agent.ToolApproval;
 import dev.konacode.policy.Decision;
+import dev.konacode.tools.Permission;
 import dev.konacode.trace.Level;
 import dev.konacode.trace.TraceEvent.Outcome;
 import dev.konacode.trace.TraceEvent.ToolCalled;
@@ -114,12 +115,23 @@ class PlainUiTest {
     @Test
     void itCannotAskSoItRefuses() {
         assertEquals(ToolApproval.Answer.NO,
-                ui("").ask("edit_file", new Decision.Ask("write outside this project",
-                        "/etc/hosts", Path.of("/etc"))));
+                ui("").ask(new Decision.Ask("edit_file", "write outside this project",
+                        "/etc/hosts",
+                        Optional.of(new Permission.InFolder("edit_file", Path.of("/etc"))))));
     }
 
     @Test
     void itCannotAsk() {
         assertFalse(ui("").canAsk());
+    }
+
+    @Test
+    void aToolCallLineHoldsOneLine() {
+        // The model wrote the arguments. A newline here draws a line konacode did not write.
+        ui("").emit(new ToolCalled(1, "run_command",
+                "{\"command\":\"echo safe\nrm -rf /\"}"));
+
+        assertEquals(1, written().lines().count(), written());
+        assertFalse(written().contains("\u001B"), written());
     }
 }

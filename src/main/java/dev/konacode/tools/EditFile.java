@@ -92,11 +92,8 @@ public final class EditFile implements Tool {
     }
 
     @Override
-    public Effect effect(JsonNode args) {
-        return workspace.tryResolve(args.path("path"))
-                .filter(path -> workspace.writable(path) && workspace.readable(path))
-                .map(path -> Effect.WRITES_INSIDE)
-                .orElse(Effect.WRITES_OUTSIDE);
+    public Action computeAction(JsonNode args) {
+        return Actions.readThenWrite(name(), workspace, args.path("path"));
     }
 
     private ToolResult create(Path file, String rawPath, String oldStr, String newStr) {

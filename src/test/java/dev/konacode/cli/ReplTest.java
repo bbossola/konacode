@@ -43,7 +43,7 @@ class ReplTest {
                 conversation, ui, new Cancellation(), 8);
         return new Repl(agent, ui,
                 new Commands(conversation, SYSTEM, registry, skills, ui, Level.OFF,
-                        new SelectedPolicy(new AllowAllPolicy()), workspace));
+                        new SelectedPolicy(new AllowAllPolicy())));
     }
 
     @Test
