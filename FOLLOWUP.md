@@ -109,11 +109,22 @@ adds planning, and expect to revisit the default.
   line is honest. Its meaning is not: `make` reads a `Makefile`, and the model may change that file
   inside the project with no question, then run the approved line again with no question. No test
   of the characters in a line can see this. Decide whether an `ExactCommand` permission should end
-  when a file inside the project changes.
+  when a file inside the project changes. The judge does not close this, because a call a standing
+  permission covers never reaches the judge.
 - **`AllowAllPolicy` was the default for a piped session — built.** Both interfaces now start with
-  `JudgePolicy`, so a pipe runs the call the judge allows and refuses every other one.
-  `AllowAllPolicy` stays, and `/policy allow-all` selects it. See
+  `JudgePolicy`, so a pipe refuses every call outside this project, and every command, that the
+  judge does not allow. A call inside this project reaches no judge, so a pipe still edits and
+  deletes a file there. `AllowAllPolicy` stays, and `/policy allow-all` selects it. See
   [the design](docs/superpowers/specs/2026-08-28-judge-design.md).
+- **The judge remembers nothing, so it costs one model call for every judged call.** `AgentJudge`
+  restarts its conversation before each judgement, so the same command in one turn is judged twice.
+  The user pays the latency and the tokens each time. `KONACODE_JUDGE_MODEL` reduces the price and
+  not the count. A judge that remembers its own answers, and a permission written to disk, are both
+  out of scope of [the design](docs/superpowers/specs/2026-08-28-judge-design.md).
+- **A judge failure refuses the call in a pipe.** The judge answers with the question when it cannot
+  decide, and `PlainUi` answers `NO` to every question. So a provider failure in the judge turns a
+  routine call into a refusal in a piped session, where a terminal would show the user the question.
+  There is no `never` answer either, so a user cannot record a standing refusal.
 - **Bounded retry in `OpenAiClient`.** The client makes exactly one attempt, so a single transient
   `429` or `5xx` discards a whole turn — costly for a loop that may make eight round trips per
   user message. Two or three attempts with backoff, scoped to `429`, `502`, `503`, `504` and

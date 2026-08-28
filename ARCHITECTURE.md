@@ -26,7 +26,7 @@ For what each element *is*, see [CLAUDE.md](CLAUDE.md). For why it is shaped thi
       ToolPolicy            Tool                  Trace
       ──────────            ────                  ─────
       → Decision            → ToolResult     emit(TraceEvent); changes nothing
-        Allow | Deny          Ok | Err
+        Allow | Ask | Deny    Ok | Err
 ```
 
 Three of those collaborators are interfaces with a default implementation: the tools, the LLM
@@ -95,6 +95,22 @@ Nothing in that picture teaches the model to list a directory before reading a f
 re-read a file after a failed edit. That behaviour emerges from the loop and the tool
 descriptions alone.
 
+## The judge
+
+**A call inside this project reaches no judge.** `EffectPolicy` allows a read and a write inside the
+launch directory, so it writes no `Ask`, and `JudgePolicy` calls the judge for an `Ask` only. A
+session on the judge still reads, writes and deletes a file inside this project with no judgement.
+The judge sees a read or a write outside this project, and a command. That is the boundary of the
+whole feature, and a user must know it before they trust a piped session.
+
+The judge is a second agent, with no tool, no history and one iteration. `JudgePolicy` calls it for
+every question `EffectPolicy` writes, and it gives it five fields: the name of the tool, what the
+call does, what the call acts on, the message the user typed, and the project root. The judge
+answers one word — `allow`, `ask` or `deny` — and one sentence of reason. It never reads the
+conversation, because the conversation holds what `read_file` returned, and a file in the repository
+is text an attacker can write. When it answers nothing konacode can read, konacode puts the question
+to the user with the sentence "The judge did not answer, so konacode asks."
+
 ## The trace
 
 Every turn reports itself into one event stream. `Trace` carries each `TraceEvent` to two
@@ -149,6 +165,11 @@ another day.
 **A call that a standing permission covers never reaches a policy.** The loop tests the permission
 the user gave, and it runs the tool. No policy can refuse a call the user approved with `a`. The
 user decided once, and konacode does not pay a model to reconsider it.
+
+**The judge is an agent with no tool, and its failure never ends a turn.** Its `ToolRegistry` is
+empty, so it answers and never acts. Its policy asks about every call and its approval throws, so a
+tool that someone adds later fails loudly rather than running unjudged. When the judge does not
+answer, konacode puts the question to the user and the turn goes on.
 
 **Four ways a turn ends**, and all four return text: an AssistantMessage with no ToolCalls, an
 exhausted iteration budget, a transport failure, or the user pressing ESC. None of them throws.
