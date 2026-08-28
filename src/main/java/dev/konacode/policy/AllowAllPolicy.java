@@ -3,10 +3,10 @@ package dev.konacode.policy;
 import dev.konacode.tools.Action;
 
 /**
- * The default policy: allows everything.
+ * Allows every call, and asks nothing.
  *
- * <p>The seam exists so restrictions can be added without touching the agent loop; the default
- * behavior imposes none. See FOLLOWUP.md for the confinement policy this will be replaced by.
+ * <p>It is no longer a default. {@code JudgePolicy} starts both interfaces, and {@code /policy
+ * allow-all} selects this one for a user who wants no judge and no question.
  */
 public final class AllowAllPolicy implements ToolPolicy {
 
