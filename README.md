@@ -60,8 +60,8 @@ read_file wants to read outside this project.
 Answer `y`, `n` or `a`. `y` runs the call once. `n` refuses it, and konacode asks again the next
 time, because one answer covers one call. `a` runs it, and every later call the same tool makes in
 the same folder, for the rest of this session. `esc` refuses and stops the turn. A pipe cannot ask a
-question, so it keeps the old behaviour and allows every call. `/policy` shows or changes the
-setting.
+question, so it runs the call the judge allows and refuses every other one. `/policy` shows or
+changes the setting.
 
 `run_command` asks about the command line, and `a` then covers that exact line. A line that holds
 `$`, `` ` ``, `*`, `?`, `[` or `~` means something else on another day, so konacode offers `y` and

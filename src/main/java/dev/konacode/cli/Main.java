@@ -1,17 +1,20 @@
 package dev.konacode.cli;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.konacode.agent.Agent;
+import dev.konacode.agent.AgentJudge;
 import dev.konacode.agent.Approvals;
 import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.Conversation;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.Message.SystemMessage;
+import dev.konacode.llm.openai.ChatCompletionsCodec;
 import dev.konacode.llm.openai.OpenAiClient;
 import dev.konacode.llm.openai.OpenAiConfig;
-import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.policy.EffectPolicy;
+import dev.konacode.policy.Judge;
+import dev.konacode.policy.JudgePolicy;
 import dev.konacode.policy.SelectedPolicy;
-import dev.konacode.policy.ToolPolicy;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.DeleteFile;
 import dev.konacode.tools.EditFile;
@@ -26,6 +29,7 @@ import dev.konacode.trace.NamedTrace;
 import dev.konacode.trace.Trace;
 
 import java.io.IOException;
+import java.net.http.HttpClient;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
@@ -73,8 +77,10 @@ public final class Main {
         Workspace workspace = workspace();
         SkillRegistry skills = new SkillRegistry(new Workspace(skillsRoot()));
 
+        Clients clients = clients(config, HttpClient.newBuilder().connectTimeout(config.timeout()).build(), trace);
+
         try (ui; file) {
-            build(new OpenAiClient(config, trace), skills, ui, fileLevel, cancellation,
+            build(clients.loop(), clients.judge(), skills, ui, fileLevel, cancellation,
                     maxIterations, trace, workspace, commandTimeout).run();
         } catch (Exception e) {
             System.err.println(e.getMessage());
@@ -88,8 +94,8 @@ public final class Main {
      * else could resolve a call the policy allowed to a different place. A test gives this its own
      * collaborators to prove the loop and the command share the policy.
      */
-    static Repl build(LlmClient client, SkillRegistry skills, Ui ui, Level fileLevel,
-                       Cancellation cancellation, int maxIterations, Trace trace,
+    static Repl build(LlmClient client, LlmClient judgeClient, SkillRegistry skills, Ui ui,
+                       Level fileLevel, Cancellation cancellation, int maxIterations, Trace trace,
                        Workspace workspace, Duration commandTimeout) {
         ToolRegistry registry = ToolRegistry.of(
                 new ListFiles(workspace, cancellation),
@@ -99,12 +105,14 @@ public final class Main {
                 new RunCommand(workspace, cancellation, commandTimeout));
         SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
         Conversation conversation = new Conversation(system);
-        SelectedPolicy policies = new SelectedPolicy(defaultPolicy(ui.canAsk()));
+        Trace kona = new NamedTrace("kona", trace);
+        Judge judge = new AgentJudge(judgeClient, workspace.root(), trace, cancellation);
+        JudgePolicy judgePolicy = new JudgePolicy(new EffectPolicy(), judge, kona);
+        SelectedPolicy policies = new SelectedPolicy(judgePolicy);
 
-        Agent agent = new Agent(client, registry, policies, new Approvals(ui), conversation,
-                new NamedTrace("kona", trace), cancellation, maxIterations);
+        Agent agent = new Agent(client, registry, policies, new Approvals(ui), conversation, kona, cancellation, maxIterations);
 
-        return new Repl(agent, ui, cancellation, new Commands(conversation, system, registry, skills, ui, fileLevel, policies));
+        return new Repl(agent, ui, cancellation, new Commands(conversation, system, registry, skills, ui, fileLevel, policies, judgePolicy));
     }
 
     /**
@@ -167,6 +175,24 @@ public final class Main {
         return Duration.ofSeconds(seconds);
     }
 
+    /** The loop's client and the judge's client. Each names its own events, so the two cannot mix. */
+    record Clients(LlmClient loop, LlmClient judge) {
+    }
+
+    /**
+     * Builds the two clients on one {@link HttpClient} and one {@link ChatCompletionsCodec}. Both
+     * are stateless for a request, and one connection pool serves both agents.
+     *
+     * <p>Each client gets its own name, because a judgement makes its own request and reports its
+     * own token counts. Without the name a user cannot tell the cost of a judgement from the cost
+     * of the turn.
+     */
+    static Clients clients(OpenAiConfig config, HttpClient http, Trace trace) {
+        ChatCompletionsCodec codec = new ChatCompletionsCodec(new ObjectMapper());
+        return new Clients(new OpenAiClient(config, http, codec, new NamedTrace("kona", trace)),
+                new OpenAiClient(config.forJudge(), http, codec, new NamedTrace("judge", trace)));
+    }
+
     static Path skillsRoot() {
         return Path.of(System.getProperty("user.home"), ".konacode", "skills");
     }
@@ -174,14 +200,6 @@ public final class Main {
     /** The launch directory, and the skills folder, which a tool may read and never write. */
     static Workspace workspace() {
         return new Workspace(Path.of(System.getProperty("user.dir")), List.of(skillsRoot()));
-    }
-
-    /**
-     * An interface that cannot ask a question keeps today's behaviour, because a question there
-     * would refuse every call outside the project. An interface that can ask uses the new policy.
-     */
-    static ToolPolicy defaultPolicy(boolean canAsk) {
-        return canAsk ? new EffectPolicy() : new AllowAllPolicy();
     }
 
     static Ui selectUi(Cancellation cancellation) throws IOException {

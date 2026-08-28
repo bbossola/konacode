@@ -7,6 +7,7 @@ import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.policy.EffectPolicy;
 import dev.konacode.policy.SelectedPolicy;
+import dev.konacode.policy.ToolPolicy;
 import dev.konacode.skills.Skill;
 import dev.konacode.skills.SkillException;
 import dev.konacode.skills.SkillRegistry;
@@ -31,9 +32,10 @@ final class Commands {
     private final Ui ui;
     private final Level fileLevel;
     private final SelectedPolicy policies;
+    private final ToolPolicy judge;
 
     Commands(Conversation conversation, Message systemMessage, ToolRegistry registry,
-             SkillRegistry skills, Ui ui, Level fileLevel, SelectedPolicy policies) {
+             SkillRegistry skills, Ui ui, Level fileLevel, SelectedPolicy policies, ToolPolicy judge) {
         this.conversation = conversation;
         this.systemMessage = systemMessage;
         this.registry = registry;
@@ -41,6 +43,7 @@ final class Commands {
         this.ui = ui;
         this.fileLevel = fileLevel;
         this.policies = policies;
+        this.judge = judge;
     }
 
     boolean handles(String line) {
@@ -115,20 +118,23 @@ final class Commands {
                             + " outside this project.";
             ui.showAnswer("konacode uses `" + policies.selected().label() + "`.\n\n"
                     + "- `allow-all` — allow every call\n"
-                    + "- `effect` — ask before a read or a write outside this project" + note);
+                    + "- `effect` — ask before a read or a write outside this project\n"
+                    + "- `judge` — ask the judge, and ask the user about what it does not clear" + note);
             return;
         }
         switch (name.toLowerCase(Locale.ROOT)) {
             case "allow-all" -> policies.select(new AllowAllPolicy());
             case "effect" -> policies.select(new EffectPolicy());
+            // The judge Main built, because a second JudgePolicy would build a second judge.
+            case "judge" -> policies.select(judge);
             default -> {
-                ui.showError("Unknown policy: " + name + ". Use allow-all or effect.");
+                ui.showError("Unknown policy: " + name + ". Use allow-all, effect or judge.");
                 return;
             }
         }
         if (!ui.canAsk() && policies.selected().asks()) {
-            ui.showAnswer("konacode now uses `" + name + "`. This interface cannot ask a question,"
-                    + " so it refuses every call outside this project.");
+            String refuses = "judge".equals(policies.selected().label()) ? "the judge does not allow" : "outside this project";
+            ui.showAnswer("konacode now uses `" + name + "`. This interface cannot ask a question, so it refuses every call " + refuses + ".");
             return;
         }
         ui.showAnswer("konacode now uses `" + name + "`.");

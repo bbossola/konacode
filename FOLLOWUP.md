@@ -110,10 +110,10 @@ adds planning, and expect to revisit the default.
   inside the project with no question, then run the approved line again with no question. No test
   of the characters in a line can see this. Decide whether an `ExactCommand` permission should end
   when a file inside the project changes.
-- **`AllowAllPolicy` is the default for a piped session, and `run_command` now exists.** A pipe
-  has no user to answer a question, so konacode allows every call there. That was one risk while
-  every tool acted on a path. It is a larger one now, because a piped session runs any shell line
-  with no question. Decide whether a pipe should refuse a `RUNS` call instead of allowing it.
+- **`AllowAllPolicy` was the default for a piped session — built.** Both interfaces now start with
+  `JudgePolicy`, so a pipe runs the call the judge allows and refuses every other one.
+  `AllowAllPolicy` stays, and `/policy allow-all` selects it. See
+  [the design](docs/superpowers/specs/2026-08-28-judge-design.md).
 - **Bounded retry in `OpenAiClient`.** The client makes exactly one attempt, so a single transient
   `429` or `5xx` discards a whole turn — costly for a loop that may make eight round trips per
   user message. Two or three attempts with backoff, scoped to `429`, `502`, `503`, `504` and
