@@ -227,7 +227,7 @@ final class RichUi implements Ui {
         if (TraceLine.inside(event) instanceof Judged) {
             spinner.stop();
             // A call the judge allowed runs with no question, so this line is the only report of it.
-            out.println(Ansi.style(toOneRow("trace: " + TraceLine.of(event)), Ansi.MAGENTA));
+            out.println(Ansi.style(toOneRow("judged: " + TraceLine.of(event)), Ansi.MAGENTA));
             return;
         }
         live.keep(event).ifPresent(kept -> {

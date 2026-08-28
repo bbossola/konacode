@@ -101,6 +101,16 @@ class LevelTest {
     }
 
     @Test
+    void basicCutsTheOperandInsideAFromAgent() {
+        FromAgent kept = assertInstanceOf(FromAgent.class, Level.BASIC
+                .keep(new FromAgent("kona", new Judged("run_command", "x".repeat(5000), "allow")))
+                .orElseThrow());
+
+        assertEquals("kona", kept.agent());
+        assertEquals(new Judged("run_command", "x".repeat(2048) + "…", "allow"), kept.event());
+    }
+
+    @Test
     void parsesAName() {
         assertEquals(Optional.of(Level.BASIC), Level.parse("basic"));
         assertEquals(Optional.of(Level.FULL), Level.parse("FULL"));

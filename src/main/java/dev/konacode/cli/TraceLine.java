@@ -19,6 +19,10 @@ import dev.konacode.trace.TraceEvent.TurnStarted;
  * <p>{@link Ansi#oneLine} guards every payload the model or the provider chose, and no word
  * konacode writes around it. This is the one method both interfaces call, so the guard sits here
  * and not at two call sites.
+ *
+ * <p>A line puts the payload the model chose last, and it puts no delimiter around it. A delimiter
+ * is a character the model can write too, so an operand closes it and writes a verdict of its own.
+ * A payload with nothing after it can forge nothing.
  */
 final class TraceLine {
 
@@ -42,7 +46,8 @@ final class TraceLine {
                     + body(e.bodyJson());
             case TokensUsed e -> "tokens " + e.prompt() + " + " + e.completion() + " = " + e.total();
             case RetryRequested e -> "retry: " + e.reason();
-            case Judged e -> "judged " + Ansi.oneLine(e.toolName()) + " `" + Ansi.oneLine(e.toolOperand()) + "` " + e.verdict();
+            case Judged e -> e.verdict() + " " + Ansi.oneLine(e.toolName()) + " "
+                    + Ansi.oneLine(e.toolOperand());
             case FromAgent e -> e.agent() + "> " + of(e.event());
         };
     }

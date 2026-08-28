@@ -99,7 +99,7 @@ final class PlainUi implements Ui {
         }
         if (TraceLine.inside(event) instanceof Judged) {
             // A call the judge allowed runs with no question, so this line is the only report of it.
-            out.println("trace: " + TraceLine.of(event));
+            out.println("judged: " + TraceLine.of(event));
             return;
         }
         live.keep(event).ifPresent(kept -> out.println("trace: " + TraceLine.of(kept)));

@@ -109,6 +109,8 @@ than the screen, or less.
 - `TokensUsed` — the provider reports the token counts of the reply.
 - `RetryRequested` — the provider asks the model again, because it wrote a tool call as prose.
 - `Judged` — the judge answers about one call, with the tool name, the operand and the verdict.
+  The verdict is one word, and the line ends with the operand, so nothing the model wrote is
+  followed by a word the reader trusts.
 - `FromAgent` — one other event, and the name of the agent that made it.
 
 `JudgePolicy` emits a `Judged` for every question it puts to the judge. A call the judge allows runs

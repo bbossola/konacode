@@ -195,7 +195,7 @@ class RichUiTest {
     void alwaysShowsWhatTheJudgeAnswered() {
         ui().emit(new Judged("run_command", "ls", "allow"));
 
-        assertTrue(written().contains("trace: judged run_command `ls` allow"), written());
+        assertTrue(written().contains("judged: allow run_command ls"), written());
     }
 
     @Test

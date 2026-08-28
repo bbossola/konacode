@@ -125,7 +125,7 @@ class PlainUiTest {
     void alwaysShowsWhatTheJudgeAnswered() {
         ui("").emit(new Judged("run_command", "mvn -q test", "allow"));
 
-        assertEquals("trace: judged run_command `mvn -q test` allow" + System.lineSeparator(), written());
+        assertEquals("judged: allow run_command mvn -q test" + System.lineSeparator(), written());
     }
 
     @Test
@@ -142,7 +142,7 @@ class PlainUiTest {
     void namesTheAgentBesideAJudgement() {
         ui("").emit(new FromAgent("kona", new Judged("run_command", "mvn -q test", "allow")));
 
-        assertEquals("trace: kona> judged run_command `mvn -q test` allow" + System.lineSeparator(), written());
+        assertEquals("judged: kona> allow run_command mvn -q test" + System.lineSeparator(), written());
     }
 
     @Test

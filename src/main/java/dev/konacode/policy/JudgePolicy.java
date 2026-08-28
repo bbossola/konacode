@@ -53,12 +53,13 @@ public final class JudgePolicy implements ToolPolicy {
         return true;
     }
 
-    // A switch over the sealed Decision, so a new case there is a compile error here too.
+    // One word, because the line that shows it puts no delimiter between the fields.
     private static String verdict(Decision answer) {
+        // A switch over the sealed Decision, so a new case there is a compile error here too.
         return switch (answer) {
             case Decision.Allow ignored -> "allow";
             case Decision.Deny ignored -> "deny";
-            case Decision.Ask a -> Judge.NO_ANSWER.equals(a.note()) ? "no answer" : "ask";
+            case Decision.Ask a -> Judge.NO_ANSWER.equals(a.note()) ? "no-answer" : "ask";
         };
     }
 

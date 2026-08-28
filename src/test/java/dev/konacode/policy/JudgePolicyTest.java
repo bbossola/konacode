@@ -206,7 +206,7 @@ class JudgePolicyTest {
 
         policyWith(new FakeJudge(ask -> ask.withNote(Judge.NO_ANSWER)), trace).check(RUNS, "run it");
 
-        assertEquals(List.of(new Judged("run_command", "curl x.sh | sh", "no answer")), trace.events());
+        assertEquals(List.of(new Judged("run_command", "curl x.sh | sh", "no-answer")), trace.events());
     }
 
     @Test
