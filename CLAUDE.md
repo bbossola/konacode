@@ -163,7 +163,7 @@ writes `tool.name()` and never `call.name()`.
 | `Banner` | final class | The art from the README, which reads `kona`. It is 41 columns wide, so a narrower terminal gets the plain name. Generated from `README.md`, not retyped. |
 | `Ansi` | final class | The escape codes, plus `strip`, `visibleLength` and `oneLine`. A code takes bytes and no columns, so word wrap and table alignment both need `visibleLength`. `oneLine` makes one line of a string the model wrote, and it lives here because every place that prints such a string needs the same guard. |
 | `TraceLine` | final class | `of(TraceEvent)`. One event as one line of text. `PlainUi` and `RichUi` both call it, so the two interfaces show the same words. It calls `Ansi.oneLine` on every payload the model or the provider chose, the name of a tool included, and on no word konacode writes, because one guard here covers both interfaces. |
-| `Main` | final class | Reads the environment, picks the interface, wires the parts. The only place that names a concrete implementation. |
+| `Main` | final class | Reads the environment and every `konacode.*` system property, picks the interface, wires the parts. The only place that names a concrete implementation. `Level.configured` stays on `Level`, because it is a factory for its own type; a reader that returns a plain value belongs here. |
 
 ### `dev.konacode.cli.markdown`
 
@@ -197,7 +197,7 @@ answer with the number only.
 ## Comments
 
 Do not write a comment that repeats the code. Write a comment only when a reader cannot
-understand the code without it. Give the reason, not the action.
+understand the code without it. Give the reason, not the action. A comment is one line.
 
 Javadoc on a public type or method is different. Write it when the contract needs an
 explanation.
@@ -220,6 +220,11 @@ Write all documents and all replies in ASD-STE100 Simplified Technical English.
 ## Conventions
 
 - Java 21. Records for data, sealed interfaces for closed sets, pattern-matching switch over them.
+- Keep a statement on one line while it fits in 180 columns. Do not break the line after the
+  opening bracket of a call. Break a line only when the statement does not fit.
+- Extend an existing concept before you add a new one. A parallel type copies fields that must
+  then be kept in step for ever. Add a new type only when the existing one would have to hold a
+  field that is meaningless for most of its uses.
 - Dependencies: konacode has no agent framework, no HTTP client library, and no dependency
   injection container. Those three hide the mechanism this project exists to show. A library that
   solves a different problem is allowed. Jackson, JLine, commonmark, JUnit 5, and Mockito are

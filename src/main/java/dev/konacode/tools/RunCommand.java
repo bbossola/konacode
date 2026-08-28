@@ -20,7 +20,6 @@ public final class RunCommand implements Tool {
 
     static final int HEAD_BYTES = 50_000;
     static final int TAIL_BYTES = 50_000;
-    static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(600);
 
     /** How long konacode waits for the last of the output after the command finishes. */
     static final long DRAIN_JOIN_MILLIS = 1000;
@@ -251,31 +250,6 @@ public final class RunCommand implements Tool {
                     ? message
                     : message + "\n<output before konacode stopped the command>\n" + printed);
         }
-    }
-
-    /**
-     * How long konacode waits for one command.
-     *
-     * <p>A wrong value is an error, for the reason {@code konacode.maxIterations} gives. The user
-     * owns this value, and the model does not: a model that could raise it would escape the limit.
-     */
-    public static Duration configuredTimeout() {
-        String configured = System.getProperty("konacode.command.timeoutSeconds");
-        if (configured == null) {
-            return DEFAULT_TIMEOUT;
-        }
-        long seconds;
-        try {
-            seconds = Long.parseLong(configured.trim());
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("konacode.command.timeoutSeconds must be a whole"
-                    + " number of seconds, but was: " + configured);
-        }
-        if (seconds < 1) {
-            throw new IllegalArgumentException("konacode.command.timeoutSeconds must be at least"
-                    + " 1, but was: " + configured);
-        }
-        return Duration.ofSeconds(seconds);
     }
 
     /** The command line, or null when the argument is absent, not text, or blank. */

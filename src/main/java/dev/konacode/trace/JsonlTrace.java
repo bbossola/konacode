@@ -47,8 +47,6 @@ public final class JsonlTrace implements Trace {
         this.warnings = warnings;
     }
 
-    public static final int DEFAULT_MAX_FILES = 100;
-
     private static final DateTimeFormatter NAME =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss-SSS").withZone(ZoneId.systemDefault());
 
@@ -92,30 +90,6 @@ public final class JsonlTrace implements Trace {
         } catch (IOException e) {
             warnings.println("Could not sweep the trace directory: " + e.getMessage());
         }
-    }
-
-    /**
-     * How many trace files konacode keeps.
-     *
-     * <p>A wrong value is an error, for the reason {@code konacode.maxIterations} gives.
-     */
-    public static int configuredMaxFiles() {
-        String configured = System.getProperty("konacode.trace.maxFiles");
-        if (configured == null) {
-            return DEFAULT_MAX_FILES;
-        }
-        int value;
-        try {
-            value = Integer.parseInt(configured.trim());
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(
-                    "konacode.trace.maxFiles must be a whole number, but was: " + configured);
-        }
-        if (value < 1) {
-            throw new IllegalArgumentException(
-                    "konacode.trace.maxFiles must be 1 or more, but was: " + configured);
-        }
-        return value;
     }
 
     @Override

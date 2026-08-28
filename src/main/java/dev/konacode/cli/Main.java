@@ -33,6 +33,10 @@ public final class Main {
 
     private static final String SYSTEM_PROMPT = "You are konacode, a concise CLI assistant.";
 
+    static final int DEFAULT_MAX_ITERATIONS = 8;
+    static final int DEFAULT_MAX_TRACE_FILES = 100;
+    static final Duration DEFAULT_COMMAND_TIMEOUT = Duration.ofSeconds(600);
+
     private Main() {
     }
 
@@ -46,10 +50,10 @@ public final class Main {
         Ui ui;
         try {
             config = OpenAiConfig.fromEnvironment(System.getenv());
-            maxIterations = Agent.configuredMaxIterations();
+            maxIterations = maxIterations();
             traceLevel = Level.configured();
-            maxTraceFiles = JsonlTrace.configuredMaxFiles();
-            commandTimeout = RunCommand.configuredTimeout();
+            maxTraceFiles = maxTraceFiles();
+            commandTimeout = commandTimeout();
             ui = selectUi(cancellation);
         } catch (IllegalArgumentException | IOException e) {
             System.err.println(e.getMessage());
@@ -101,6 +105,66 @@ public final class Main {
 
         return new Repl(agent, ui, new Commands(conversation, system, registry, skills, ui,
                 fileLevel, policies));
+    }
+
+    /**
+     * Eight is enough for read-read-edit and too few for anything that plans.
+     *
+     * <p>A malformed value is an error rather than a silent fall back to the default: this is set
+     * once in a shell script or a unit file, and a typo that quietly does nothing would go
+     * unnoticed indefinitely.
+     */
+    static int maxIterations() {
+        String configured = System.getProperty("konacode.maxIterations");
+        if (configured == null) {
+            return DEFAULT_MAX_ITERATIONS;
+        }
+        try {
+            return Integer.parseInt(configured.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("konacode.maxIterations must be a whole number, but was: " + configured);
+        }
+    }
+
+    /** How many trace files konacode keeps. A wrong value is an error, as every property is. */
+    static int maxTraceFiles() {
+        String configured = System.getProperty("konacode.trace.maxFiles");
+        if (configured == null) {
+            return DEFAULT_MAX_TRACE_FILES;
+        }
+        int value;
+        try {
+            value = Integer.parseInt(configured.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("konacode.trace.maxFiles must be a whole number, but was: " + configured);
+        }
+        if (value < 1) {
+            throw new IllegalArgumentException("konacode.trace.maxFiles must be 1 or more, but was: " + configured);
+        }
+        return value;
+    }
+
+    /**
+     * How long konacode waits for one command.
+     *
+     * <p>The user owns this value, and the model does not: a model that could raise it would
+     * escape the limit.
+     */
+    static Duration commandTimeout() {
+        String configured = System.getProperty("konacode.command.timeoutSeconds");
+        if (configured == null) {
+            return DEFAULT_COMMAND_TIMEOUT;
+        }
+        long seconds;
+        try {
+            seconds = Long.parseLong(configured.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("konacode.command.timeoutSeconds must be a whole number of seconds, but was: " + configured);
+        }
+        if (seconds < 1) {
+            throw new IllegalArgumentException("konacode.command.timeoutSeconds must be at least 1, but was: " + configured);
+        }
+        return Duration.ofSeconds(seconds);
     }
 
     static Path skillsRoot() {

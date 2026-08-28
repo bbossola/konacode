@@ -471,21 +471,6 @@ class AgentTest {
     }
 
     @Test
-    void readsTheIterationCeilingFromASystemProperty() {
-        String previous = System.getProperty("konacode.maxIterations");
-        try {
-            System.setProperty("konacode.maxIterations", "42");
-            assertEquals(42, Agent.configuredMaxIterations());
-        } finally {
-            if (previous == null) {
-                System.clearProperty("konacode.maxIterations");
-            } else {
-                System.setProperty("konacode.maxIterations", previous);
-            }
-        }
-    }
-
-    @Test
     void survivesAPolicyThatThrows() {
         ToolPolicy brokenPolicy = (tool, args) -> {
             throw new IllegalStateException("policy bug");
@@ -599,21 +584,6 @@ class AgentTest {
                         new AllowAllPolicy(), refusesToAsk(),
                         new Conversation(new SystemMessage("s")),
                         new RecordingTrace(), new Cancellation(), 0));
-    }
-
-    @Test
-    void rejectsAMalformedMaxIterationsPropertyRatherThanSilentlyDefaulting() {
-        String previous = System.getProperty("konacode.maxIterations");
-        try {
-            System.setProperty("konacode.maxIterations", "eihgt");
-            assertThrows(IllegalArgumentException.class, Agent::configuredMaxIterations);
-        } finally {
-            if (previous == null) {
-                System.clearProperty("konacode.maxIterations");
-            } else {
-                System.setProperty("konacode.maxIterations", previous);
-            }
-        }
     }
 
     @Test

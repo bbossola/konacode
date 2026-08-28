@@ -15,7 +15,6 @@ import java.time.Duration;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Timeout(30)
@@ -257,43 +256,6 @@ class RunCommandTest {
 
         long millis = (System.nanoTime() - started) / 1_000_000;
         assertTrue(millis < 1_000, "the command must end at once, and it took " + millis + " ms");
-    }
-
-    @Test
-    void theDefaultTimeoutIsTenMinutes() {
-        assertEquals(Duration.ofSeconds(600), RunCommand.DEFAULT_TIMEOUT);
-    }
-
-    @Test
-    void aConfiguredTimeoutIsUsed() {
-        System.setProperty("konacode.command.timeoutSeconds", "5");
-        try {
-            assertEquals(Duration.ofSeconds(5), RunCommand.configuredTimeout());
-        } finally {
-            System.clearProperty("konacode.command.timeoutSeconds");
-        }
-    }
-
-    @Test
-    void aWrongTimeoutFailsLoudly() {
-        System.setProperty("konacode.command.timeoutSeconds", "soon");
-        try {
-            IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
-                    RunCommand::configuredTimeout);
-            assertTrue(thrown.getMessage().contains("konacode.command.timeoutSeconds"));
-        } finally {
-            System.clearProperty("konacode.command.timeoutSeconds");
-        }
-    }
-
-    @Test
-    void aTimeoutBelowOneSecondFailsLoudly() {
-        System.setProperty("konacode.command.timeoutSeconds", "0");
-        try {
-            assertThrows(IllegalArgumentException.class, RunCommand::configuredTimeout);
-        } finally {
-            System.clearProperty("konacode.command.timeoutSeconds");
-        }
     }
 
     @Test

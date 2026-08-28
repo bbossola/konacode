@@ -187,4 +187,79 @@ class MainTest {
         assertTrue(ui.answers.get(ui.answers.size() - 1).contains("uses `effect`"),
                 "the policy the second read passed a check against must still be effect");
     }
+
+    @Test
+    void readsTheIterationCeilingFromASystemProperty() {
+        withProperty("konacode.maxIterations", "42", () -> assertEquals(42, Main.maxIterations()));
+    }
+
+    @Test
+    void theIterationCeilingDefaultsToEight() {
+        withProperty("konacode.maxIterations", null, () -> assertEquals(8, Main.maxIterations()));
+    }
+
+    @Test
+    void rejectsAMalformedMaxIterationsPropertyRatherThanSilentlyDefaulting() {
+        withProperty("konacode.maxIterations", "eihgt", () -> assertThrows(IllegalArgumentException.class, Main::maxIterations));
+    }
+
+    @Test
+    void theTraceFileCountDefaultsToOneHundred() {
+        withProperty("konacode.trace.maxFiles", null, () -> assertEquals(100, Main.maxTraceFiles()));
+    }
+
+    @Test
+    void aTraceFileCountThatIsNotAWholeNumberIsAnError() {
+        withProperty("konacode.trace.maxFiles", "many", () -> {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class, Main::maxTraceFiles);
+            assertTrue(e.getMessage().contains("konacode.trace.maxFiles"), e.getMessage());
+        });
+    }
+
+    @Test
+    void aTraceFileCountBelowOneIsAnError() {
+        withProperty("konacode.trace.maxFiles", "0", () -> assertThrows(IllegalArgumentException.class, Main::maxTraceFiles));
+    }
+
+    @Test
+    void theCommandTimeoutDefaultsToTenMinutes() {
+        withProperty("konacode.command.timeoutSeconds", null, () -> assertEquals(Duration.ofSeconds(600), Main.commandTimeout()));
+    }
+
+    @Test
+    void aConfiguredCommandTimeoutIsUsed() {
+        withProperty("konacode.command.timeoutSeconds", "5", () -> assertEquals(Duration.ofSeconds(5), Main.commandTimeout()));
+    }
+
+    @Test
+    void aWrongCommandTimeoutFailsLoudly() {
+        withProperty("konacode.command.timeoutSeconds", "soon", () -> {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class, Main::commandTimeout);
+            assertTrue(e.getMessage().contains("konacode.command.timeoutSeconds"), e.getMessage());
+        });
+    }
+
+    @Test
+    void aCommandTimeoutBelowOneSecondFailsLoudly() {
+        withProperty("konacode.command.timeoutSeconds", "0", () -> assertThrows(IllegalArgumentException.class, Main::commandTimeout));
+    }
+
+    /** Sets one system property, runs the body, and puts the property back as it was. */
+    private static void withProperty(String name, String value, Runnable body) {
+        String previous = System.getProperty(name);
+        try {
+            if (value == null) {
+                System.clearProperty(name);
+            } else {
+                System.setProperty(name, value);
+            }
+            body.run();
+        } finally {
+            if (previous == null) {
+                System.clearProperty(name);
+            } else {
+                System.setProperty(name, previous);
+            }
+        }
+    }
 }

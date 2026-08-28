@@ -22,7 +22,6 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JsonlTraceTest {
@@ -176,34 +175,5 @@ class JsonlTraceTest {
         assertEquals(Trace.NONE, trace);
         assertTrue(warnings.toString(StandardCharsets.UTF_8).contains("trace"),
                 warnings.toString(StandardCharsets.UTF_8));
-    }
-
-    @Test
-    void theConfiguredCountDefaultsToOneHundred() {
-        System.clearProperty("konacode.trace.maxFiles");
-
-        assertEquals(100, JsonlTrace.configuredMaxFiles());
-    }
-
-    @Test
-    void aCountThatIsNotAWholeNumberIsAnError() {
-        System.setProperty("konacode.trace.maxFiles", "many");
-        try {
-            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                    JsonlTrace::configuredMaxFiles);
-            assertTrue(e.getMessage().contains("konacode.trace.maxFiles"), e.getMessage());
-        } finally {
-            System.clearProperty("konacode.trace.maxFiles");
-        }
-    }
-
-    @Test
-    void aCountBelowOneIsAnError() {
-        System.setProperty("konacode.trace.maxFiles", "0");
-        try {
-            assertThrows(IllegalArgumentException.class, JsonlTrace::configuredMaxFiles);
-        } finally {
-            System.clearProperty("konacode.trace.maxFiles");
-        }
     }
 }
