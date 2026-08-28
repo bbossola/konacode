@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 594 tests, all offline, no network
+mvn test                        # 607 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -152,6 +152,7 @@ guard: each tool writes its own `name()` into the `Action` it states, so `Effect
 | `ToolApproval` | interface | `Answer ask(Decision.Ask ask)`, `boolean canAsk()`. `Answer` is `YES`, `NO` or `ALWAYS`. The loop asks, and not the policy, because `Cancellation` lives here and only the loop knows where an interrupt is safe. |
 | `Approvals` | final class | The set of permissions the user gave during this session. Coverage is equality. The memory sits here and not in the policy, so `/policy` changes the policy and the answers stay. Nothing is written to disk. |
 | `ToolSpecs` | static adapter | `Tool` to `ToolSpec`. The one place `tools` and `llm` meet. |
+| `AgentJudge` | implements `policy.Judge` | A second `Agent` with no tool, no history and one iteration. It sends one JSON object that Jackson builds, so an operand the model wrote cannot end its own field, and it reads one word back. It lives here because it needs `Agent`. |
 
 ### `dev.konacode.cli`
 
