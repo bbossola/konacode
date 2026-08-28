@@ -1,8 +1,6 @@
 package dev.konacode.policy;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import dev.konacode.tools.Action;
-import dev.konacode.tools.Tool;
 
 /**
  * Allows a call inside the launch directory, and asks about every other one.
@@ -12,13 +10,12 @@ import dev.konacode.tools.Tool;
  * this policy that names its own boundary. A policy with another boundary writes another sentence,
  * so a tool must never write it.
  *
- * <p>This class holds no state. It reads the tool on every call.
+ * <p>This class holds no state. It reads the action on every call.
  */
 public final class EffectPolicy implements ToolPolicy {
 
     @Override
-    public Decision check(Tool tool, JsonNode args) {
-        Action action = tool.computeAction(args);
+    public Decision check(Action action, String userText) {
         return switch (action.effect()) {
             case READS_INSIDE, WRITES_INSIDE -> Decision.allow();
             case READS_OUTSIDE -> ask("read outside this project", action);
@@ -27,7 +24,7 @@ public final class EffectPolicy implements ToolPolicy {
         };
     }
 
-    private static Decision ask(String intent, Action action) {
-        return Decision.ask(action.toolName(), intent, action.toolOperand(), action.standingPermission());
+    private static Decision ask(String toolIntent, Action action) {
+        return Decision.ask(action.toolName(), toolIntent, action.toolOperand(), action.standingPermission());
     }
 }

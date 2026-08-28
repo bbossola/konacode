@@ -12,6 +12,7 @@ import dev.konacode.llm.ToolCall;
 import dev.konacode.llm.ToolSpec;
 import dev.konacode.policy.Decision;
 import dev.konacode.policy.ToolPolicy;
+import dev.konacode.tools.Action;
 import dev.konacode.tools.Tool;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.ToolResult;
@@ -93,7 +94,7 @@ public final class Agent {
                         return end(Outcome.STOPPED, iterations, started, closeStoppedTurn(calls.subList(index, calls.size())));
                     }
                     ToolCall call = calls.get(index);
-                    ToolResult result = perform(call);
+                    ToolResult result = perform(call, userText);
                     conversation.add(new ToolMessage(call.id(), result.render()));
                 }
 
@@ -161,12 +162,12 @@ public final class Agent {
         }
     }
 
-    private ToolResult perform(ToolCall call) {
+    private ToolResult perform(ToolCall call, String userText) {
         trace.emit(new ToolCalled(turn, call.name(), call.argumentsJson()));
         long started = System.nanoTime();
         ToolResult result;
         try {
-            result = run(call);
+            result = run(call, userText);
         } catch (RuntimeException e) {
             result = ToolResult.err("konacode failed during the call to " + call.name() + ": " + e);
         }
@@ -179,7 +180,7 @@ public final class Agent {
         return result;
     }
 
-    private ToolResult run(ToolCall call) {
+    private ToolResult run(ToolCall call, String userText) {
         Optional<Tool> found = registry.lookup(call.name());
         if (found.isEmpty()) {
             return ToolResult.err("Unknown tool: " + call.name());
@@ -193,7 +194,8 @@ public final class Agent {
             return ToolResult.err("Could not parse arguments for " + call.name() + ": " + e.getOriginalMessage());
         }
 
-        Decision decision = policy.check(tool, args);
+        Action action = tool.computeAction(args);
+        Decision decision = policy.check(action, userText);
         switch (decision) {
             case Decision.Allow ignored -> { }
             case Decision.Deny(String reason) -> {

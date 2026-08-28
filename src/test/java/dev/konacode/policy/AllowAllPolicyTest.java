@@ -21,9 +21,9 @@ class AllowAllPolicyTest {
     void allowsEveryToolCall() {
         ToolPolicy policy = new AllowAllPolicy();
 
-        Decision decision = policy.check(
-                new ListFiles(new Workspace(root), StopCheck.NEVER),
-                new ObjectMapper().createObjectNode());
+        ListFiles tool = new ListFiles(new Workspace(root), StopCheck.NEVER);
+
+        Decision decision = policy.check(tool.computeAction(new ObjectMapper().createObjectNode()), "list the files");
 
         assertInstanceOf(Decision.Allow.class, decision);
     }

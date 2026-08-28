@@ -1,7 +1,6 @@
 package dev.konacode.policy;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import dev.konacode.tools.Tool;
+import dev.konacode.tools.Action;
 
 /**
  * The default policy: allows everything.
@@ -12,7 +11,7 @@ import dev.konacode.tools.Tool;
 public final class AllowAllPolicy implements ToolPolicy {
 
     @Override
-    public Decision check(Tool tool, JsonNode args) {
+    public Decision check(Action action, String userText) {
         return Decision.allow();
     }
 }

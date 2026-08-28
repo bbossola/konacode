@@ -1,10 +1,13 @@
 package dev.konacode.policy;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import dev.konacode.tools.Tool;
+import dev.konacode.tools.Action;
 
 /** Consulted before every tool execution. */
 public interface ToolPolicy {
 
-    Decision check(Tool tool, JsonNode args);
+    /**
+     * @param action what the tool says the call does
+     * @param userText the message the user typed to start this turn
+     */
+    Decision check(Action action, String userText);
 }

@@ -11,6 +11,7 @@ import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.llm.ToolCall;
 import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.policy.Decision;
+import dev.konacode.policy.FakePolicy;
 import dev.konacode.policy.ToolPolicy;
 import dev.konacode.tools.Action;
 import dev.konacode.tools.Effect;
@@ -361,8 +362,33 @@ class AgentTest {
     }
 
     @Test
+    void thePolicyReadsTheTextTheUserTypedThisTurn() {
+        FakePolicy policy = new FakePolicy((action, userText) -> Decision.allow());
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
+                .replyText("Done.");
+
+        agent(client, ToolRegistry.of(new EchoTool("echo")), policy, new RecordingTrace(), 8).respond("run the tests");
+
+        assertEquals(List.of("run the tests"), policy.userTexts());
+    }
+
+    @Test
+    void thePolicyReadsTheActionTheToolStated() {
+        FakePolicy policy = new FakePolicy((action, userText) -> Decision.allow());
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
+                .replyText("Done.");
+
+        agent(client, ToolRegistry.of(new EchoTool("echo")), policy, new RecordingTrace(), 8).respond("go");
+
+        assertEquals("echo", policy.actions().get(0).toolName());
+        assertEquals("echo", policy.actions().get(0).toolOperand());
+    }
+
+    @Test
     void turnsAPolicyDenialIntoAnErrorTheModelCanRouteAround() {
-        ToolPolicy denyEverything = (tool, args) -> Decision.deny("not permitted here");
+        FakePolicy denyEverything = new FakePolicy((action, userText) -> Decision.deny("not permitted here"));
         FakeLlmClient client = new FakeLlmClient()
                 .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
                 .replyText("Understood.");
@@ -381,8 +407,7 @@ class AgentTest {
                 .replyText("done");
         Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                (tool, args) -> Decision.ask("echo", "read outside this project", "/etc/passwd",
-                        Optional.empty()),
+                new FakePolicy((action, userText) -> Decision.ask("echo", "read outside this project", "/etc/passwd", Optional.empty())),
                 refusesToAsk(), conversation, new RecordingTrace(), new Cancellation(), 8);
 
         agent.respond("do it");
@@ -406,8 +431,7 @@ class AgentTest {
         RecordingTrace trace = new RecordingTrace();
 
         agent(client, ToolRegistry.of(echo),
-                (tool, args) -> Decision.ask("echo", "read outside this project", "/etc/passwd",
-                        Optional.empty()),
+                new FakePolicy((action, userText) -> Decision.ask("echo", "read outside this project", "/etc/passwd", Optional.empty())),
                 trace, 8).respond("do it");
 
         assertEquals(0, echo.calls(), "a refused call must not run");
@@ -420,8 +444,8 @@ class AgentTest {
                 .replyText("done");
         EchoTool echo = new EchoTool("echo");
         Agent agent = new Agent(client, ToolRegistry.of(echo),
-                (tool, args) -> Decision.ask("echo", "write outside this project", "/etc/hosts",
-                        Optional.of(new Permission.InFolder("echo", Path.of("/etc")))),
+                new FakePolicy((action, userText) -> Decision.ask("echo", "write outside this project", "/etc/hosts",
+                        Optional.of(new Permission.InFolder("echo", Path.of("/etc"))))),
                 new Approvals(new FixedApproval(ToolApproval.Answer.YES)),
                 new Conversation(new SystemMessage("You are konacode.")), new RecordingTrace(),
                 new Cancellation(), 8);
@@ -472,9 +496,9 @@ class AgentTest {
 
     @Test
     void survivesAPolicyThatThrows() {
-        ToolPolicy brokenPolicy = (tool, args) -> {
+        FakePolicy brokenPolicy = new FakePolicy((action, userText) -> {
             throw new IllegalStateException("policy bug");
-        };
+        });
         FakeLlmClient client = new FakeLlmClient()
                 .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
                 .replyText("Recovered.");
@@ -506,8 +530,8 @@ class AgentTest {
                 .replyText("Recovered.");
         RecordingTrace trace = new RecordingTrace();
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                (tool, args) -> Decision.ask("echo", "write outside this project", "/etc/hosts",
-                        Optional.of(new Permission.InFolder("echo", Path.of("/etc")))),
+                new FakePolicy((action, userText) -> Decision.ask("echo", "write outside this project", "/etc/hosts",
+                        Optional.of(new Permission.InFolder("echo", Path.of("/etc"))))),
                 new Approvals(brokenApproval),
                 new Conversation(new SystemMessage("You are konacode.")), trace,
                 new Cancellation(), 8);
