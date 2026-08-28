@@ -21,9 +21,11 @@ This is piece C of three.
 | B | `run_command`. It answers `RUNS`, so it always asks. | done |
 | **C, this design** | The judge. It answers allow, ask or deny, so the routine questions stop. | now |
 
-**The run answer is what retires `AllowAllPolicy`.** A pipe with `EffectPolicy` runs no command at
-all, because every `Ask` there is refused. A judge that allows a routine call makes a piped session
-useful, and every call the judge does not clear is still refused.
+**The run answer is what removes the reason to default to `AllowAllPolicy`.** A pipe with
+`EffectPolicy` runs no command at all, because every `Ask` there is refused. A judge that allows a
+routine call makes a piped session useful, and every call the judge does not clear is still refused.
+`AllowAllPolicy` stays. It is a choice the user can make with `/policy allow-all`, and it stops
+being what a piped session gets without asking for it.
 
 ## Decision
 
@@ -275,8 +277,8 @@ The prefix makes that readable.
 | `RichUi` | `JudgePolicy` |
 | `PlainUi` | `JudgePolicy` |
 
-`AllowAllPolicy` stays selectable, and it is no longer a default anywhere. Deleting it is a separate
-decision, and it is not needed to close the pipe.
+`AllowAllPolicy` stays. `/policy allow-all` selects it, in a terminal and in a pipe. It is no longer
+the default for either interface.
 
 ## Stopping a turn
 
@@ -338,7 +340,7 @@ returns to the policy that asks about everything. The user decides once, and not
 
 ## Out of scope
 
-Deleting `AllowAllPolicy`. Giving the judge a tool. A permission written to disk. A `never` answer. A
+Deleting `AllowAllPolicy`, which stays and stays selectable. Giving the judge a tool. A permission written to disk. A `never` answer. A
 judge that remembers its own answers. The `ExactCommand` gap that FOLLOWUP records, where an approved
 `make` runs a `Makefile` the model edited afterwards; the judge does not close it, because a covered
 call never reaches the judge.
