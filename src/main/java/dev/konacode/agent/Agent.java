@@ -71,7 +71,6 @@ public final class Agent {
     }
 
     public String respond(String userText) {
-        cancellation.clear();
         turn++;
         long started = System.nanoTime();
         trace.emit(new TurnStarted(turn, userText));
@@ -200,6 +199,10 @@ public final class Agent {
             return executeUnderCancellation(tool, args);
         }
         Decision decision = policy.check(action, userText);
+        // The policy can make a model call, so the user can ask for a stop while the check runs.
+        if (cancellation.stopped()) {
+            return ToolResult.err("Stopped by the user before this tool ran.");
+        }
         switch (decision) {
             case Decision.Allow ignored -> { }
             case Decision.Deny(String reason) -> {

@@ -103,8 +103,7 @@ public final class Main {
         Agent agent = new Agent(client, registry, policies, new Approvals(ui), conversation,
                 trace, cancellation, maxIterations);
 
-        return new Repl(agent, ui, new Commands(conversation, system, registry, skills, ui,
-                fileLevel, policies));
+        return new Repl(agent, ui, cancellation, new Commands(conversation, system, registry, skills, ui, fileLevel, policies));
     }
 
     /**

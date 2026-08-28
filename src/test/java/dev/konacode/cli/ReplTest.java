@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReplTest {
@@ -34,14 +35,18 @@ class ReplTest {
     private static final SystemMessage SYSTEM = new SystemMessage("You are konacode.");
 
     private Repl repl(RecordingUi ui) {
+        return repl(ui, new Cancellation());
+    }
+
+    private Repl repl(RecordingUi ui, Cancellation cancellation) {
         LlmClient client = (history, tools) -> new AssistantMessage("the answer", List.of());
         Conversation conversation = new Conversation(SYSTEM);
         Workspace workspace = new Workspace(root);
         ToolRegistry registry = ToolRegistry.of(new ListFiles(workspace, StopCheck.NEVER));
         SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
         Agent agent = new Agent(client, registry, new AllowAllPolicy(), new Approvals(ui),
-                conversation, ui, new Cancellation(), 8);
-        return new Repl(agent, ui,
+                conversation, ui, cancellation, 8);
+        return new Repl(agent, ui, cancellation,
                 new Commands(conversation, SYSTEM, registry, skills, ui, Level.OFF,
                         new SelectedPolicy(new AllowAllPolicy())));
     }
@@ -98,6 +103,17 @@ class ReplTest {
         repl(ui).run();
 
         assertEquals(List.of(), ui.answers);
+    }
+
+    @Test
+    void theReplClearsAStopLeftOverFromThePrompt() {
+        RecordingUi ui = new RecordingUi("hello");
+        Cancellation cancellation = new Cancellation();
+        cancellation.request();
+
+        repl(ui, cancellation).run();
+
+        assertFalse(cancellation.stopped(), "a key pressed at the prompt must not stop the next turn");
     }
 
     @Test

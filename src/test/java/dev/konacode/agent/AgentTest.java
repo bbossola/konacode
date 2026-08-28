@@ -212,6 +212,19 @@ class AgentTest {
         }
     }
 
+    /** Fails the test when the loop puts a question. A user who asked for a stop gets no question. */
+    private record RefusingApproval() implements ToolApproval {
+        @Override
+        public ToolApproval.Answer ask(Decision.Ask ask) {
+            throw new AssertionError("the loop asked the user after the stop");
+        }
+
+        @Override
+        public boolean canAsk() {
+            return true;
+        }
+    }
+
     /** No test before this task expects a question, so every ask is refused. */
     private static Approvals refusesToAsk() {
         return new Approvals(new FixedApproval(ToolApproval.Answer.NO));
@@ -721,16 +734,45 @@ class AgentTest {
     }
 
     @Test
-    void clearsTheStopBeforeEachTurn() {
+    void keepsAStopThatTheUserAskedForBeforeTheTurn() {
         Cancellation cancellation = new Cancellation();
         cancellation.request();
-        FakeLlmClient client = new FakeLlmClient().replyText("hello");
+        EchoTool echo = new EchoTool("echo");
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))));
         Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
-        Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), refusesToAsk(), conversation, new RecordingTrace(),
+        Agent agent = new Agent(client, ToolRegistry.of(echo), new AllowAllPolicy(),
+                refusesToAsk(), conversation, new RecordingTrace(), cancellation, 8);
+
+        assertEquals("Stopped.", agent.respond("hello"));
+
+        assertEquals(0, echo.calls(), "the loop keeps the stop, so the tool must not run");
+    }
+
+    @Test
+    void aStopDuringTheCheckAnswersWithAnErrorAndNeverAsks() {
+        Cancellation cancellation = new Cancellation();
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))));
+        EchoTool echo = new EchoTool("echo");
+        FakePolicy stopsWhileItRuns = new FakePolicy((action, userText) -> {
+            cancellation.request();
+            return Decision.ask("echo", "read outside this project", "/etc/passwd", Optional.empty());
+        });
+        Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
+        Agent agent = new Agent(client, ToolRegistry.of(echo), stopsWhileItRuns,
+                new Approvals(new RefusingApproval()), conversation, new RecordingTrace(),
                 cancellation, 8);
 
-        assertEquals("hello", agent.respond("hello"));
+        assertEquals("Stopped.", agent.respond("do it"));
+
+        assertEquals(0, echo.calls(), "a call the user stopped must not run");
+        List<String> toolMessages = conversation.messages().stream()
+                .filter(ToolMessage.class::isInstance)
+                .map(message -> ((ToolMessage) message).content())
+                .toList();
+        assertEquals(1, toolMessages.size());
+        assertTrue(toolMessages.get(0).contains("Stopped by the user before this tool ran."));
     }
 
     @Test

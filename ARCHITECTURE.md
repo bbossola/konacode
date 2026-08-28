@@ -148,12 +148,12 @@ before it ran, so the dangling call invariant above holds with no special case.
 
 The user presses ESC. `EscapeWatcher` reads the byte from the terminal and calls
 `Cancellation.request()`. That does two things at once: it sets a flag the loop reads, and it
-interrupts the thread the loop armed.
+interrupts the thread the loop armed. `Repl` clears the flag before each turn, so a key pressed at
+the prompt does not stop the next turn.
 
 ```
 User         Watcher    Cancellation      Agent     Conversation    LlmClient
   │             │             │             │             │             │
-  │             │             │◄───clear()──│             │             │
   │             │             │             │─add(user)──►│             │
   │             │             │◄────arm()───│             │             │
   │             │             │             │───chat(history, tools)───►│
@@ -208,9 +208,11 @@ User         Watcher    Cancellation      Agent     Conversation      Tool
   │◄╌╌╌╌╌╌╌╌╌╌ "Stopped." ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│             │             │
 ```
 
-The loop asks `stopped()` **before** each tool call, never after. A tool that has already started
-therefore runs to the end and its real result is appended the normal way. The check that ends the
-turn happens where the next tool would have started.
+The loop asks `stopped()` **before** each tool call, and once more after the policy answers. A tool
+that has already started therefore runs to the end and its real result is appended the normal way.
+The check that ends the turn happens where the next tool would have started. The second check is
+there because a policy can make its own model call, so the user can press ESC while the check runs,
+and konacode must not then put an approval question to a user who asked it to stop.
 
 A thread interrupt stops none of the four file tools. This was measured on JDK 21.0.2:
 `Files.list`, `Files.newInputStream`, `Files.readAllBytes`, `Files.writeString`, `Files.move` and

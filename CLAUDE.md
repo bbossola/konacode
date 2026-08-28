@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 554 tests, all offline, no network
+mvn test                        # 556 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -145,7 +145,7 @@ guard: each tool writes its own `name()` into the `Action` it states, so `Effect
 |---|---|---|
 | `Agent` | final class | `String respond(String userText)`. The loop. Depends only on interfaces. |
 | `Conversation` | final class | `add(Message)`, `messages()`, `restart(List<Message>)`. The history of one session, and the only state the loop keeps. It is a class and not an interface, because `messages()` and `restart` together cover every change to the history. A caller reads all of it, transforms it, and writes all of it back. `/clear` and `/compact` both work that way. |
-| `Cancellation` | final class | The user's request to stop one turn. `request` and `stopped` are public; `arm` and `disarm` are not, because only the loop may decide where an interrupt is safe. One lock keeps an interrupt from arriving after the clear. Implements `StopCheck`. |
+| `Cancellation` | final class | The user's request to stop one turn. `request` and `stopped` are public; `arm` and `disarm` are not, because only the loop may decide where an interrupt is safe. One lock keeps an interrupt from arriving after the clear. `Repl` clears it before each turn, and not `Agent`, because the stale key was pressed at the prompt and a judgement inside a turn must not erase a stop the user asked for. Implements `StopCheck`. |
 | `ToolApproval` | interface | `Answer ask(Decision.Ask ask)`, `boolean canAsk()`. `Answer` is `YES`, `NO` or `ALWAYS`. The loop asks, and not the policy, because `Cancellation` lives here and only the loop knows where an interrupt is safe. |
 | `Approvals` | final class | The set of permissions the user gave during this session. Coverage is equality. The memory sits here and not in the policy, so `/policy` changes the policy and the answers stay. Nothing is written to disk. |
 | `ToolSpecs` | static adapter | `Tool` to `ToolSpec`. The one place `tools` and `llm` meet. |
@@ -157,7 +157,7 @@ guard: each tool writes its own `name()` into the `Action` it states, so `Effect
 | `Ui` | interface | Everything konacode shows the user, and the one thing it reads from them. It extends `Trace`, because showing what the agent did is a user interface concern, and it gains `liveTrace`, the level the screen shows. It extends `ToolApproval` for the same reason: asking a question is a user interface concern too. One object then owns the screen and the keyboard. |
 | `PlainUi` | implements `Ui` | The interface for a pipe. It reads with a `BufferedReader` and prints what konacode printed before there were two interfaces. It renders no markdown and shows no spinner. It calls `Ansi.oneLine` on the name and the arguments of a call, the way the rich interface does. |
 | `RichUi` | implements `Ui` | The interface for a terminal. JLine gives the line editing, the history in `~/.konacode/chat_history`, and `alt-enter` for a second line. It renders markdown, and it owns the spinner and the `EscapeWatcher`. It calls `Ansi.oneLine` on four strings the model chose — the operand, the permission, the name of a tool and the arguments of a call — and it cuts the operand line, the `always` line and the tool line to the width of the terminal, because a user cannot approve what they cannot read. `emit` stops the spinner before it prints a line, and restarts it once a tool finishes; the watcher keeps running, so ESC still works while a tool runs. The constructor takes every collaborator, and `open()` builds the real ones, which is why the class can have tests. |
-| `Repl` | final class | The loop. Read a line, skip it when empty, run it as a command when it starts with `/`, otherwise ask the agent. Both interfaces share it. |
+| `Repl` | final class | The loop. Read a line, skip it when empty, run it as a command when it starts with `/`, otherwise clear the `Cancellation` and ask the agent. Both interfaces share it. |
 | `Commands` | final class | `/help`, `/tools`, `/skill`, `/trace`, `/policy`, `/clear` and `/exit`. `run` returns false when the session must end, so every command lives in one class and `Repl` gains one line. A command writes markdown, so the rich interface renders it and needs no second output method. An unknown command prints an error and never reaches the model. |
 | `EscapeWatcher` | class | Reads the terminal during a turn and calls `Cancellation.request()` on the byte `0x1B`. A sibling of `Spinner`: one daemon thread, `start` and `stop`, both idempotent, not final so a test can record. Raw mode keeps `ISIG` on, so ctrl-C still ends konacode. |
 | `Spinner` | class | One daemon thread that draws and erases a character while the agent works. `RichUi` stops it before every write of its own. It is not final, so a test can record the calls. |
