@@ -205,7 +205,7 @@ public final class Agent {
                     // "to read outside this project", and a model read that as a standing rule: it
                     // stopped calling the tool at all, so konacode never asked again. The message
                     // now describes one call and denies the rule.
-                    return ToolResult.err("konacode has no approval for this call: " + call.name() + " on " + ask.operand()
+                    return ToolResult.err("konacode has no approval for this call: " + call.name() + " on " + ask.toolOperand()
                             + ". This answers one call and sets no rule. Call the tool again when the user asks,"
                             + " and let konacode put the question.");
                 }

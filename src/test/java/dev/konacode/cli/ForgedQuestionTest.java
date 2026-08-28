@@ -130,7 +130,7 @@ class ForgedQuestionTest {
     private String askWith(String operand, int width) throws IOException {
         NonBlockingReader input = keys('n');
         when(terminal.reader()).thenReturn(input);
-        ui(width).ask(new Decision.Ask("run_command", "run a command", operand, Optional.empty()));
+        ui(width).ask(new Decision.Ask("run_command", "run a command", operand, Optional.empty(), ""));
         return raw();
     }
 
@@ -245,7 +245,7 @@ class ForgedQuestionTest {
         String command = "echo " + "x".repeat(200);
 
         ui(WIDTH).ask(new Decision.Ask("run_command", "run a command", "echo safe",
-                Optional.of(new Permission.ExactCommand("run_command", command))));
+                Optional.of(new Permission.ExactCommand("run_command", command)), ""));
 
         assertTrue(raw().lines().allMatch(line -> line.length() <= WIDTH), raw());
     }

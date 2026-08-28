@@ -115,7 +115,7 @@ guard: each tool writes its own `name()` into the `Action` it states, so `Effect
 | Element | Kind | Definition |
 |---|---|---|
 | `ToolPolicy` | interface | `Decision check(Tool tool, JsonNode args)`. Consulted before every tool execution. |
-| `Decision` | sealed interface | `Allow`, `Deny(String reason)`, or `Ask(String toolName, String intent, String operand, Optional<Permission> permission)`. Sealed on purpose: a new case is a compile error at every handling site. |
+| `Decision` | sealed interface | `Allow`, `Deny(String reason)`, or `Ask(String toolName, String toolIntent, String toolOperand, Optional<Permission> standingPermission, String note)`. The note says why konacode asks, and it is empty when the question needs no reason. Sealed on purpose: a new case is a compile error at every handling site. |
 | `EffectPolicy` | implements `ToolPolicy` | Allows a call inside the launch directory. Asks about every other one. It holds no state: it reads the `Action` the tool states, and it adds only the words. |
 | `SelectedPolicy` | implements `ToolPolicy` | The policy in use now. `/policy` changes it while a session runs; `Agent` holds this one policy and never learns that the choice can change. |
 | `AllowAllPolicy` | implements `ToolPolicy` | Allows every call. The default for an interface that cannot ask a question. A user chooses it with `/policy allow-all`. |

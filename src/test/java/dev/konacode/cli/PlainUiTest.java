@@ -117,7 +117,7 @@ class PlainUiTest {
         assertEquals(ToolApproval.Answer.NO,
                 ui("").ask(new Decision.Ask("edit_file", "write outside this project",
                         "/etc/hosts",
-                        Optional.of(new Permission.InFolder("edit_file", Path.of("/etc"))))));
+                        Optional.of(new Permission.InFolder("edit_file", Path.of("/etc"))), "")));
     }
 
     @Test

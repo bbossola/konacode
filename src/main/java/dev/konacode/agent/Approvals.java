@@ -27,7 +27,7 @@ public final class Approvals {
 
     /** True when the call may run. */
     public boolean approve(Decision.Ask ask) {
-        Optional<Permission> permission = ask.permission();
+        Optional<Permission> permission = ask.standingPermission();
         if (permission.isPresent() && given.contains(permission.get())) {
             return true;
         }

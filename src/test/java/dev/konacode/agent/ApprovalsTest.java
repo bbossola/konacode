@@ -27,11 +27,11 @@ class ApprovalsTest {
 
         @Override
         public Answer ask(Decision.Ask ask) {
-            asked.add(ask.toolName() + " " + ask.operand());
+            asked.add(ask.toolName() + " " + ask.toolOperand());
             if (answers.isEmpty()) {
                 throw new AssertionError(
                         "asked a question the script did not expect: " + ask.toolName() + " "
-                                + ask.operand());
+                                + ask.toolOperand());
             }
             return answers.remove(0);
         }
@@ -44,7 +44,7 @@ class ApprovalsTest {
 
     private static Decision.Ask askAbout(String toolName, String file) {
         return new Decision.Ask(toolName, "write outside this project", file,
-                Optional.of(new Permission.InFolder(toolName, Path.of(file).getParent())));
+                Optional.of(new Permission.InFolder(toolName, Path.of(file).getParent())), "");
     }
 
     private static Decision.Ask askAbout(String file) {
@@ -111,7 +111,7 @@ class ApprovalsTest {
                 ToolApproval.Answer.ALWAYS, ToolApproval.Answer.NO);
         Approvals approvals = new Approvals(ui);
         Decision.Ask noPermission = new Decision.Ask("run_command", "run a command", "run_command",
-                Optional.empty());
+                Optional.empty(), "");
 
         assertTrue(approvals.approve(noPermission));
 
@@ -128,7 +128,7 @@ class ApprovalsTest {
 
         assertTrue(approvals.approve(new Decision.Ask("edit_file", "write outside this project",
                 "/notes/./b.txt",
-                Optional.of(new Permission.InFolder("edit_file", Path.of("/notes/./"))))));
+                Optional.of(new Permission.InFolder("edit_file", Path.of("/notes/./"))), "")));
         assertEquals(1, ui.asked.size());
     }
 
@@ -138,10 +138,10 @@ class ApprovalsTest {
                 ToolApproval.Answer.ALWAYS, ToolApproval.Answer.ALWAYS);
         Approvals approvals = new Approvals(ui);
         approvals.approve(new Decision.Ask("run_command", "run a command", "mvn test",
-                Optional.of(new Permission.InFolder("run_command", Path.of("/tmp")))));
+                Optional.of(new Permission.InFolder("run_command", Path.of("/tmp"))), ""));
 
         approvals.approve(new Decision.Ask("run_command", "run a command", "mvn test",
-                Optional.of(new Permission.ExactCommand("run_command", "mvn test"))));
+                Optional.of(new Permission.ExactCommand("run_command", "mvn test")), ""));
 
         assertEquals(2, ui.asked.size(), "a different kind of permission must ask again");
     }

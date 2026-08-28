@@ -128,22 +128,26 @@ final class RichUi implements Ui {
         watcher.stop();
         try {
             show(ask);
-            return answer(read(), ask.permission().isPresent());
+            return answer(read(), ask.standingPermission().isPresent());
         } finally {
             watcher.start();
         }
     }
 
     private void show(Decision.Ask ask) {
-        String verb = ask.intent().split(" ", 2)[0];
+        String verb = ask.toolIntent().split(" ", 2)[0];
         out.println();
-        out.println(ask.toolName() + " wants to " + ask.intent() + ".");
+        out.println(ask.toolName() + " wants to " + ask.toolIntent() + ".");
         out.println();
-        out.println(toOneRow("  " + Ansi.oneLine(ask.operand())));
+        out.println(toOneRow("  " + Ansi.oneLine(ask.toolOperand())));
+        if (!ask.note().isEmpty()) {
+            out.println();
+            out.println(toOneRow("  " + Ansi.oneLine(ask.note())));
+        }
         out.println();
         out.println("  y  " + verb + " it once");
         out.println("  n  refuse");
-        ask.permission().ifPresent(permission -> out.println(
+        ask.standingPermission().ifPresent(permission -> out.println(
                 toOneRow("  a  always, for " + Ansi.oneLine(permission.inWords()))));
         out.flush();
     }

@@ -113,10 +113,10 @@ class EffectPolicyTest {
                         path(file.toString())));
 
         assertEquals("read_file", ask.toolName());
-        assertEquals("read outside this project", ask.intent());
-        assertEquals(file.toString(), ask.operand());
+        assertEquals("read outside this project", ask.toolIntent());
+        assertEquals(file.toString(), ask.toolOperand());
         assertEquals(new Permission.InFolder("read_file", outside.toRealPath()),
-                ask.permission().orElseThrow());
+                ask.standingPermission().orElseThrow());
     }
 
     @Test
@@ -127,9 +127,9 @@ class EffectPolicyTest {
                 policy().check(new EditFile(workspace(), StopCheck.NEVER),
                         path(file.toString())));
 
-        assertEquals("write outside this project", ask.intent());
+        assertEquals("write outside this project", ask.toolIntent());
         assertEquals(new Permission.InFolder("edit_file", outside.toRealPath()),
-                ask.permission().orElseThrow());
+                ask.standingPermission().orElseThrow());
     }
 
     @Test
@@ -138,7 +138,7 @@ class EffectPolicyTest {
                 policy().check(new DeleteFile(workspace()),
                         path(outside.resolve("old.txt").toString())));
 
-        assertEquals("write outside this project", ask.intent());
+        assertEquals("write outside this project", ask.toolIntent());
     }
 
     @Test
@@ -147,9 +147,9 @@ class EffectPolicyTest {
                 policy().check(new Running(), MAPPER.createObjectNode()));
 
         assertEquals("run_command", ask.toolName());
-        assertEquals("run a command", ask.intent());
-        assertEquals("run_command", ask.operand());
-        assertTrue(ask.permission().isEmpty());
+        assertEquals("run a command", ask.toolIntent());
+        assertEquals("run_command", ask.toolOperand());
+        assertTrue(ask.standingPermission().isEmpty());
     }
 
     @Test
@@ -158,8 +158,8 @@ class EffectPolicyTest {
                 policy().check(new EditFile(workspace(), StopCheck.NEVER),
                         MAPPER.createObjectNode()));
 
-        assertEquals("edit_file", ask.operand());
-        assertTrue(ask.permission().isEmpty());
+        assertEquals("edit_file", ask.toolOperand());
+        assertTrue(ask.standingPermission().isEmpty());
     }
 
     @Test
@@ -170,8 +170,8 @@ class EffectPolicyTest {
         Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
                 policy().check(new EditFile(workspace(), StopCheck.NEVER), args));
 
-        assertEquals("edit_file", ask.operand());
-        assertTrue(ask.permission().isEmpty());
+        assertEquals("edit_file", ask.toolOperand());
+        assertTrue(ask.standingPermission().isEmpty());
     }
 
     @Test
@@ -193,8 +193,8 @@ class EffectPolicyTest {
         Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
                 policy().check(tool, path(file.toString())));
 
-        assertEquals(action.toolOperand(), ask.operand());
-        assertEquals(action.standingPermission(), ask.permission());
+        assertEquals(action.toolOperand(), ask.toolOperand());
+        assertEquals(action.standingPermission(), ask.standingPermission());
     }
 
     @Test
@@ -206,7 +206,7 @@ class EffectPolicyTest {
                         path(folder.toString())));
 
         assertEquals(new Permission.InFolder("list_files", folder.toRealPath()),
-                ask.permission().orElseThrow(),
+                ask.standingPermission().orElseThrow(),
                 "always must cover the folder the user listed");
     }
 
@@ -220,9 +220,9 @@ class EffectPolicyTest {
                     policy().check(new ReadFile(workspace(), StopCheck.NEVER),
                             path(link.toString())));
 
-            assertEquals(secret.toRealPath().toString(), ask.operand());
+            assertEquals(secret.toRealPath().toString(), ask.toolOperand());
             assertEquals(new Permission.InFolder("read_file", outside.toRealPath()),
-                    ask.permission().orElseThrow());
+                    ask.standingPermission().orElseThrow());
         } finally {
             Files.delete(link);
         }
@@ -237,7 +237,7 @@ class EffectPolicyTest {
                     policy().check(new ReadFile(workspace(), StopCheck.NEVER),
                             path(link.toString())));
 
-            assertTrue(ask.permission().isEmpty(), "a call that reaches nothing offers no always");
+            assertTrue(ask.standingPermission().isEmpty(), "a call that reaches nothing offers no always");
         } finally {
             Files.delete(link);
         }
@@ -254,7 +254,7 @@ class EffectPolicyTest {
                             path(link.toString())));
 
             assertEquals(new Permission.InFolder("edit_file", outside.toRealPath()),
-                    ask.permission().orElseThrow(),
+                    ask.standingPermission().orElseThrow(),
                     "a write replaces the entry, so the entry's folder is what is approved");
         } finally {
             Files.delete(link);
@@ -262,8 +262,8 @@ class EffectPolicyTest {
     }
 
     /**
-     * Pins the verb {@link dev.konacode.cli.RichUi} actually reads out of {@code intent}:
-     * {@code intent.split(" ", 2)[0]}. Reads a real {@link Decision.Ask} from the policy for
+     * Pins the verb {@link dev.konacode.cli.RichUi} actually reads out of {@code toolIntent}:
+     * {@code toolIntent.split(" ", 2)[0]}. Reads a real {@link Decision.Ask} from the policy for
      * each of the three intents it can produce, rather than asserting a literal against itself.
      */
     @Test
@@ -285,10 +285,10 @@ class EffectPolicyTest {
     @Test
     void aQuestionRefusesANullPermission() {
         assertThrows(NullPointerException.class,
-                () -> new Decision.Ask("read_file", "read outside this project", "/etc", null));
+                () -> new Decision.Ask("read_file", "read outside this project", "/etc", null, ""));
     }
 
     private static String verbOf(Decision.Ask ask) {
-        return ask.intent().split(" ", 2)[0];
+        return ask.toolIntent().split(" ", 2)[0];
     }
 }
