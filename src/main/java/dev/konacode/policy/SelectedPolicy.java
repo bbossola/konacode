@@ -25,6 +25,16 @@ public final class SelectedPolicy implements ToolPolicy {
         return current.check(action, userText);
     }
 
+    @Override
+    public String label() {
+        return current.label();
+    }
+
+    @Override
+    public boolean asks() {
+        return current.asks();
+    }
+
     public void select(ToolPolicy policy) {
         this.current = Objects.requireNonNull(policy, "policy");
     }

@@ -266,6 +266,14 @@ class EffectPolicyTest {
                 () -> new Decision.Ask("read_file", "read outside this project", "/etc", null, ""));
     }
 
+    @Test
+    void itNamesItselfAndAsks() {
+        ToolPolicy policy = new EffectPolicy();
+
+        assertEquals("effect", policy.label());
+        assertTrue(policy.asks());
+    }
+
     private static String verbOf(Decision.Ask ask) {
         return ask.toolIntent().split(" ", 2)[0];
     }

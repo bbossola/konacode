@@ -24,6 +24,16 @@ public final class FakePolicy implements ToolPolicy {
         return answer.apply(action, userText);
     }
 
+    @Override
+    public String label() {
+        return "fake";
+    }
+
+    @Override
+    public boolean asks() {
+        return true;
+    }
+
     public List<Action> actions() {
         return actions;
     }

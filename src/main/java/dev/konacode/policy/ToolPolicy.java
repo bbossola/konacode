@@ -10,4 +10,10 @@ public interface ToolPolicy {
      * @param userText the message the user typed to start this turn
      */
     Decision check(Action action, String userText);
+
+    /** The word the user types after {@code /policy}. */
+    String label();
+
+    /** True when this policy can answer with a {@link Decision.Ask}. */
+    boolean asks();
 }

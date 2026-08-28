@@ -369,6 +369,20 @@ class CommandsTest {
     }
 
     @Test
+    void policyWithNoNameNamesEveryPolicyTheUserCanChoose() {
+        RecordingUi ui = new RecordingUi();
+        Commands commands = commands(ui, new Conversation(SYSTEM));
+
+        commands.run("/policy effect");
+        commands.run("/policy");
+        assertTrue(ui.answers.get(ui.answers.size() - 1).contains("uses `effect`"), ui.answers.toString());
+
+        commands.run("/policy allow-all");
+        commands.run("/policy");
+        assertTrue(ui.answers.get(ui.answers.size() - 1).contains("uses `allow-all`"), ui.answers.toString());
+    }
+
+    @Test
     void policyWithNoNameNotesTheInterfaceCannotAskWhenItCannot() {
         RecordingUi ui = new RecordingUi();
         ui.canAsk = false;

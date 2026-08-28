@@ -14,4 +14,14 @@ public final class AllowAllPolicy implements ToolPolicy {
     public Decision check(Action action, String userText) {
         return Decision.allow();
     }
+
+    @Override
+    public String label() {
+        return "allow-all";
+    }
+
+    @Override
+    public boolean asks() {
+        return false;
+    }
 }

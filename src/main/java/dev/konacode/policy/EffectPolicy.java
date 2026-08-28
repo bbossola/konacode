@@ -24,6 +24,16 @@ public final class EffectPolicy implements ToolPolicy {
         };
     }
 
+    @Override
+    public String label() {
+        return "effect";
+    }
+
+    @Override
+    public boolean asks() {
+        return true;
+    }
+
     private static Decision ask(String toolIntent, Action action) {
         return Decision.ask(action.toolName(), toolIntent, action.toolOperand(), action.standingPermission());
     }

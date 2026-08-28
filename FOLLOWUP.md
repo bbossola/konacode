@@ -129,12 +129,6 @@ adds planning, and expect to revisit the default.
   verified: `writeAtomic` moves a file onto the path and breaks the hard link, and `delete_file`
   removes one name while the other survives. A path check cannot close this. The answer is a
   check on the file after it is opened.
-- **`Commands` reads a policy with `instanceof` in three places.** Twice in `label` and once in
-  the warning. A third policy would be named "a policy konacode cannot name", which is loud, and
-  would silently skip the warning, which is not. An abstract `ToolPolicy.label()`, or a method
-  that says whether a policy asks questions, closes both. It is not worth the cost while two
-  policies exist, because `ToolPolicy` has one method on purpose and the tests use it as a
-  lambda.
 - **Nothing proves the tools and the policy share a root.** `Main.build` builds both from one
   `Workspace`, so no caller can pass a mismatch. If someone changed `build` to use two, no test
   would notice: both wiring tests use an absolute path outside the project, and

@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 541 tests, all offline, no network
+mvn test                        # 554 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -115,7 +115,7 @@ guard: each tool writes its own `name()` into the `Action` it states, so `Effect
 
 | Element | Kind | Definition |
 |---|---|---|
-| `ToolPolicy` | interface | `Decision check(Action action, String userText)`. Consulted before every tool execution. The loop computes the `Action`, so a policy cannot run a tool or read the raw arguments. It gets the message the user typed, because a policy that judges the call must know why the agent acts. |
+| `ToolPolicy` | interface | `Decision check(Action action, String userText)`. Consulted before every tool execution. The loop computes the `Action`, so a policy cannot run a tool or read the raw arguments. It gets the message the user typed, because a policy that judges the call must know why the agent acts. It also answers `label()`, the word the user types after `/policy`, and `asks()`, true when it can answer with an `Ask`. Both are abstract, so a new policy names itself and `Commands` reads a policy with no `instanceof`. |
 | `Decision` | sealed interface | `Allow`, `Deny(String reason)`, or `Ask(String toolName, String toolIntent, String toolOperand, Optional<Permission> standingPermission, String note)`. The note says why konacode asks, and it is empty when the question needs no reason. Sealed on purpose: a new case is a compile error at every handling site. |
 | `EffectPolicy` | implements `ToolPolicy` | Allows a call inside the launch directory. Asks about every other one. It holds no state: it reads the `Action` the tool states, and it adds only the words. |
 | `SelectedPolicy` | implements `ToolPolicy` | The policy in use now. `/policy` changes it while a session runs; `Agent` holds this one policy and never learns that the choice can change. |

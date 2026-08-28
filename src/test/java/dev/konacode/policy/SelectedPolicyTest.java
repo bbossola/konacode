@@ -5,8 +5,10 @@ import dev.konacode.tools.Effect;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SelectedPolicyTest {
 
@@ -34,6 +36,19 @@ class SelectedPolicyTest {
         selected.select(DENIES);
 
         assertEquals(DENIES, selected.selected());
+    }
+
+    @Test
+    void itPassesTheNameAndTheQuestionThrough() {
+        SelectedPolicy selected = new SelectedPolicy(new AllowAllPolicy());
+
+        assertEquals("allow-all", selected.label());
+        assertFalse(selected.asks());
+
+        selected.select(new EffectPolicy());
+
+        assertEquals("effect", selected.label());
+        assertTrue(selected.asks());
     }
 
     @Test

@@ -7,7 +7,6 @@ import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.policy.EffectPolicy;
 import dev.konacode.policy.SelectedPolicy;
-import dev.konacode.policy.ToolPolicy;
 import dev.konacode.skills.Skill;
 import dev.konacode.skills.SkillException;
 import dev.konacode.skills.SkillRegistry;
@@ -114,7 +113,7 @@ final class Commands {
                     ? ""
                     : "\n\nThis interface cannot ask a question, so `effect` refuses every call"
                             + " outside this project.";
-            ui.showAnswer("konacode uses `" + label(policies.selected()) + "`.\n\n"
+            ui.showAnswer("konacode uses `" + policies.selected().label() + "`.\n\n"
                     + "- `allow-all` — allow every call\n"
                     + "- `effect` — ask before a read or a write outside this project" + note);
             return;
@@ -127,26 +126,12 @@ final class Commands {
                 return;
             }
         }
-        // allow-all never asks, so the warning would be false there. effect asks, and this
-        // interface cannot, so every call outside the project is refused with no question.
-        if (!ui.canAsk() && policies.selected() instanceof EffectPolicy) {
+        if (!ui.canAsk() && policies.selected().asks()) {
             ui.showAnswer("konacode now uses `" + name + "`. This interface cannot ask a question,"
                     + " so it refuses every call outside this project.");
             return;
         }
         ui.showAnswer("konacode now uses `" + name + "`.");
-    }
-
-    private static String label(ToolPolicy policy) {
-        if (policy instanceof EffectPolicy) {
-            return "effect";
-        }
-        if (policy instanceof AllowAllPolicy) {
-            return "allow-all";
-        }
-        // Only /policy and Main install a policy, and both install one of the two above. A third
-        // would need a name of its own, and konacode must not guess one.
-        return "a policy konacode cannot name";
     }
 
     private void tools() {
