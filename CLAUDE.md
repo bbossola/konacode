@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 567 tests, all offline, no network
+mvn test                        # 579 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -118,6 +118,8 @@ guard: each tool writes its own `name()` into the `Action` it states, so `Effect
 | `ToolPolicy` | interface | `Decision check(Action action, String userText)`. Consulted before every tool execution. The loop computes the `Action`, so a policy cannot run a tool or read the raw arguments. It gets the message the user typed, because a policy that judges the call must know why the agent acts. It also answers `label()`, the word the user types after `/policy`, and `asks()`, true when it can answer with an `Ask`. Both are abstract, so a new policy names itself and `Commands` reads a policy with no `instanceof`. |
 | `Decision` | sealed interface | `Allow`, `Deny(String reason)`, or `Ask(String toolName, String toolIntent, String toolOperand, Optional<Permission> standingPermission, String note)`. The note says why konacode asks, and it is empty when the question needs no reason. Sealed on purpose: a new case is a compile error at every handling site. |
 | `EffectPolicy` | implements `ToolPolicy` | Allows a call inside the launch directory. Asks about every other one. It holds no state: it reads the `Action` the tool states, and it adds only the words. |
+| `Judge` | interface | `Decision judge(Decision.Ask ask, String userText)`. It answers allow, the same `Ask`, a `Deny`, or the `Ask` with the note `NO_ANSWER`. An interface, because an implementation needs a model, and `agent` depends on `policy`. |
+| `JudgePolicy` | implements `ToolPolicy` | Uses `EffectPolicy`, and calls the judge for an `Ask` only. It decides nothing: it takes the answer, and for a refusal it writes the frame around the reason. The frame names one call and ends with "This answers one call and sets no rule", because the main model reads the reason of a `Deny` and a rule stops it from calling the tool again. It strips the reason, cuts it to 200 characters with the mark `Level` uses, and adds a full stop when the reason has none, so the last sentence keeps its boundary. |
 | `SelectedPolicy` | implements `ToolPolicy` | The policy in use now. `/policy` changes it while a session runs; `Agent` holds this one policy and never learns that the choice can change. |
 | `AllowAllPolicy` | implements `ToolPolicy` | Allows every call. The default for an interface that cannot ask a question. A user chooses it with `/policy allow-all`. |
 
