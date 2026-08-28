@@ -201,8 +201,10 @@ record Ask(String toolName, String toolIntent, String toolOperand,
 }
 
 // tools
-record Action(String toolName, Effect effect, String operand, Optional<Permission> permission);
+record Action(String toolName, Effect effect, String toolOperand, Optional<Permission> standingPermission);
 ```
+
+`Action` and `Ask` use one word for one idea: `toolName`, `toolOperand` and `standingPermission`.
 
 **The policy stops holding a `Tool`.** It receives the fact the tool stated, and it can no longer
 parse the arguments or run the tool. That is the rule piece A wrote, now enforced by the type.
