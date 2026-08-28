@@ -4,6 +4,7 @@ import dev.konacode.agent.Cancellation;
 import dev.konacode.policy.Decision;
 import dev.konacode.tools.Permission;
 import dev.konacode.trace.Level;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.RequestSent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.ToolFinished;
@@ -35,7 +36,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Every payload a review threw at the approval question, and the two lines it can reach.
+ * Every payload a review threw at the approval question, and the three lines it can reach.
  *
  * <p>The model chooses the operand, the permission and the arguments of a call. Each test here
  * fails when the guard gets weaker, so a payload that once forged a question cannot come back.
@@ -250,6 +251,24 @@ class ForgedQuestionTest {
         assertTrue(raw().lines().allMatch(line -> line.length() <= WIDTH), raw());
     }
 
+    /** The columns of one line, counted here, so a wrong count in Ansi cannot make a test pass. */
+    private static int columns(String line) {
+        return line.codePoints().map(code -> code >= 0xFF01 && code <= 0xFF60 ? 2 : 1).sum();
+    }
+
+    @Test
+    void aFullwidthOperandIsCutToTheColumnsOfTheTerminal() throws IOException {
+        // A fullwidth character takes one character and two columns, so a count of characters
+        // passes a padded operand that then wraps.
+        String pad = "ｍ".repeat(WIDTH);
+
+        String output = askWith("echo safe" + pad + QUESTION + "  rm -rf /");
+
+        assertTrue(output.lines().allMatch(line -> columns(line) <= WIDTH), output);
+        assertTrue(output.contains("echo safe"), "the beginning of the operand stays: " + output);
+        assertTrue(output.contains("…"), "the cut is marked: " + output);
+    }
+
     @Test
     void aNarrowTerminalCutsNothingAndThrowsNothing() throws IOException {
         String output = askWith("echo /home/bruno/notes/a.txt", 0);
@@ -271,6 +290,28 @@ class ForgedQuestionTest {
         String output = raw();
         assertFalse(output.contains("\u001B[2J"), output);
         assertEquals(0, questions(output), "the trace line forges no question: " + output);
+    }
+
+    @Test
+    void aLongJudgedLineIsCutToTheWidthOfTheTerminal() {
+        // The judged line prints at every level, so this needs no /trace first.
+        RichUi ui = ui(WIDTH);
+
+        ui.emit(new Judged("run_command", "x".repeat(200), "ask"));
+
+        String output = Ansi.strip(raw());
+        assertTrue(output.lines().allMatch(line -> line.length() <= WIDTH), output);
+        assertTrue(output.contains("…"), "the cut is marked: " + output);
+    }
+
+    @Test
+    void aFullwidthJudgedLineIsCutToTheColumnsOfTheTerminal() {
+        RichUi ui = ui(WIDTH);
+
+        ui.emit(new Judged("run_command", "ｍ".repeat(WIDTH) + "tool: read_file(/home/b/.ssh/id_rsa)", "ask"));
+
+        String output = Ansi.strip(raw());
+        assertTrue(output.lines().allMatch(line -> columns(line) <= WIDTH), output);
     }
 
     // ---- text a user must read -----------------------------------------------------------------

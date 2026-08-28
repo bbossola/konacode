@@ -101,10 +101,11 @@ adds planning, and expect to revisit the default.
   the result and the time, and never the output. `JsonlTrace` writes it through Jackson, which
   escapes a control character. The day a printing site shows it, it needs `Ansi.oneLine` like every
   other such string.
-- **`Ansi.visibleLength` counts characters and not columns.** A CJK character takes two columns and
-  an emoji takes two `char` values, so word wrap, table alignment and the new cut in `RichUi` are
-  all one character out for those. This is one problem in the whole interface, and not a defect of
-  one caller.
+- **`Ansi.visibleLength` counts columns — built.** It counted characters, so a fullwidth character
+  passed the cut in `RichUi` with two columns and wrapped into a second line at column 1. A review
+  forged a `tool:` line that way, on the `judged:` line, which prints at every trace level.
+  `visibleLength` counts columns now, and `cutToColumns` cuts by them, so word wrap, table
+  alignment and the cut all read one count.
 - **An approved command line can run code written later.** `a` remembers the exact line, and the
   line is honest. Its meaning is not: `make` reads a `Makefile`, and the model may change that file
   inside the project with no question, then run the approved line again with no question. No test

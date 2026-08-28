@@ -23,6 +23,24 @@ class AnsiTest {
     }
 
     @Test
+    void countsAFullwidthCharacterAsTwoColumns() {
+        // A count of characters lets a padded operand pass a cut and then wrap on a terminal.
+        assertEquals(6, Ansi.visibleLength("ｍｍｍ"));
+        assertEquals(4, Ansi.visibleLength("文書"));
+    }
+
+    @Test
+    void countsAnEmojiAsTwoColumns() {
+        assertEquals(2, Ansi.visibleLength("🚀"));
+    }
+
+    @Test
+    void cutsAWideCharacterByColumnsAndNeverInside() {
+        assertEquals("aｍ", Ansi.cutToColumns("aｍｍ", 3));
+        assertEquals("ab", Ansi.cutToColumns("ab", 5));
+    }
+
+    @Test
     void removesEveryCode() {
         assertEquals("hello", Ansi.strip(Ansi.style("hello", Ansi.BOLD, Ansi.RED)));
     }

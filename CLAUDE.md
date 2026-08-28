@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 620 tests, all offline, no network
+mvn test                        # 626 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -171,7 +171,7 @@ and write a verdict of its own. A payload with nothing after it can forge nothin
 | `EscapeWatcher` | class | Reads the terminal during a turn and calls `Cancellation.request()` on the byte `0x1B`. A sibling of `Spinner`: one daemon thread, `start` and `stop`, both idempotent, not final so a test can record. Raw mode keeps `ISIG` on, so ctrl-C still ends konacode. |
 | `Spinner` | class | One daemon thread that draws and erases a character while the agent works. `RichUi` stops it before every write of its own. It is not final, so a test can record the calls. |
 | `Banner` | final class | The art from the README, which reads `kona`. It is 41 columns wide, so a narrower terminal gets the plain name. Generated from `README.md`, not retyped. |
-| `Ansi` | final class | The escape codes, plus `strip`, `visibleLength` and `oneLine`. A code takes bytes and no columns, so word wrap and table alignment both need `visibleLength`. `oneLine` makes one line of a string the model wrote, and it lives here because every place that prints such a string needs the same guard. |
+| `Ansi` | final class | The escape codes, plus `strip`, `visibleLength`, `cutToColumns` and `oneLine`. A code takes bytes and no columns, so word wrap and table alignment both need `visibleLength`. It counts columns and not characters, and `cutToColumns` cuts by columns, because a fullwidth character takes two columns: a count of characters let a padded operand pass the cut in `RichUi` and wrap into a line that reads as a line konacode wrote. `oneLine` makes one line of a string the model wrote, and it lives here because every place that prints such a string needs the same guard. |
 | `TraceLine` | final class | `of(TraceEvent)`. One event as one line of text. `PlainUi` and `RichUi` both call it, so the two interfaces show the same words. It calls `Ansi.oneLine` on every payload the model or the provider chose, the name of a tool included, and on no word konacode writes, because one guard here covers both interfaces. A line ends with the payload the model chose, and puts no delimiter around it: a delimiter is a character the model can write too, so an operand closed a backtick and wrote a verdict of its own. A `FromAgent` writes the agent name, then `> `, then the line of the event inside it. `inside` and `names` give an interface the event a `FromAgent` holds and the names around it, because an interface that matches one kind of event must reach through the name first. |
 | `Main` | final class | Reads the environment and every `konacode.*` system property, picks the interface, wires the parts. The only place that names a concrete implementation. It builds two clients on one `HttpClient` and one codec, `kona` and `judge`, so the request, the reply and the token counts of a judgement carry their own name. It builds them inside the `try`, so a failure there closes the interface and the trace file. `Level.configured` stays on `Level`, because it is a factory for its own type; a reader that returns a plain value belongs here. |
 

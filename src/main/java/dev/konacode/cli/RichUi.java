@@ -160,15 +160,15 @@ final class RichUi implements Ui {
      * column 0, and it reads as a line konacode wrote. The beginning of the line stays, because a
      * user judges a path by the folder it is in, and the mark says that more text is there.
      *
-     * <p>The count is characters and not columns, so a CJK character or an emoji can still wrap.
-     * {@link Ansi#visibleLength} has the same limit, and so does every caller of it.
+     * <p>The count is columns and not characters, because a fullwidth character takes two columns
+     * and a count of characters lets a padded operand pass this cut.
      */
     private String toOneRow(String text) {
         int room = terminal.getWidth() - 4;
-        if (room < 20 || text.length() <= room) {
+        if (room < 20 || Ansi.visibleLength(text) <= room) {
             return text;
         }
-        return text.substring(0, room - 1) + "\u2026";
+        return Ansi.cutToColumns(text, room - 1) + "\u2026";
     }
 
     private int read() {
