@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-28
 **Status:** approved, pending implementation plan
-**Issue:** none yet
+**Issue:** [#32](https://github.com/bbossola/konacode/issues/32)
 
 ## Problem
 
