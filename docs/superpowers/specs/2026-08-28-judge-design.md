@@ -242,8 +242,15 @@ command, so a user with a large main model can give the judge a small fast one.
 
 ## The trace
 
-Every `TraceEvent` gains a `String agent`. `TraceLine` writes it as a prefix, so the screen names
-which agent did what.
+`TraceEvent` gains one case, and no existing record changes:
+
+```java
+record FromAgent(String agent, TraceEvent event) implements TraceEvent {}
+```
+
+A small `NamedTrace` in `trace` holds a name and a target, and it puts every event inside a
+`FromAgent` before it passes it on. `Main` gives one to each `Agent`. `TraceLine` writes the name as
+a prefix and then reads the event inside it.
 
 ```
 kona>  iteration 1/8
@@ -254,8 +261,14 @@ kona>  judged run_command `mvn -q test` allow 412ms
 kona>  tool run_command ok in 3.2s
 ```
 
-`Agent` gains a name, and so does `OpenAiClient`, which emits four of the nine events. `Main` names
-them `kona` and `judge`.
+Three sinks change, and no construction site changes. `Level.cut` reads the event inside a
+`FromAgent` and puts the cut event back. `TraceLine.of` writes the prefix and then reads the event
+inside. `JsonlTrace` writes the name as a field of the line.
+
+A field on all nine records was rejected: it costs 60 construction sites across 11 files, and it
+buys nothing the case does not. A `ThreadLocal` was rejected too: it is cheaper still, and it labels
+an event `system` with no failure when a turn runs on another thread, or when a provider emits from
+a callback. Both are recorded in FOLLOWUP as planned work.
 
 **One new event, emitted by `JudgePolicy`**, holds the tool name, the operand, the verdict and the
 time. Without it a user cannot tell a call the judge allowed from a call inside the project.
@@ -336,7 +349,12 @@ returns to the policy that asks about everything. The user decides once, and not
 
 **`Trace.NONE` or the file trace only, for the judge.** The user could not see what the judge did.
 
-**An `Origin` record for the agent name on a `TraceEvent`.** A plain `String` is enough.
+**A `String agent` field on all nine `TraceEvent` records.** 60 construction sites across 11 files,
+for what one sealed case gives in four.
+
+**A `ThreadLocal` holding the agent name.** The cheapest of the three, and it fails silently: a turn
+on another thread, or a provider that emits from a callback, gives an event labelled `system`. It is
+also the hidden global state that `Main` just took out of `agent`, `tools` and `trace`.
 
 **A fixed small default judge model.** It would break a user whose base URL points at a local server.
 
@@ -393,7 +411,7 @@ and `RecordingTrace`.
 
 **The trace**
 
-- Every event carries the agent name.
+- `NamedTrace` puts each event inside a `FromAgent` that carries the name.
 - `TraceLine` prefixes `kona>` and `judge>`, and it cuts the payloads as before.
 - `JsonlTrace` writes the name as a field.
 
