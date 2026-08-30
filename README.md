@@ -9,7 +9,7 @@
 ░░░░ ░░░░░  ░░░░░░  ░░░░ ░░░░░  ░░░░░░░░
 ```
 
-**A coding agent in Java 21.** No framework, no orchestration library, no magic — a loop, five
+**A coding agent in Java 21.** No framework, no orchestration library, no magic — a loop, six
 tools, and a language model with opinions.
 
 ## The whole trick
@@ -27,7 +27,7 @@ That is `Agent.respond()`. Nobody taught the model to list a directory before re
 to re-read a file after a failed edit. That behavior emerges from the loop and the tool
 descriptions alone.
 
-## The five tools
+## The six tools
 
 | Tool | What it does | Guardrail |
 |---|---|---|
@@ -36,9 +36,10 @@ descriptions alone.
 | `edit_file` | Exact-match string replacement (creates the file when `old_str` is empty) | Refuses ambiguous matches |
 | `delete_file` | Remove a file | Refuses a directory |
 | `run_command` | Run a shell line in the project directory | Stopped by the timeout, default 600 seconds |
+| `plan` | Record the steps of the work, and give the list back | Capped at 20 steps of 200 characters |
 
 A tool is a name, a description the model reads, a JSON schema, and a function that runs when
-the model asks for it. Adding a sixth means writing one class and registering it.
+the model asks for it. Adding a seventh means writing one class and registering it.
 
 ## Approval
 
@@ -170,11 +171,12 @@ Things worth trying:
 The judge uses the same key and the same base URL. It runs on every call outside this project and
 on every command, so a large main model can have a small fast judge.
 
-Plus five system properties.
+Plus six system properties.
 
 | Property | Values | Purpose |
 |---|---|---|
 | `konacode.maxIterations` | a whole number, default `8` | the ceiling on tool calls for one message |
+| `konacode.maxIterations.whenPlanning` | a whole number, default `24` | the ceiling for a turn in which the model records a plan |
 | `konacode.ui` | `auto`, `plain`, `rich`, default `auto` | which interface to use |
 | `konacode.trace` | `off`, `basic`, `full`, default `off` | how much the trace file records |
 | `konacode.trace.maxFiles` | a whole number, default `100` | how many trace files konacode keeps |

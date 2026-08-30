@@ -91,6 +91,10 @@ does.
  └─────────────┘  unless the iteration budget is spent
 ```
 
+The iteration budget is a `TurnBudget`, and it holds two numbers. A turn starts at the ordinary
+maximum. The `plan` tool raises the maximum for the turn in which the model calls it. The loop puts
+the number back at the start of the next turn.
+
 Nothing in that picture teaches the model to list a directory before reading a file, or to
 re-read a file after a failed edit. That behaviour emerges from the loop and the tool
 descriptions alone.
