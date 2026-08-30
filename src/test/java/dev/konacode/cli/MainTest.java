@@ -326,7 +326,7 @@ class MainTest {
 
     @Test
     void theSystemPromptAsksForAPlan() {
-        assertTrue(Main.systemPrompt(root).contains("plan tool"), Main.systemPrompt(root));
+        assertTrue(Main.systemPrompt(root).contains("Use the plan tool before"), Main.systemPrompt(root));
     }
 
     @Test

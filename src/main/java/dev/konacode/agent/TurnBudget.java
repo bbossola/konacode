@@ -11,8 +11,8 @@ package dev.konacode.agent;
  * package-private, because only the loop uses them.
  *
  * <p>One budget serves one agent, because {@code reset} states that a new turn starts. A second
- * agent that shared this budget would end the larger maximum of the first agent. Sub-agents are
- * issue #20.
+ * agent that shares this budget ends the larger maximum of the first agent. A sub-agent, issue
+ * #20, must get its own budget.
  */
 public final class TurnBudget {
 
