@@ -39,6 +39,16 @@ public final class Schemas {
             return this;
         }
 
+        /** One array of objects. The item schema comes from a second {@link Schemas#object()}. */
+        public Builder requiredArray(String name, String description, ObjectNode items) {
+            ObjectNode array = properties.putObject(name);
+            array.put("type", "array");
+            array.put("description", description);
+            array.set("items", items);
+            required.add(name);
+            return this;
+        }
+
         public ObjectNode build() {
             if (!required.isEmpty()) {
                 schema.set("required", required);
