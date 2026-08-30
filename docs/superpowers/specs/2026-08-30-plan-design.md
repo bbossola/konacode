@@ -35,16 +35,32 @@ A plan is not a list of calls. konacode never runs a step. The model does the wo
 tools, one call at a time, in the loop it uses today. The word `Action` is taken: it means the
 fact a tool states about one call, and the policy reads it.
 
+## Where the tool lives
+
+`PlanTool` lives in the package `agent`, beside `Agent`. It is the only tool outside `tools`.
+
+The five tools in `tools` act on the world. They read a file, they write a file and they run a
+command. `PlanTool` acts on the turn, and the turn belongs to the loop. So the tool lives with the
+turn.
+
+A class in `agent` may implement `Tool`, because `agent` imports `tools`. So this needs no
+interface, and it breaks no package rule.
+
+Two designs that put `PlanTool` in `tools` were rejected. Both are in the section below. Issue
+[#41](https://github.com/bbossola/konacode/issues/41) discusses the rule that decides where a tool
+lives, together with the interfaces of konacode.
+
 ## The tool
 
-`PlanTool` implements `Tool`. It holds no state, in the way `ReadFile` holds no state.
+`PlanTool` implements `Tool`. It holds one collaborator, a `TurnBudget`, in the way `ReadFile`
+holds a `Workspace`. It holds no state.
 
 | Method | Answer |
 |---|---|
 | `name()` | `plan` |
 | `description()` | The prompt text below |
 | `inputSchema()` | One array, `steps`, of objects with `text` and `state`. `Schemas` gains one method for an array of objects. |
-| `execute(args)` | Gives the list back as text |
+| `execute(args)` | Raises the maximum, and gives the list back as text |
 | `stopsOnInterrupt()` | `false`. The tool stores a list, so it has no step to stop between. |
 | `computeAction(args)` | A safe call. See below. |
 
@@ -79,8 +95,27 @@ gives more iterations" calls `plan` to get the iterations, and not to plan.
 A malformed argument is an `Err`, in the way every other tool answers. An empty list is an `Err`,
 because a plan with no step states nothing.
 
-`execute` raises the maximum number of iterations only when it answers `Ok`. A call that fails
-states no plan, so it earns no iteration.
+### The code
+
+```java
+private final TurnBudget budget;
+
+public PlanTool(TurnBudget budget) {
+    this.budget = budget;
+}
+
+@Override
+public ToolResult execute(JsonNode args) {
+    List<Step> steps = readSteps(args);   // this answers an Err when the list is missing or empty
+    budget.extend();
+    return ToolResult.ok(render(steps));
+}
+```
+
+The order matters. `execute` reads the steps first. A bad call answers the `Err` and stops, so it
+never calls `extend()`. A good call raises the maximum, and then it answers `Ok`.
+
+Nothing tests a value here. The tool makes the decision, so konacode needs no branch anywhere.
 
 ### What the tool states about one call
 
@@ -98,6 +133,8 @@ session. A plan call reaches nothing outside the session, so no value today is t
 `EffectPolicy.check` is a switch with no `default`, so the compiler names the switch when the
 value arrives. The answer there is one line: `case NONE -> Decision.allow()`.
 
+The budget reads nothing here. `NONE` states what the call does, and the policy is its one reader.
+
 Two consequences follow. konacode asks the user nothing about a plan call. The judge reads only
 the calls that konacode asks about, so the judge never reads a plan call. A plan call costs no
 model call, and the user waits no longer.
@@ -106,65 +143,47 @@ model call, and the user waits no longer.
 
 `Agent` holds an `int` today, and the loop reads it on each iteration.
 
-konacode replaces the `int` with one object, and the tool raises the maximum itself. The loop
-gains no line, and the loop reads no effect.
-
 ```java
-package dev.konacode.tools;
-
-/** The number of iterations one turn may use. The tool that plans the turn raises it. */
-public interface Budget {
-    void extend();
-}
+private final int maxIterations;
+...
+for (; iterations <= maxIterations; iterations++) {
 ```
 
-```java
-package dev.konacode.agent;
-
-public final class TurnBudget implements Budget {
-    // extend() is public, because a tool calls it.
-    // reset() and max() are package-private, because only the loop may use them.
-}
-```
-
-`TurnBudget` holds two numbers, and one number for the turn that runs now. `extend` sets the
-number of this turn to the larger one, and a second call changes nothing. `reset` puts the number
-back to the smaller one, and `Agent.respond` calls it once for each turn. So the larger maximum
-ends with the turn that earned it.
-
-This is the shape of `StopCheck`, with the direction reversed. `Cancellation` lives in `agent`,
-`StopCheck` lives in `tools`, and the tools read it. Here the budget lives in `agent`, `Budget`
-lives in `tools`, and one tool writes to it. `agent` already depends on `tools`, so this closes no
-cycle.
-
-`PlanTool` keeps a `Budget` in a field, in the way `ReadFile` keeps a `Workspace` in a field.
-`PlanTool` and `Agent` share one `TurnBudget`.
+konacode replaces the number with one object, `TurnBudget`, in the package `agent`.
 
 ```java
-private final Budget budget;
-
-public PlanTool(Budget budget) {
-    this.budget = budget;
-}
-
-@Override
-public ToolResult execute(JsonNode args) {
-    List<Step> steps = readSteps(args);   // this answers an Err when the list is missing or empty
-    budget.extend();
-    return ToolResult.ok(render(steps));
-}
+budget.reset();                                    // once, at the start of a turn
+for (; iterations <= budget.max(); iterations++) {
 ```
 
-`Budget` carries no idea of its own. It exists so that a class in `tools` can reach a class in
-`agent`. Issue [#41](https://github.com/bbossola/konacode/issues/41) lists every interface of that
-kind, and it decides them together. This design adds one more, and #41 removes it or keeps it.
+`TurnBudget` holds two numbers and the number of the turn that runs now. `extend` sets the number
+of this turn to the larger one, and a second call changes nothing. `reset` puts the number back to
+the smaller one, and `Agent.respond` calls it once for each turn. So the larger maximum ends with
+the turn that earned it.
+
+`extend` is public, because `PlanTool` calls it. `reset` and `max` are package-private, because
+only the loop uses them. `PlanTool` and `Agent` are in one package, so `PlanTool` sees all three,
+and no class outside `agent` sees any of them.
 
 `Agent` takes a `TurnBudget` where it takes an `int` today. The check that the number is at least
-one moves to `TurnBudget`, because the object owns both numbers now.
+one moves to `TurnBudget`, because that class owns both numbers now.
 
-`Main` builds one `TurnBudget`. It gives it to `PlanTool` and to `Agent`. The registry is built
-before the loop, so the budget must exist before both. That is why `Agent` does not implement
-`Budget` itself.
+`Main` builds one `TurnBudget`. `PlanTool` and `Agent` share it.
+
+```java
+TurnBudget budget = new TurnBudget(maxIterations, plannedMaxIterations);
+
+ToolRegistry registry = ToolRegistry.of(
+        new ListFiles(workspace, cancellation),
+        new ReadFile(workspace, cancellation),
+        new EditFile(workspace, cancellation),
+        new DeleteFile(workspace),
+        new RunCommand(workspace, cancellation, commandTimeout),
+        new PlanTool(budget));
+
+Agent agent = new Agent(client, registry, policies, approvals, conversation, kona,
+        cancellation, budget);
+```
 
 ## Configuration
 
@@ -207,8 +226,8 @@ reads what the model does.
 
 The user types `rename respond to answer across the project`.
 
-1. The model calls `plan` with three steps. The first step is `doing`. The loop appends the list.
-   `TurnBudget` raises the maximum of this turn to 24.
+1. The model calls `plan` with three steps. The first step is `doing`. `PlanTool` raises the
+   maximum of this turn to 24. The loop appends the list.
 2. The model calls `run_command` with `grep -rn respond src`.
 3. The model calls `plan` again. Step 1 is `done`, and step 2 is `doing`.
 4. The model calls `read_file` and `edit_file` for each file.
@@ -235,9 +254,18 @@ maximum of 8 again.
 state. The conversation already holds every tool result, so the class would keep a second copy of
 the same list. `/clear` would then need a line to remove it.
 
-**The loop reads the effect.** The loop computes the `Action` of every call, so it could read the
-sixth value and raise the maximum itself. `Action` exists for the policy. Two readers of one value
-for two purposes make the value harder to change later, and the loop gains a branch.
+**A `Budget` interface in `tools`, with `TurnBudget` in `agent`.** An interface declares where a
+concept lives. `Budget` in `tools` says that the tools own the idea of the budget, and that the
+loop implements an idea of the tools. The loop owns the turn, so that is backwards. It also adds
+one more interface of the kind that #41 asks konacode to remove.
+
+**`TurnBudget` in `tools`.** This removes the interface, and it puts a concept of the loop in the
+package of the tools.
+
+**The loop hands the action to the budget.** `Agent` computes the `Action` of every call, so it
+could pass it to `TurnBudget`, and `TurnBudget` could switch on the effect. It needs no interface.
+It adds a branch, and the effect value must then say `PLANS` and serve two readers. The tool
+already knows that it plans, so the branch answers a question that nobody needs to ask.
 
 **A tool name in the loop.** `Agent` holds no tool name today. One literal there ends that
 property for ever.
@@ -250,14 +278,6 @@ trace already reports the call.
 list that the model wrote in advance. The policy would then decide about calls that the model
 never made one at a time.
 
-**`PlanTool` moves to the package `agent`.** A class in `agent` may implement `Tool`, so
-`PlanTool` could import `TurnBudget` and konacode would need no interface. The five tools in
-`tools` act on the world, and this one acts on the turn, so the package would say something true.
-konacode keeps `PlanTool` in `tools` with the other tools, and #41 decides the interface.
-
-**`TurnBudget` in the package `tools`.** This removes the interface. It puts a concept of the loop
-in the package of the tools, and the budget belongs to the turn.
-
 **The loop refuses the first call of a turn when no plan exists.** This makes every turn plan,
 including a turn that reads one file. It is item 4 of the epic, and it needs its own design.
 
@@ -268,6 +288,7 @@ including a turn that reads one file. It is item 4 of the epic, and it needs its
 - Issue #20, sub-agents.
 - Issue #18, `/compact`. The plan is the message a compaction should keep, and that decision
   belongs to #18.
+- Issue #41, the interfaces and the rule for where a tool lives.
 
 ## Tests
 
@@ -276,7 +297,7 @@ including a turn that reads one file. It is item 4 of the epic, and it needs its
 | `PlanToolTest` | The tool gives the list back, one line for each step. |
 | `PlanToolTest` | A malformed argument is an `Err`. An empty list is an `Err`. |
 | `PlanToolTest` | `computeAction` answers `NONE`, an empty operand and no permission. |
-| `PlanToolTest` | `execute` raises the budget. |
+| `PlanToolTest` | A good call raises the maximum. A failed call leaves it. |
 | `EffectPolicyTest` | `NONE` gives `Allow`. |
 | `TurnBudgetTest` | `extend` raises the maximum. A second `extend` changes nothing. |
 | `TurnBudgetTest` | `reset` puts the maximum back. |
