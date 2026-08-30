@@ -71,10 +71,10 @@ The description is prompt text. It tells the model when to call the tool.
 ```
 Record the steps of the work you are going to do, and give the list back.
 Use this before work that needs more than two or three tool calls.
-Write one short step for each thing you must do.
+Write one short step for each thing you must do, and write 20 steps or fewer.
 Each step has a state: todo, doing or done. Keep one step doing at a time.
-Call this tool again each time a step starts and each time a step finishes, and send the
-whole list every time.
+Call this tool again at each change: mark the step you finished done, mark the next step
+doing, and send the whole list in one call.
 This tool changes no file and runs no command. It records what you intend to do, and you
 read it again on the next step.
 ```
@@ -92,8 +92,29 @@ gives more iterations" calls `plan` to get the iterations, and not to plan.
 3. [todo]  run mvn test
 ```
 
-A malformed argument is an `Err`, in the way every other tool answers. An empty list is an `Err`,
-because a plan with no step states nothing.
+`execute` answers an `Err` for a call it cannot read, in the way every other tool answers. Each
+`Err` names one fault, and it names the step that holds it. An `Err` is prompt text: one message
+for six faults tells the model the shape it already sent, and the model must then read a plan of
+ten steps again to find the one word that failed. `EditFile` and `DeleteFile` both make this split.
+
+| Fault | The message |
+|---|---|
+| `steps` is missing, or it is not an array | The shape of the call, in the way `DeleteFile` answers |
+| The list is empty | The plan has no step. Send at least one step. |
+| The list holds more than 20 steps | The plan has N steps. Send 20 steps or fewer. |
+| A step has no text | Step N has no text. Give one short sentence for each step. |
+| The text of a step is longer than 200 characters | Step N is too long. Keep a step under 200 characters. |
+| A step has a state konacode does not know | Step N has a state konacode does not know. Use todo, doing or done. |
+
+No message repeats a word the model wrote. The state of step N is a word the model chose, so the
+message names the step and never the word.
+
+Two caps hold the size: 20 steps, and 200 characters for the text of one step. Every other tool
+caps what it gives back. This one gives its result back on every later iteration of the turn,
+because konacode sends the whole conversation each time.
+
+The text of a step becomes one line. A newline in the text draws a second numbered line, and that
+line is not konacode's. `RunCommand` answers the same problem for `<exit N>`.
 
 ### The code
 
@@ -295,7 +316,9 @@ including a turn that reads one file. It is item 4 of the epic, and it needs its
 | Test | What it proves |
 |---|---|
 | `PlanToolTest` | The tool gives the list back, one line for each step. |
-| `PlanToolTest` | A malformed argument is an `Err`. An empty list is an `Err`. |
+| `PlanToolTest` | Each of the six faults gives its own `Err`, and the message names the step. |
+| `PlanToolTest` | A step of two lines becomes one line. |
+| `PlanToolTest` | The description holds the guard against a plan of one step, and the cap of 20. |
 | `PlanToolTest` | `computeAction` answers `NONE`, an empty operand and no permission. |
 | `PlanToolTest` | A good call raises the maximum. A failed call leaves it. |
 | `EffectPolicyTest` | `NONE` gives `Allow`. |
