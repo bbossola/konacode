@@ -232,6 +232,9 @@ Write all documents and all replies in ASD-STE100 Simplified Technical English.
 - Write positive statements. Do not put two negatives in one sentence.
 - Use simple verb tenses.
 - Write literally. Do not use a metaphor or an idiom.
+- Do not make a verb from the name of a type. `Decision.Ask` gives "the policy writes a
+  question", and the reader learns nothing. Write what each part does: `EffectPolicy` allows
+  the call, so konacode asks the user nothing.
 
 ## Conventions
 
