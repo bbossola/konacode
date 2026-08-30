@@ -49,7 +49,7 @@ public final class Agent {
     private final TurnBudget budget;
     private int turn;
 
-    /** An agent whose maximum never changes. The judge uses this, and so does every test. */
+    /** An agent whose maximum never changes. */
     public Agent(LlmClient client,
                  ToolRegistry registry,
                  ToolPolicy policy,
@@ -58,8 +58,7 @@ public final class Agent {
                  Trace trace,
                  Cancellation cancellation,
                  int maxIterations) {
-        this(client, registry, policy, approvals, conversation, trace, cancellation,
-                new TurnBudget(maxIterations, maxIterations));
+        this(client, registry, policy, approvals, conversation, trace, cancellation, new TurnBudget(maxIterations, maxIterations));
     }
 
     public Agent(LlmClient client,
@@ -112,7 +111,7 @@ public final class Agent {
                     return end(Outcome.STOPPED, iterations, started, closeStoppedTurn(List.of()));
                 }
             }
-            return end(Outcome.EXHAUSTED, budget.max(), started, fail("<error> Exceeded maximum tool iterations."));
+            return end(Outcome.EXHAUSTED, iterations - 1, started, fail("<error> Exceeded maximum tool iterations."));
         } catch (LlmException e) {
             if (cancellation.stopped()) {
                 return end(Outcome.STOPPED, iterations, started, closeStoppedTurn(List.of()));

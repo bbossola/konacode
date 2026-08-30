@@ -9,6 +9,10 @@ package dev.konacode.agent;
  *
  * <p>{@code extend} is public, because a tool calls it. {@code reset} and {@code max} are
  * package-private, because only the loop uses them.
+ *
+ * <p>One budget serves one agent, because {@code reset} states that a new turn starts. A second
+ * agent that shared this budget would end the larger maximum of the first agent. Sub-agents are
+ * issue #20.
  */
 public final class TurnBudget {
 
