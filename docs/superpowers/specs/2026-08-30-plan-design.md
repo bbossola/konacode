@@ -137,6 +137,28 @@ This is the shape of `StopCheck`, with the direction reversed. `Cancellation` li
 lives in `tools`, and one tool writes to it. `agent` already depends on `tools`, so this closes no
 cycle.
 
+`PlanTool` keeps a `Budget` in a field, in the way `ReadFile` keeps a `Workspace` in a field.
+`PlanTool` and `Agent` share one `TurnBudget`.
+
+```java
+private final Budget budget;
+
+public PlanTool(Budget budget) {
+    this.budget = budget;
+}
+
+@Override
+public ToolResult execute(JsonNode args) {
+    List<Step> steps = readSteps(args);   // this answers an Err when the list is missing or empty
+    budget.extend();
+    return ToolResult.ok(render(steps));
+}
+```
+
+`Budget` carries no idea of its own. It exists so that a class in `tools` can reach a class in
+`agent`. Issue [#41](https://github.com/bbossola/konacode/issues/41) lists every interface of that
+kind, and it decides them together. This design adds one more, and #41 removes it or keeps it.
+
 `Agent` takes a `TurnBudget` where it takes an `int` today. The check that the number is at least
 one moves to `TurnBudget`, because the object owns both numbers now.
 
@@ -227,6 +249,14 @@ trace already reports the call.
 **konacode runs the steps.** The plan would become a list of calls, and konacode would execute a
 list that the model wrote in advance. The policy would then decide about calls that the model
 never made one at a time.
+
+**`PlanTool` moves to the package `agent`.** A class in `agent` may implement `Tool`, so
+`PlanTool` could import `TurnBudget` and konacode would need no interface. The five tools in
+`tools` act on the world, and this one acts on the turn, so the package would say something true.
+konacode keeps `PlanTool` in `tools` with the other tools, and #41 decides the interface.
+
+**`TurnBudget` in the package `tools`.** This removes the interface. It puts a concept of the loop
+in the package of the tools, and the budget belongs to the turn.
 
 **The loop refuses the first call of a turn when no plan exists.** This makes every turn plan,
 including a turn that reads one file. It is item 4 of the epic, and it needs its own design.
