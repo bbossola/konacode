@@ -43,6 +43,26 @@ class TurnBudgetTest {
     }
 
     @Test
+    void raisesTheMaximumAgainAfterAReset() {
+        TurnBudget budget = new TurnBudget(8, 24);
+        budget.extend();
+        budget.reset();
+
+        budget.extend();
+
+        assertEquals(24, budget.max(), "one budget serves every turn of a session");
+    }
+
+    @Test
+    void resetBeforeAnyExtendChangesNothing() {
+        TurnBudget budget = new TurnBudget(8, 24);
+
+        budget.reset();
+
+        assertEquals(8, budget.max());
+    }
+
+    @Test
     void refusesAnOrdinaryMaximumBelowOne() {
         assertThrows(IllegalArgumentException.class, () -> new TurnBudget(0, 24));
     }
