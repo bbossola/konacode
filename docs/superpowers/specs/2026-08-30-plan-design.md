@@ -305,4 +305,4 @@ including a turn that reads one file. It is item 4 of the epic, and it needs its
 | `AgentTest` | A turn that calls no plan stops at 8 iterations. |
 | `AgentTest` | The turn after a planned turn stops at 8 iterations. |
 | `MainTest` | The prompt holds the planning sentence, and it holds five lines or fewer. |
-| `MainTest` | A planned maximum below the ordinary maximum exits 1. |
+| `TurnBudgetTest` | A planned maximum below the ordinary maximum is refused. `Main` builds the budget inside the `try` that reads the configuration, so konacode prints one line and exits 1. |
