@@ -39,7 +39,7 @@ import java.util.List;
 public final class Main {
 
     static final int DEFAULT_MAX_ITERATIONS = 8;
-    static final int DEFAULT_PLANNED_MAX_ITERATIONS = 24;
+    static final int DEFAULT_MAX_ITERATIONS_WHEN_PLANNING = 24;
     static final int DEFAULT_MAX_TRACE_FILES = 100;
     static final Duration DEFAULT_COMMAND_TIMEOUT = Duration.ofSeconds(600);
 
@@ -56,7 +56,7 @@ public final class Main {
         Ui ui;
         try {
             config = OpenAiConfig.fromEnvironment(System.getenv());
-            budget = new TurnBudget(maxIterations(), plannedMaxIterations());
+            budget = new TurnBudget(maxIterations(), maxIterationsWhenPlanning());
             traceLevel = Level.configured();
             maxTraceFiles = maxTraceFiles();
             commandTimeout = commandTimeout();
@@ -154,18 +154,19 @@ public final class Main {
     }
 
     /**
-     * The maximum for a turn in which the model records a plan. Work that plans needs more
-     * iterations than read-read-edit, and a turn that does not plan must not pay for them.
+     * The maximum for a turn in which the model records a plan. Work of several steps needs more
+     * iterations than a read and one edit, and a turn that records no plan keeps the smaller
+     * maximum.
      */
-    static int plannedMaxIterations() {
-        String configured = System.getProperty("konacode.maxIterations.planned");
+    static int maxIterationsWhenPlanning() {
+        String configured = System.getProperty("konacode.maxIterations.whenPlanning");
         if (configured == null) {
-            return DEFAULT_PLANNED_MAX_ITERATIONS;
+            return DEFAULT_MAX_ITERATIONS_WHEN_PLANNING;
         }
         try {
             return Integer.parseInt(configured.trim());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("konacode.maxIterations.planned must be a whole number, but was: " + configured);
+            throw new IllegalArgumentException("konacode.maxIterations.whenPlanning must be a whole number, but was: " + configured);
         }
     }
 

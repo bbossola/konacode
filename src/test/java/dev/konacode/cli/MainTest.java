@@ -362,23 +362,23 @@ class MainTest {
     }
 
     @Test
-    void thePlannedMaximumDefaultsTo24() {
-        withProperty("konacode.maxIterations.planned", null,
-                () -> assertEquals(24, Main.plannedMaxIterations()));
+    void theMaximumWhenPlanningDefaultsTo24() {
+        withProperty("konacode.maxIterations.whenPlanning", null,
+                () -> assertEquals(24, Main.maxIterationsWhenPlanning()));
     }
 
     @Test
-    void aConfiguredPlannedMaximumIsUsed() {
-        withProperty("konacode.maxIterations.planned", "40",
-                () -> assertEquals(40, Main.plannedMaxIterations()));
+    void aConfiguredMaximumWhenPlanningIsUsed() {
+        withProperty("konacode.maxIterations.whenPlanning", "40",
+                () -> assertEquals(40, Main.maxIterationsWhenPlanning()));
     }
 
     @Test
-    void aWrongPlannedMaximumFailsLoudly() {
-        withProperty("konacode.maxIterations.planned", "many", () -> {
+    void aWrongMaximumWhenPlanningFailsLoudly() {
+        withProperty("konacode.maxIterations.whenPlanning", "many", () -> {
             IllegalArgumentException e =
-                    assertThrows(IllegalArgumentException.class, Main::plannedMaxIterations);
-            assertTrue(e.getMessage().contains("konacode.maxIterations.planned"), e.getMessage());
+                    assertThrows(IllegalArgumentException.class, Main::maxIterationsWhenPlanning);
+            assertTrue(e.getMessage().contains("konacode.maxIterations.whenPlanning"), e.getMessage());
         });
     }
 

@@ -198,7 +198,7 @@ one moves to `TurnBudget`, because that class owns both numbers now.
 `Main` builds one `TurnBudget`. `PlanTool` and `Agent` share it.
 
 ```java
-TurnBudget budget = new TurnBudget(maxIterations, plannedMaxIterations);
+TurnBudget budget = new TurnBudget(maxIterations, maxIterationsWhenPlanning);
 
 ToolRegistry registry = ToolRegistry.of(
         new ListFiles(workspace, cancellation),
@@ -220,7 +220,7 @@ wrong value prints one line and exits 1.
 | Name | Kind | Required | Default |
 |---|---|---|---|
 | `konacode.maxIterations` | property | no | `8` |
-| `konacode.maxIterations.planned` | property | no | `24` |
+| `konacode.maxIterations.whenPlanning` | property | no | `24` |
 
 A planned maximum below the ordinary maximum is a wrong value. konacode prints one line and exits
 1, because a plan must never reduce the number of iterations.
