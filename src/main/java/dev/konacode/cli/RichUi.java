@@ -5,6 +5,7 @@ import dev.konacode.cli.markdown.Markdown;
 import dev.konacode.policy.Decision;
 import dev.konacode.trace.Level;
 import dev.konacode.trace.TraceEvent;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.ToolFinished;
 import org.jline.keymap.KeyMap;
@@ -128,22 +129,26 @@ final class RichUi implements Ui {
         watcher.stop();
         try {
             show(ask);
-            return answer(read(), ask.permission().isPresent());
+            return answer(read(), ask.standingPermission().isPresent());
         } finally {
             watcher.start();
         }
     }
 
     private void show(Decision.Ask ask) {
-        String verb = ask.intent().split(" ", 2)[0];
+        String verb = ask.toolIntent().split(" ", 2)[0];
         out.println();
-        out.println(ask.toolName() + " wants to " + ask.intent() + ".");
+        out.println(ask.toolName() + " wants to " + ask.toolIntent() + ".");
         out.println();
-        out.println(toOneRow("  " + Ansi.oneLine(ask.operand())));
+        out.println(toOneRow("  " + Ansi.oneLine(ask.toolOperand())));
+        if (!ask.note().isEmpty()) {
+            out.println();
+            out.println(toOneRow("  " + Ansi.oneLine(ask.note())));
+        }
         out.println();
         out.println("  y  " + verb + " it once");
         out.println("  n  refuse");
-        ask.permission().ifPresent(permission -> out.println(
+        ask.standingPermission().ifPresent(permission -> out.println(
                 toOneRow("  a  always, for " + Ansi.oneLine(permission.inWords()))));
         out.flush();
     }
@@ -155,15 +160,15 @@ final class RichUi implements Ui {
      * column 0, and it reads as a line konacode wrote. The beginning of the line stays, because a
      * user judges a path by the folder it is in, and the mark says that more text is there.
      *
-     * <p>The count is characters and not columns, so a CJK character or an emoji can still wrap.
-     * {@link Ansi#visibleLength} has the same limit, and so does every caller of it.
+     * <p>The count is columns and not characters, because a fullwidth character takes two columns
+     * and a count of characters lets a padded operand pass this cut.
      */
     private String toOneRow(String text) {
         int room = terminal.getWidth() - 4;
-        if (room < 20 || text.length() <= room) {
+        if (room < 20 || Ansi.visibleLength(text) <= room) {
             return text;
         }
-        return text.substring(0, room - 1) + "\u2026";
+        return Ansi.cutToColumns(text, room - 1) + "\u2026";
     }
 
     private int read() {
@@ -209,20 +214,27 @@ final class RichUi implements Ui {
 
     @Override
     public void emit(TraceEvent event) {
-        if (event instanceof ToolCalled called) {
+        if (TraceLine.inside(event) instanceof ToolCalled called) {
             spinner.stop();
             // The model wrote this name and these arguments, and this line prints before the
             // loop asks the user, so an unguarded newline here draws a question above the real
             // one. No part of the name reaches a registry before it reaches the screen.
-            out.println(Ansi.style(toOneRow("tool: " + Ansi.oneLine(called.name()) + "("
+            out.println(Ansi.style(toOneRow("tool: " + TraceLine.names(event)
+                    + Ansi.oneLine(called.name()) + "("
                     + Ansi.oneLine(called.argumentsJson()) + ")"), Ansi.GREEN));
+            return;
+        }
+        if (TraceLine.inside(event) instanceof Judged) {
+            spinner.stop();
+            // A call the judge allowed runs with no question, so this line is the only report of it.
+            out.println(Ansi.style(toOneRow("judged: " + TraceLine.of(event)), Ansi.MAGENTA));
             return;
         }
         live.keep(event).ifPresent(kept -> {
             spinner.stop();
             out.println(Ansi.style("trace: " + TraceLine.of(kept), Ansi.MAGENTA));
         });
-        if (event instanceof ToolFinished) {
+        if (TraceLine.inside(event) instanceof ToolFinished) {
             spinner.start();
         }
     }

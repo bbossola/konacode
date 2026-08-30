@@ -10,6 +10,8 @@ import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.ToolSpec;
 import dev.konacode.policy.AllowAllPolicy;
+import dev.konacode.policy.EffectPolicy;
+import dev.konacode.policy.JudgePolicy;
 import dev.konacode.policy.SelectedPolicy;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.ToolRegistry;
@@ -17,6 +19,7 @@ import dev.konacode.tools.Workspace;
 import dev.konacode.tools.ListFiles;
 import dev.konacode.tools.StopCheck;
 import dev.konacode.trace.Level;
+import dev.konacode.trace.Trace;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -24,6 +27,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReplTest {
@@ -34,16 +38,21 @@ class ReplTest {
     private static final SystemMessage SYSTEM = new SystemMessage("You are konacode.");
 
     private Repl repl(RecordingUi ui) {
+        return repl(ui, new Cancellation());
+    }
+
+    private Repl repl(RecordingUi ui, Cancellation cancellation) {
         LlmClient client = (history, tools) -> new AssistantMessage("the answer", List.of());
         Conversation conversation = new Conversation(SYSTEM);
         Workspace workspace = new Workspace(root);
         ToolRegistry registry = ToolRegistry.of(new ListFiles(workspace, StopCheck.NEVER));
         SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
         Agent agent = new Agent(client, registry, new AllowAllPolicy(), new Approvals(ui),
-                conversation, ui, new Cancellation(), 8);
-        return new Repl(agent, ui,
+                conversation, ui, cancellation, 8);
+        return new Repl(agent, ui, cancellation,
                 new Commands(conversation, SYSTEM, registry, skills, ui, Level.OFF,
-                        new SelectedPolicy(new AllowAllPolicy())));
+                        new SelectedPolicy(new AllowAllPolicy()),
+                        new JudgePolicy(new EffectPolicy(), (ask, userText) -> ask, Trace.NONE)));
     }
 
     @Test
@@ -98,6 +107,17 @@ class ReplTest {
         repl(ui).run();
 
         assertEquals(List.of(), ui.answers);
+    }
+
+    @Test
+    void theReplClearsAStopLeftOverFromThePrompt() {
+        RecordingUi ui = new RecordingUi("hello");
+        Cancellation cancellation = new Cancellation();
+        cancellation.request();
+
+        repl(ui, cancellation).run();
+
+        assertFalse(cancellation.stopped(), "a key pressed at the prompt must not stop the next turn");
     }
 
     @Test

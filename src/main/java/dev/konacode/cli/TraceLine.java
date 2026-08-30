@@ -1,7 +1,9 @@
 package dev.konacode.cli;
 
 import dev.konacode.trace.TraceEvent;
+import dev.konacode.trace.TraceEvent.FromAgent;
 import dev.konacode.trace.TraceEvent.IterationStarted;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.RequestSent;
 import dev.konacode.trace.TraceEvent.RetryRequested;
@@ -17,6 +19,10 @@ import dev.konacode.trace.TraceEvent.TurnStarted;
  * <p>{@link Ansi#oneLine} guards every payload the model or the provider chose, and no word
  * konacode writes around it. This is the one method both interfaces call, so the guard sits here
  * and not at two call sites.
+ *
+ * <p>A line puts the payload the model chose last, and it puts no delimiter around it. A delimiter
+ * is a character the model can write too, so an operand closes it and writes a verdict of its own.
+ * A payload with nothing after it can forge nothing.
  */
 final class TraceLine {
 
@@ -40,7 +46,26 @@ final class TraceLine {
                     + body(e.bodyJson());
             case TokensUsed e -> "tokens " + e.prompt() + " + " + e.completion() + " = " + e.total();
             case RetryRequested e -> "retry: " + e.reason();
+            case Judged e -> e.verdict() + " " + Ansi.oneLine(e.toolName()) + " " + e.millis()
+                    + "ms " + Ansi.oneLine(e.toolOperand());
+            case FromAgent e -> e.agent() + "> " + of(e.event());
         };
+    }
+
+    /**
+     * The event a {@code FromAgent} holds, or the event itself.
+     *
+     * <p>An interface that matches one kind of event must reach through the name first. A match on
+     * the wrapper alone stopped printing the tool line, and the suite could not see it, because
+     * every test emitted a bare event.
+     */
+    static TraceEvent inside(TraceEvent event) {
+        return event instanceof FromAgent named ? inside(named.event()) : event;
+    }
+
+    /** The names around an event, ready to print before a line konacode writes. */
+    static String names(TraceEvent event) {
+        return event instanceof FromAgent named ? named.agent() + "> " + names(named.event()) : "";
     }
 
     /** The newline is the one konacode writes. The body is the text a provider sent. */

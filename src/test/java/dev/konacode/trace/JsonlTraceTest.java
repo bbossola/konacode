@@ -2,6 +2,8 @@ package dev.konacode.trace;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.konacode.trace.TraceEvent.FromAgent;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.Outcome;
 import dev.konacode.trace.TraceEvent.RequestSent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
@@ -22,7 +24,6 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JsonlTraceTest {
@@ -64,10 +65,32 @@ class JsonlTraceTest {
     }
 
     @Test
+    void writesWhatTheJudgeAnswered() throws IOException {
+        trace(Level.BASIC).emit(new Judged("run_command", "allow", 412, "mvn -q test"));
+
+        JsonNode line = onlyLine();
+        assertEquals("judged", line.get("event").asText());
+        assertEquals("run_command", line.get("toolName").asText());
+        assertEquals("mvn -q test", line.get("toolOperand").asText());
+        assertEquals("allow", line.get("verdict").asText());
+        assertEquals(412, line.get("millis").asLong());
+    }
+
+    @Test
     void appliesItsOwnLevel() throws IOException {
         trace(Level.BASIC).emit(new RequestSent("http://x", "gpt-5-mini", 3, 4, "{\"big\":1}"));
 
         assertEquals("", onlyLine().get("bodyJson").asText());
+    }
+
+    @Test
+    void writesTheAgentBesideTheEventItMade() throws IOException {
+        trace(Level.FULL).emit(new FromAgent("judge", new ToolCalled(2, "read_file", "{}")));
+
+        JsonNode line = onlyLine();
+        assertEquals("judge", line.get("agent").asText());
+        assertEquals("tool_called", line.get("event").asText());
+        assertEquals(2, line.get("turn").asInt());
     }
 
     @Test
@@ -176,34 +199,5 @@ class JsonlTraceTest {
         assertEquals(Trace.NONE, trace);
         assertTrue(warnings.toString(StandardCharsets.UTF_8).contains("trace"),
                 warnings.toString(StandardCharsets.UTF_8));
-    }
-
-    @Test
-    void theConfiguredCountDefaultsToOneHundred() {
-        System.clearProperty("konacode.trace.maxFiles");
-
-        assertEquals(100, JsonlTrace.configuredMaxFiles());
-    }
-
-    @Test
-    void aCountThatIsNotAWholeNumberIsAnError() {
-        System.setProperty("konacode.trace.maxFiles", "many");
-        try {
-            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                    JsonlTrace::configuredMaxFiles);
-            assertTrue(e.getMessage().contains("konacode.trace.maxFiles"), e.getMessage());
-        } finally {
-            System.clearProperty("konacode.trace.maxFiles");
-        }
-    }
-
-    @Test
-    void aCountBelowOneIsAnError() {
-        System.setProperty("konacode.trace.maxFiles", "0");
-        try {
-            assertThrows(IllegalArgumentException.class, JsonlTrace::configuredMaxFiles);
-        } finally {
-            System.clearProperty("konacode.trace.maxFiles");
-        }
     }
 }

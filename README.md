@@ -42,9 +42,11 @@ the model asks for it. Adding a sixth means writing one class and registering it
 
 ## Approval
 
-konacode asks before it reads or writes outside this project, and before it runs a command. For
-a read or a write inside this project it asks nothing. In the rich interface the question looks
-like this:
+konacode reads and writes inside this project with no question. For a read or a write outside this
+project, and for a command, a judge decides. The judge is a second agent. It reads the name of the
+tool, what the call does, what the call acts on, where the project is, and the message you typed,
+and it answers allow, ask or deny. It answers ask when it is not sure, and konacode then puts the
+question to you. In the rich interface the question looks like this:
 
 ```
 
@@ -60,8 +62,25 @@ read_file wants to read outside this project.
 Answer `y`, `n` or `a`. `y` runs the call once. `n` refuses it, and konacode asks again the next
 time, because one answer covers one call. `a` runs it, and every later call the same tool makes in
 the same folder, for the rest of this session. `esc` refuses and stops the turn. A pipe cannot ask a
-question, so it keeps the old behaviour and allows every call. `/policy` shows or changes the
-setting.
+question, so it refuses every call outside this project, and every command, that the judge does not
+allow.
+
+**A call inside this project reaches no judge.** konacode reads, writes and deletes a file inside
+this project with no question and no judgement, in a terminal and in a pipe. The judge sees a read
+or a write outside this project, and a command. Read that sentence before you trust a piped
+session.
+
+konacode prints a `judged:` line for every call the judge answered, because a call the judge allowed
+runs with no question. When the judge denies a call, konacode refuses it and tells the model why.
+`/policy` shows or changes what konacode asks:
+
+```
+/policy allow-all    allow every call
+/policy effect       ask about every read and write outside this project, and every command
+/policy judge        ask the judge, and ask you about what it does not clear
+```
+
+`judge` is the setting konacode starts with, in a terminal and in a pipe.
 
 `run_command` asks about the command line, and `a` then covers that exact line. A line that holds
 `$`, `` ` ``, `*`, `?`, `[` or `~` means something else on another day, so konacode offers `y` and
@@ -128,7 +147,11 @@ Things worth trying:
 |---|---|---|
 | `OPENAI_API_KEY` | yes | — |
 | `KONACODE_MODEL` | no | `gpt-5-mini` |
+| `KONACODE_JUDGE_MODEL` | no | the value of `KONACODE_MODEL` |
 | `KONACODE_BASE_URL` | no | `https://api.openai.com/v1` |
+
+The judge uses the same key and the same base URL. It runs on every call outside this project and
+on every command, so a large main model can have a small fast judge.
 
 Plus five system properties.
 
@@ -223,8 +246,8 @@ things honest with:
   window — or the bill.
 - **Unambiguous edits only** — `edit_file` fails loudly rather than guessing when the search
   string matches more than once.
-- **A policy hook** consulted before every tool call. See [Approval](#approval) for what it asks
-  in a terminal.
+- **A policy** consulted before every tool call. The default policy allows a read and a write
+  inside this project, and it asks a judge about everything else. See [Approval](#approval).
 
 Production agents add sandboxing, token budgets, rate limiting and permission prompts on top.
 Same skeleton, more armor. [FOLLOWUP.md](FOLLOWUP.md) tracks what is coming.

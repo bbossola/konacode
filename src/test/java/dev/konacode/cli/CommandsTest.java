@@ -7,6 +7,7 @@ import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.policy.EffectPolicy;
+import dev.konacode.policy.JudgePolicy;
 import dev.konacode.policy.SelectedPolicy;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.ToolRegistry;
@@ -15,6 +16,7 @@ import dev.konacode.tools.ListFiles;
 import dev.konacode.tools.ReadFile;
 import dev.konacode.tools.StopCheck;
 import dev.konacode.trace.Level;
+import dev.konacode.trace.Trace;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -41,10 +43,11 @@ class CommandsTest {
         Workspace workspace = new Workspace(root);
         Workspace skillRoot = new Workspace(root.resolve("skills"));
         selected = new SelectedPolicy(new EffectPolicy());
+        JudgePolicy judge = new JudgePolicy(new EffectPolicy(), (ask, userText) -> ask, Trace.NONE);
         return new Commands(conversation, SYSTEM,
                 ToolRegistry.of(new ListFiles(workspace, StopCheck.NEVER),
                         new ReadFile(workspace, StopCheck.NEVER)),
-                new SkillRegistry(skillRoot), ui, Level.BASIC, selected);
+                new SkillRegistry(skillRoot), ui, Level.BASIC, selected, judge);
     }
 
     private void writeSkill(String name, String description) throws IOException {
@@ -369,6 +372,20 @@ class CommandsTest {
     }
 
     @Test
+    void policyWithNoNameNamesEveryPolicyTheUserCanChoose() {
+        RecordingUi ui = new RecordingUi();
+        Commands commands = commands(ui, new Conversation(SYSTEM));
+
+        commands.run("/policy effect");
+        commands.run("/policy");
+        assertTrue(ui.answers.get(ui.answers.size() - 1).contains("uses `effect`"), ui.answers.toString());
+
+        commands.run("/policy allow-all");
+        commands.run("/policy");
+        assertTrue(ui.answers.get(ui.answers.size() - 1).contains("uses `allow-all`"), ui.answers.toString());
+    }
+
+    @Test
     void policyWithNoNameNotesTheInterfaceCannotAskWhenItCannot() {
         RecordingUi ui = new RecordingUi();
         ui.canAsk = false;
@@ -433,7 +450,7 @@ class CommandsTest {
 
         commands.run("/policy loose");
 
-        assertEquals("Unknown policy: loose. Use allow-all or effect.", ui.errors.get(0));
+        assertEquals("Unknown policy: loose. Use allow-all, effect or judge.", ui.errors.get(0));
         assertInstanceOf(EffectPolicy.class, selected.selected());
         assertTrue(ui.answers.isEmpty(), ui.answers.toString());
     }
@@ -459,6 +476,67 @@ class CommandsTest {
 
         String shown = ui.answers.get(ui.answers.size() - 1);
         assertEquals("konacode now uses `allow-all`.", shown);
+    }
+
+    @Test
+    void policyChoosesTheJudge() {
+        Commands commands = commands(new RecordingUi(), new Conversation(SYSTEM));
+
+        commands.run("/policy judge");
+
+        assertEquals("judge", selected.selected().label());
+    }
+
+    @Test
+    void policyWithNoNameListsTheThreeChoices() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, new Conversation(SYSTEM)).run("/policy");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertTrue(shown.contains("- `allow-all`"), shown);
+        assertTrue(shown.contains("- `effect`"), shown);
+        assertTrue(shown.contains("- `judge`"), shown);
+    }
+
+    @Test
+    void policyJudgeNamesTheJudgeWhenTheInterfaceCannotAsk() {
+        RecordingUi ui = new RecordingUi();
+        ui.canAsk = false;
+
+        commands(ui, new Conversation(SYSTEM)).run("/policy judge");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertTrue(shown.contains("cannot ask a question"), shown);
+        assertTrue(shown.contains("refuses every call outside this project, and every command,"
+                + " that the judge does not allow"), shown);
+    }
+
+    @Test
+    void policyWithNoNameNotesWhatTheJudgeRefusesWhenTheInterfaceCannotAsk() {
+        RecordingUi ui = new RecordingUi();
+        ui.canAsk = false;
+        Commands commands = commands(ui, new Conversation(SYSTEM));
+        commands.run("/policy judge");
+
+        commands.run("/policy");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertTrue(shown.contains("so `judge` refuses every call outside this project, and every"
+                + " command, that the judge does not allow"), shown);
+    }
+
+    @Test
+    void policyWithNoNameAddsNoNoteForAPolicyThatRefusesNothing() {
+        RecordingUi ui = new RecordingUi();
+        ui.canAsk = false;
+        Commands commands = commands(ui, new Conversation(SYSTEM));
+        commands.run("/policy allow-all");
+
+        commands.run("/policy");
+
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertFalse(shown.contains("cannot ask"), shown);
     }
 
     @Test

@@ -6,8 +6,8 @@ import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.policy.EffectPolicy;
+import dev.konacode.policy.JudgePolicy;
 import dev.konacode.policy.SelectedPolicy;
-import dev.konacode.policy.ToolPolicy;
 import dev.konacode.skills.Skill;
 import dev.konacode.skills.SkillException;
 import dev.konacode.skills.SkillRegistry;
@@ -32,9 +32,11 @@ final class Commands {
     private final Ui ui;
     private final Level fileLevel;
     private final SelectedPolicy policies;
+    private final JudgePolicy judge;
 
     Commands(Conversation conversation, Message systemMessage, ToolRegistry registry,
-             SkillRegistry skills, Ui ui, Level fileLevel, SelectedPolicy policies) {
+             SkillRegistry skills, Ui ui, Level fileLevel, SelectedPolicy policies,
+             JudgePolicy judge) {
         this.conversation = conversation;
         this.systemMessage = systemMessage;
         this.registry = registry;
@@ -42,6 +44,7 @@ final class Commands {
         this.ui = ui;
         this.fileLevel = fileLevel;
         this.policies = policies;
+        this.judge = judge;
     }
 
     boolean handles(String line) {
@@ -110,43 +113,35 @@ final class Commands {
 
     private void policy(String name) {
         if (name.isEmpty()) {
-            String note = ui.canAsk()
-                    ? ""
-                    : "\n\nThis interface cannot ask a question, so `effect` refuses every call"
-                            + " outside this project.";
-            ui.showAnswer("konacode uses `" + label(policies.selected()) + "`.\n\n"
+            String note = ui.canAsk() ? "" : refusal()
+                    .map(refusal -> "\n\nThis interface cannot ask a question, so `" + policies.selected().label() + "` " + refusal + ".").orElse("");
+            ui.showAnswer("konacode uses `" + policies.selected().label() + "`.\n\n"
                     + "- `allow-all` — allow every call\n"
-                    + "- `effect` — ask before a read or a write outside this project" + note);
+                    + "- `effect` — ask before a read or a write outside this project\n"
+                    + "- `judge` — ask the judge, and ask the user about what it does not clear" + note);
             return;
         }
         switch (name.toLowerCase(Locale.ROOT)) {
             case "allow-all" -> policies.select(new AllowAllPolicy());
             case "effect" -> policies.select(new EffectPolicy());
+            // The judge Main built, because a second JudgePolicy would build a second judge.
+            case "judge" -> policies.select(judge);
             default -> {
-                ui.showError("Unknown policy: " + name + ". Use allow-all or effect.");
+                ui.showError("Unknown policy: " + name + ". Use allow-all, effect or judge.");
                 return;
             }
         }
-        // allow-all never asks, so the warning would be false there. effect asks, and this
-        // interface cannot, so every call outside the project is refused with no question.
-        if (!ui.canAsk() && policies.selected() instanceof EffectPolicy) {
-            ui.showAnswer("konacode now uses `" + name + "`. This interface cannot ask a question,"
-                    + " so it refuses every call outside this project.");
+        Optional<String> refusal = ui.canAsk() ? Optional.empty() : refusal();
+        if (refusal.isPresent()) {
+            ui.showAnswer("konacode now uses `" + name + "`. This interface cannot ask a question, so it " + refusal.get() + ".");
             return;
         }
         ui.showAnswer("konacode now uses `" + name + "`.");
     }
 
-    private static String label(ToolPolicy policy) {
-        if (policy instanceof EffectPolicy) {
-            return "effect";
-        }
-        if (policy instanceof AllowAllPolicy) {
-            return "allow-all";
-        }
-        // Only /policy and Main install a policy, and both install one of the two above. A third
-        // would need a name of its own, and konacode must not guess one.
-        return "a policy konacode cannot name";
+    /** The policy owns the words, so a policy added later cannot take the sentence of another one. */
+    private Optional<String> refusal() {
+        return policies.selected().refusal();
     }
 
     private void tools() {

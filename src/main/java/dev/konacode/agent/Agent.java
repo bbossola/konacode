@@ -12,6 +12,7 @@ import dev.konacode.llm.ToolCall;
 import dev.konacode.llm.ToolSpec;
 import dev.konacode.policy.Decision;
 import dev.konacode.policy.ToolPolicy;
+import dev.konacode.tools.Action;
 import dev.konacode.tools.Tool;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.ToolResult;
@@ -35,8 +36,6 @@ import java.util.Optional;
  * reports it, so every failure comes back as a string.
  */
 public final class Agent {
-
-    public static final int DEFAULT_MAX_ITERATIONS = 8;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -71,44 +70,19 @@ public final class Agent {
         this.maxIterations = maxIterations;
     }
 
-    /**
-     * Eight is enough for read-read-edit and too few for anything that plans.
-     *
-     * <p>A malformed value is an error rather than a silent fall back to the default: this is set
-     * once in a shell script or a unit file, and a typo that quietly does nothing would go
-     * unnoticed indefinitely.
-     */
-    public static int configuredMaxIterations() {
-        String configured = System.getProperty("konacode.maxIterations");
-        if (configured == null) {
-            return DEFAULT_MAX_ITERATIONS;
-        }
-        try {
-            return Integer.parseInt(configured.trim());
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(
-                    "konacode.maxIterations must be a whole number, but was: " + configured);
-        }
-    }
-
     public String respond(String userText) {
-        cancellation.clear();
         turn++;
         long started = System.nanoTime();
         trace.emit(new TurnStarted(turn, userText));
         conversation.add(new UserMessage(userText));
         List<ToolSpec> tools = ToolSpecs.from(registry);
-        int iterations = 0;
+        int iterations = 1;
         try {
-            for (int iteration = 0; iteration < maxIterations; iteration++) {
-                iterations = iteration + 1;
+            for (; iterations <= maxIterations; iterations++) {
                 trace.emit(new IterationStarted(turn, iterations, maxIterations));
+
                 AssistantMessage reply = chat(tools);
-
-                // Before running anything: providers reject a tool result whose originating
-                // assistant message is absent from the history.
                 conversation.add(reply);
-
                 if (!reply.hasToolCalls()) {
                     return end(Outcome.ANSWERED, iterations, started, reply.text());
                 }
@@ -116,11 +90,10 @@ public final class Agent {
                 List<ToolCall> calls = reply.toolCalls();
                 for (int index = 0; index < calls.size(); index++) {
                     if (cancellation.stopped()) {
-                        return end(Outcome.STOPPED, iterations, started,
-                                closeStoppedTurn(calls.subList(index, calls.size())));
+                        return end(Outcome.STOPPED, iterations, started, closeStoppedTurn(calls.subList(index, calls.size())));
                     }
                     ToolCall call = calls.get(index);
-                    ToolResult result = perform(call);
+                    ToolResult result = perform(call, userText);
                     conversation.add(new ToolMessage(call.id(), result.render()));
                 }
 
@@ -128,8 +101,7 @@ public final class Agent {
                     return end(Outcome.STOPPED, iterations, started, closeStoppedTurn(List.of()));
                 }
             }
-            return end(Outcome.EXHAUSTED, iterations, started,
-                    fail("<error> Exceeded maximum tool iterations."));
+            return end(Outcome.EXHAUSTED, maxIterations, started, fail("<error> Exceeded maximum tool iterations."));
         } catch (LlmException e) {
             if (cancellation.stopped()) {
                 return end(Outcome.STOPPED, iterations, started, closeStoppedTurn(List.of()));
@@ -168,8 +140,7 @@ public final class Agent {
      */
     private String closeStoppedTurn(List<ToolCall> unanswered) {
         for (ToolCall call : unanswered) {
-            conversation.add(new ToolMessage(call.id(),
-                    ToolResult.err("Stopped by the user before this tool ran.").render()));
+            conversation.add(new ToolMessage(call.id(), ToolResult.err("Stopped by the user before this tool ran.").render()));
         }
         conversation.add(new AssistantMessage("Stopped by the user.", List.of()));
         return "Stopped.";
@@ -190,23 +161,25 @@ public final class Agent {
         }
     }
 
-    private ToolResult perform(ToolCall call) {
+    private ToolResult perform(ToolCall call, String userText) {
         trace.emit(new ToolCalled(turn, call.name(), call.argumentsJson()));
         long started = System.nanoTime();
-        ToolResult result = run(call);
+        ToolResult result;
+        try {
+            result = run(call, userText);
+        } catch (RuntimeException e) {
+            result = ToolResult.err("konacode failed during the call to " + call.name() + ": " + e);
+        }
         long millis = millisSince(started);
-        // One switch derives both facts. A third result would then be a compile error here, and
-        // never a report that quietly says the tool failed.
+        // One switch derives both facts, so a third result is a compile error here.
         trace.emit(switch (result) {
-            case ToolResult.Ok ok ->
-                    new ToolFinished(turn, call.name(), true, ok.text(), millis);
-            case ToolResult.Err err ->
-                    new ToolFinished(turn, call.name(), false, err.message(), millis);
+            case ToolResult.Ok ok -> new ToolFinished(turn, call.name(), true, ok.text(), millis);
+            case ToolResult.Err err -> new ToolFinished(turn, call.name(), false, err.message(), millis);
         });
         return result;
     }
 
-    private ToolResult run(ToolCall call) {
+    private ToolResult run(ToolCall call, String userText) {
         Optional<Tool> found = registry.lookup(call.name());
         if (found.isEmpty()) {
             return ToolResult.err("Unknown tool: " + call.name());
@@ -217,17 +190,18 @@ public final class Agent {
         try {
             args = parseArguments(call.argumentsJson());
         } catch (JsonProcessingException e) {
-            return ToolResult.err(
-                    "Could not parse arguments for " + call.name() + ": " + e.getOriginalMessage());
+            return ToolResult.err("Could not parse arguments for " + call.name() + ": " + e.getOriginalMessage());
         }
 
-        Decision decision;
-        try {
-            decision = policy.check(tool, args);
-        } catch (RuntimeException e) {
-            // A misbehaving policy must not kill the session, for the same reason a
-            // misbehaving tool must not. Denying is the safe reading of a broken policy.
-            return ToolResult.err("Policy check for " + call.name() + " failed: " + e);
+        Action action = tool.computeAction(args);
+        // The user already decided this call, so konacode must not pay a model to reconsider it.
+        if (approvals.covers(action)) {
+            return executeUnderCancellation(tool, args);
+        }
+        Decision decision = policy.check(action, userText);
+        // The policy can make a model call, so the user can ask for a stop while the check runs.
+        if (cancellation.stopped()) {
+            return ToolResult.err("Stopped by the user before this tool ran.");
         }
         switch (decision) {
             case Decision.Allow ignored -> { }
@@ -235,33 +209,19 @@ public final class Agent {
                 return ToolResult.err(reason);
             }
             case Decision.Ask ask -> {
-                boolean approved;
-                try {
-                    approved = approvals.approve(ask);
-                } catch (RuntimeException e) {
-                    // A user interface that fails must not end the session, for the same reason a
-                    // misbehaving tool must not. konacode then has no approval.
-                    return ToolResult.err("Could not ask the user about " + call.name() + ": " + e);
-                }
-                if (!approved) {
+                if (!approvals.approve(ask)) {
                     // This text is prompt engineering. The first version named the kind of call,
                     // "to read outside this project", and a model read that as a standing rule: it
                     // stopped calling the tool at all, so konacode never asked again. The message
                     // now describes one call and denies the rule.
-                    return ToolResult.err("konacode has no approval for this call: " + call.name()
-                            + " on " + ask.operand() + ". This answers one call and sets no rule."
-                            + " Call the tool again when the user asks, and let konacode put the"
-                            + " question.");
+                    return ToolResult.err("konacode has no approval for this call: " + call.name() + " on " + ask.toolOperand()
+                            + ". This answers one call and sets no rule. Call the tool again when the user asks,"
+                            + " and let konacode put the question.");
                 }
             }
         }
 
-        try {
-            return executeUnderCancellation(tool, args);
-        } catch (RuntimeException e) {
-            // A misbehaving tool must not kill the session.
-            return ToolResult.err("Tool " + call.name() + " failed: " + e);
-        }
+        return executeUnderCancellation(tool, args);
     }
 
     /**

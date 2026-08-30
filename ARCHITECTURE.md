@@ -26,7 +26,7 @@ For what each element *is*, see [CLAUDE.md](CLAUDE.md). For why it is shaped thi
       ToolPolicy            Tool                  Trace
       ──────────            ────                  ─────
       → Decision            → ToolResult     emit(TraceEvent); changes nothing
-        Allow | Deny          Ok | Err
+        Allow | Ask | Deny    Ok | Err
 ```
 
 Three of those collaborators are interfaces with a default implementation: the tools, the LLM
@@ -66,6 +66,13 @@ does.
  │             │  no ──────────────────────────► Err
  │             │  yes
  │             ▼
+ │        Tool.computeAction → Action
+ │             │
+ │             ▼
+ │        does a standing permission cover the Action?
+ │             │  yes ─────────────────────────► Tool.execute
+ │             │  no
+ │             ▼
  │        ToolPolicy → Decision
  │             │  Deny ────────────────────────► Err
  │             │  Ask ──► ask the user
@@ -88,6 +95,22 @@ Nothing in that picture teaches the model to list a directory before reading a f
 re-read a file after a failed edit. That behaviour emerges from the loop and the tool
 descriptions alone.
 
+## The judge
+
+**A call inside this project reaches no judge.** `EffectPolicy` allows a read and a write inside the
+launch directory, so it writes no `Ask`, and `JudgePolicy` calls the judge for an `Ask` only. A
+session on the judge still reads, writes and deletes a file inside this project with no judgement.
+The judge sees a read or a write outside this project, and a command. That is the boundary of the
+whole feature, and a user must know it before they trust a piped session.
+
+The judge is a second agent, with no tool, no history and one iteration. `JudgePolicy` calls it for
+every question `EffectPolicy` writes, and it gives it five fields: the name of the tool, what the
+call does, what the call acts on, the message the user typed, and the project root. The judge
+answers one word — `allow`, `ask` or `deny` — and one sentence of reason. It never reads the
+conversation, because the conversation holds what `read_file` returned, and a file in the repository
+is text an attacker can write. When it answers nothing konacode can read, konacode puts the question
+to the user with the sentence "The judge did not answer, so konacode asks."
+
 ## The trace
 
 Every turn reports itself into one event stream. `Trace` carries each `TraceEvent` to two
@@ -101,6 +124,20 @@ than the screen, or less.
 - `RequestSent` and `ReplyReceived` — the provider sends the request and reads the reply.
 - `TokensUsed` — the provider reports the token counts of the reply.
 - `RetryRequested` — the provider asks the model again, because it wrote a tool call as prose.
+- `Judged` — the judge answers about one call, with the tool name, the operand and the verdict.
+  The verdict is one word, and the line ends with the operand, so nothing the model wrote is
+  followed by a word the reader trusts.
+- `FromAgent` — one other event, and the name of the agent that made it.
+
+`JudgePolicy` emits a `Judged` for every question it puts to the judge. A call the judge allows runs
+with no question, so without this event a user cannot tell it from a call inside the project. Both
+interfaces show it at every level, the way they show a `ToolCalled`, because a fact the user must
+see is not a diagnostic. The level `BASIC` keeps it too, so the file records it as well.
+
+konacode runs more than one agent, and the two share one stream. `NamedTrace` puts each event of
+one agent inside a `FromAgent`, so the screen shows `kona> turn 1 started`. The name travels in the
+data, and not in a thread local: a turn on another thread would take the wrong name, and nothing
+would fail.
 
 ## Invariants
 
@@ -125,6 +162,15 @@ would cover.** A tool that gives no permission says that no standing "always" ca
 call. `run_command` gives none for a line that expands, because that line means something else on
 another day.
 
+**A call that a standing permission covers never reaches a policy.** The loop tests the permission
+the user gave, and it runs the tool. No policy can refuse a call the user approved with `a`. The
+user decided once, and konacode does not pay a model to reconsider it.
+
+**The judge is an agent with no tool, and its failure never ends a turn.** Its `ToolRegistry` is
+empty, so it answers and never acts. Its policy asks about every call and its approval throws, so a
+tool that someone adds later fails loudly rather than running unjudged. When the judge does not
+answer, konacode puts the question to the user and the turn goes on.
+
 **Four ways a turn ends**, and all four return text: an AssistantMessage with no ToolCalls, an
 exhausted iteration budget, a transport failure, or the user pressing ESC. None of them throws.
 Pressing ESC at an approval question requests the same stop, so it is not a fifth way.
@@ -137,12 +183,12 @@ before it ran, so the dangling call invariant above holds with no special case.
 
 The user presses ESC. `EscapeWatcher` reads the byte from the terminal and calls
 `Cancellation.request()`. That does two things at once: it sets a flag the loop reads, and it
-interrupts the thread the loop armed.
+interrupts the thread the loop armed. `Repl` clears the flag before each turn, so a key pressed at
+the prompt does not stop the next turn.
 
 ```
 User         Watcher    Cancellation      Agent     Conversation    LlmClient
   │             │             │             │             │             │
-  │             │             │◄───clear()──│             │             │
   │             │             │             │─add(user)──►│             │
   │             │             │◄────arm()───│             │             │
   │             │             │             │───chat(history, tools)───►│
@@ -197,9 +243,11 @@ User         Watcher    Cancellation      Agent     Conversation      Tool
   │◄╌╌╌╌╌╌╌╌╌╌ "Stopped." ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌│             │             │
 ```
 
-The loop asks `stopped()` **before** each tool call, never after. A tool that has already started
-therefore runs to the end and its real result is appended the normal way. The check that ends the
-turn happens where the next tool would have started.
+The loop asks `stopped()` **before** each tool call, and once more after the policy answers. A tool
+that has already started therefore runs to the end and its real result is appended the normal way.
+The check that ends the turn happens where the next tool would have started. The second check is
+there because a policy can make its own model call, so the user can press ESC while the check runs,
+and konacode must not then put an approval question to a user who asked it to stop.
 
 A thread interrupt stops none of the four file tools. This was measured on JDK 21.0.2:
 `Files.list`, `Files.newInputStream`, `Files.readAllBytes`, `Files.writeString`, `Files.move` and

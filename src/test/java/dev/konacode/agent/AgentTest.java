@@ -11,6 +11,7 @@ import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.llm.ToolCall;
 import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.policy.Decision;
+import dev.konacode.policy.FakePolicy;
 import dev.konacode.policy.ToolPolicy;
 import dev.konacode.tools.Action;
 import dev.konacode.tools.Effect;
@@ -19,6 +20,7 @@ import dev.konacode.tools.Schemas;
 import dev.konacode.tools.Tool;
 import dev.konacode.tools.ToolRegistry;
 import dev.konacode.tools.ToolResult;
+import dev.konacode.trace.RecordingTrace;
 import dev.konacode.trace.TraceEvent.IterationStarted;
 import dev.konacode.trace.TraceEvent.Outcome;
 import dev.konacode.trace.TraceEvent.TurnStarted;
@@ -42,10 +44,20 @@ class AgentTest {
      */
     private static final class EchoTool implements Tool {
         private final String name;
+        private final Optional<Permission> permission;
         private int calls;
 
         EchoTool(String name) {
+            this(name, Optional.empty());
+        }
+
+        EchoTool(String name, Permission permission) {
+            this(name, Optional.of(permission));
+        }
+
+        private EchoTool(String name, Optional<Permission> permission) {
             this.name = name;
+            this.permission = permission;
         }
 
         @Override
@@ -76,7 +88,7 @@ class AgentTest {
 
         @Override
         public Action computeAction(JsonNode args) {
-            return Action.once(Effect.READS_INSIDE, name());
+            return new Action(name(), Effect.READS_INSIDE, name(), permission);
         }
 
         int calls() {
@@ -109,7 +121,7 @@ class AgentTest {
 
         @Override
         public Action computeAction(JsonNode args) {
-            return Action.once(Effect.READS_INSIDE, name());
+            return Action.once(name(), Effect.READS_INSIDE, name());
         }
     }
 
@@ -153,7 +165,7 @@ class AgentTest {
 
         @Override
         public Action computeAction(JsonNode args) {
-            return Action.once(Effect.READS_INSIDE, name());
+            return Action.once(name(), Effect.READS_INSIDE, name());
         }
     }
 
@@ -180,7 +192,7 @@ class AgentTest {
 
         @Override
         public Action computeAction(JsonNode args) {
-            return Action.once(Effect.READS_INSIDE, name());
+            return Action.once(name(), Effect.READS_INSIDE, name());
         }
     }
 
@@ -193,6 +205,19 @@ class AgentTest {
         @Override
         public ToolApproval.Answer ask(Decision.Ask ask) {
             return answer;
+        }
+
+        @Override
+        public boolean canAsk() {
+            return true;
+        }
+    }
+
+    /** Fails the test when the loop puts a question. A user who asked for a stop gets no question. */
+    private record RefusingApproval() implements ToolApproval {
+        @Override
+        public ToolApproval.Answer ask(Decision.Ask ask) {
+            throw new AssertionError("the loop asked the user after the stop");
         }
 
         @Override
@@ -361,8 +386,33 @@ class AgentTest {
     }
 
     @Test
+    void thePolicyReadsTheTextTheUserTypedThisTurn() {
+        FakePolicy policy = new FakePolicy((action, userText) -> Decision.allow());
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
+                .replyText("Done.");
+
+        agent(client, ToolRegistry.of(new EchoTool("echo")), policy, new RecordingTrace(), 8).respond("run the tests");
+
+        assertEquals(List.of("run the tests"), policy.userTexts());
+    }
+
+    @Test
+    void thePolicyReadsTheActionTheToolStated() {
+        FakePolicy policy = new FakePolicy((action, userText) -> Decision.allow());
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
+                .replyText("Done.");
+
+        agent(client, ToolRegistry.of(new EchoTool("echo")), policy, new RecordingTrace(), 8).respond("go");
+
+        assertEquals("echo", policy.actions().get(0).toolName());
+        assertEquals("echo", policy.actions().get(0).toolOperand());
+    }
+
+    @Test
     void turnsAPolicyDenialIntoAnErrorTheModelCanRouteAround() {
-        ToolPolicy denyEverything = (tool, args) -> Decision.deny("not permitted here");
+        FakePolicy denyEverything = new FakePolicy((action, userText) -> Decision.deny("not permitted here"));
         FakeLlmClient client = new FakeLlmClient()
                 .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
                 .replyText("Understood.");
@@ -381,8 +431,7 @@ class AgentTest {
                 .replyText("done");
         Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                (tool, args) -> Decision.ask("echo", "read outside this project", "/etc/passwd",
-                        Optional.empty()),
+                new FakePolicy((action, userText) -> Decision.ask("echo", "read outside this project", "/etc/passwd", Optional.empty())),
                 refusesToAsk(), conversation, new RecordingTrace(), new Cancellation(), 8);
 
         agent.respond("do it");
@@ -406,8 +455,7 @@ class AgentTest {
         RecordingTrace trace = new RecordingTrace();
 
         agent(client, ToolRegistry.of(echo),
-                (tool, args) -> Decision.ask("echo", "read outside this project", "/etc/passwd",
-                        Optional.empty()),
+                new FakePolicy((action, userText) -> Decision.ask("echo", "read outside this project", "/etc/passwd", Optional.empty())),
                 trace, 8).respond("do it");
 
         assertEquals(0, echo.calls(), "a refused call must not run");
@@ -420,8 +468,8 @@ class AgentTest {
                 .replyText("done");
         EchoTool echo = new EchoTool("echo");
         Agent agent = new Agent(client, ToolRegistry.of(echo),
-                (tool, args) -> Decision.ask("echo", "write outside this project", "/etc/hosts",
-                        Optional.of(new Permission.InFolder("echo", Path.of("/etc")))),
+                new FakePolicy((action, userText) -> Decision.ask("echo", "write outside this project", "/etc/hosts",
+                        Optional.of(new Permission.InFolder("echo", Path.of("/etc"))))),
                 new Approvals(new FixedApproval(ToolApproval.Answer.YES)),
                 new Conversation(new SystemMessage("You are konacode.")), new RecordingTrace(),
                 new Cancellation(), 8);
@@ -429,6 +477,25 @@ class AgentTest {
         agent.respond("do it");
 
         assertEquals(1, echo.calls(), "an approved call must run");
+    }
+
+    @Test
+    void aCoveredCallNeverReachesThePolicy() {
+        Permission permission = new Permission.InFolder("echo", Path.of("/etc"));
+        EchoTool echo = new EchoTool("echo", permission);
+        Approvals approvals = new Approvals(new FixedApproval(ToolApproval.Answer.ALWAYS));
+        approvals.approve(new Decision.Ask("echo", "read outside this project", "/etc/hosts", Optional.of(permission), ""));
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("1", "echo", "{}"))))
+                .replyText("done");
+        Agent agent = new Agent(client, ToolRegistry.of(echo), new FakePolicy((action, userText) -> {
+            throw new AssertionError("the policy ran for a call the user already approved");
+        }), approvals, new Conversation(new SystemMessage("You are konacode.")), new RecordingTrace(), new Cancellation(), 8);
+
+        String answer = agent.respond("do it");
+
+        assertEquals("done", answer);
+        assertEquals(1, echo.calls(), "a covered call must run");
     }
 
     @Test
@@ -471,25 +538,10 @@ class AgentTest {
     }
 
     @Test
-    void readsTheIterationCeilingFromASystemProperty() {
-        String previous = System.getProperty("konacode.maxIterations");
-        try {
-            System.setProperty("konacode.maxIterations", "42");
-            assertEquals(42, Agent.configuredMaxIterations());
-        } finally {
-            if (previous == null) {
-                System.clearProperty("konacode.maxIterations");
-            } else {
-                System.setProperty("konacode.maxIterations", previous);
-            }
-        }
-    }
-
-    @Test
     void survivesAPolicyThatThrows() {
-        ToolPolicy brokenPolicy = (tool, args) -> {
+        FakePolicy brokenPolicy = new FakePolicy((action, userText) -> {
             throw new IllegalStateException("policy bug");
-        };
+        });
         FakeLlmClient client = new FakeLlmClient()
                 .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
                 .replyText("Recovered.");
@@ -521,8 +573,8 @@ class AgentTest {
                 .replyText("Recovered.");
         RecordingTrace trace = new RecordingTrace();
         Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                (tool, args) -> Decision.ask("echo", "write outside this project", "/etc/hosts",
-                        Optional.of(new Permission.InFolder("echo", Path.of("/etc")))),
+                new FakePolicy((action, userText) -> Decision.ask("echo", "write outside this project", "/etc/hosts",
+                        Optional.of(new Permission.InFolder("echo", Path.of("/etc"))))),
                 new Approvals(brokenApproval),
                 new Conversation(new SystemMessage("You are konacode.")), trace,
                 new Cancellation(), 8);
@@ -599,21 +651,6 @@ class AgentTest {
                         new AllowAllPolicy(), refusesToAsk(),
                         new Conversation(new SystemMessage("s")),
                         new RecordingTrace(), new Cancellation(), 0));
-    }
-
-    @Test
-    void rejectsAMalformedMaxIterationsPropertyRatherThanSilentlyDefaulting() {
-        String previous = System.getProperty("konacode.maxIterations");
-        try {
-            System.setProperty("konacode.maxIterations", "eihgt");
-            assertThrows(IllegalArgumentException.class, Agent::configuredMaxIterations);
-        } finally {
-            if (previous == null) {
-                System.clearProperty("konacode.maxIterations");
-            } else {
-                System.setProperty("konacode.maxIterations", previous);
-            }
-        }
     }
 
     @Test
@@ -698,16 +735,45 @@ class AgentTest {
     }
 
     @Test
-    void clearsTheStopBeforeEachTurn() {
+    void keepsAStopThatTheUserAskedForBeforeTheTurn() {
         Cancellation cancellation = new Cancellation();
         cancellation.request();
-        FakeLlmClient client = new FakeLlmClient().replyText("hello");
+        EchoTool echo = new EchoTool("echo");
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))));
         Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
-        Agent agent = new Agent(client, ToolRegistry.of(new EchoTool("echo")),
-                new AllowAllPolicy(), refusesToAsk(), conversation, new RecordingTrace(),
+        Agent agent = new Agent(client, ToolRegistry.of(echo), new AllowAllPolicy(),
+                refusesToAsk(), conversation, new RecordingTrace(), cancellation, 8);
+
+        assertEquals("Stopped.", agent.respond("hello"));
+
+        assertEquals(0, echo.calls(), "the loop keeps the stop, so the tool must not run");
+    }
+
+    @Test
+    void aStopDuringTheCheckAnswersWithAnErrorAndNeverAsks() {
+        Cancellation cancellation = new Cancellation();
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))));
+        EchoTool echo = new EchoTool("echo");
+        FakePolicy stopsWhileItRuns = new FakePolicy((action, userText) -> {
+            cancellation.request();
+            return Decision.ask("echo", "read outside this project", "/etc/passwd", Optional.empty());
+        });
+        Conversation conversation = new Conversation(new SystemMessage("You are konacode."));
+        Agent agent = new Agent(client, ToolRegistry.of(echo), stopsWhileItRuns,
+                new Approvals(new RefusingApproval()), conversation, new RecordingTrace(),
                 cancellation, 8);
 
-        assertEquals("hello", agent.respond("hello"));
+        assertEquals("Stopped.", agent.respond("do it"));
+
+        assertEquals(0, echo.calls(), "a call the user stopped must not run");
+        List<String> toolMessages = conversation.messages().stream()
+                .filter(ToolMessage.class::isInstance)
+                .map(message -> ((ToolMessage) message).content())
+                .toList();
+        assertEquals(1, toolMessages.size());
+        assertTrue(toolMessages.get(0).contains("Stopped by the user before this tool ran."));
     }
 
     @Test

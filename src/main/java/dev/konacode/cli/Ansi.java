@@ -54,8 +54,62 @@ public final class Ansi {
         return strip(text).replaceAll("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}]", "\u2400");
     }
 
+    /**
+     * The columns a string takes on a terminal, with every code removed first.
+     *
+     * <p>A character is not a column. A character in the East Asian Wide or Fullwidth category
+     * takes two columns, so a count of characters lets a padded string pass a cut and then wrap.
+     * A wrapped line starts at column 1, and it reads as a line konacode wrote.
+     */
     public static int visibleLength(String text) {
-        return strip(text).length();
+        String plain = strip(text);
+        int total = 0;
+        for (int index = 0; index < plain.length(); index += Character.charCount(plain.codePointAt(index))) {
+            total += widthOf(plain.codePointAt(index));
+        }
+        return total;
+    }
+
+    /**
+     * The start of a string that fits in the columns given. It never cuts a character in half.
+     *
+     * <p>Every caller passes a line that {@link #oneLine} made, so the line holds no code and a
+     * cut cannot remove the reset of one.
+     */
+    public static String cutToColumns(String text, int columns) {
+        int total = 0;
+        int index = 0;
+        while (index < text.length()) {
+            int code = text.codePointAt(index);
+            if (total + widthOf(code) > columns) {
+                break;
+            }
+            total += widthOf(code);
+            index += Character.charCount(code);
+        }
+        return text.substring(0, index);
+    }
+
+    /**
+     * The ranges a terminal draws in two columns: East Asian Wide, Fullwidth, and the emoji.
+     *
+     * <p>Ranges, and not {@code Character.UnicodeBlock}, because a block is not the category a
+     * terminal reads, and a range test needs no dependency.
+     */
+    private static final int[][] WIDE = {
+        {0x1100, 0x115F}, {0x2E80, 0x303E}, {0x3041, 0x33FF}, {0x3400, 0x4DBF}, {0x4E00, 0x9FFF},
+        {0xA000, 0xA4CF}, {0xA960, 0xA97F}, {0xAC00, 0xD7A3}, {0xF900, 0xFAFF}, {0xFE10, 0xFE19},
+        {0xFE30, 0xFE6F}, {0xFF00, 0xFF60}, {0xFFE0, 0xFFE6}, {0x17000, 0x18AFF}, {0x1B000, 0x1B12F},
+        {0x1F300, 0x1F64F}, {0x1F680, 0x1F6FF}, {0x1F900, 0x1F9FF}, {0x20000, 0x3FFFD}
+    };
+
+    private static int widthOf(int code) {
+        for (int[] range : WIDE) {
+            if (code >= range[0] && code <= range[1]) {
+                return 2;
+            }
+        }
+        return 1;
     }
 
     public static String blue(String text) {

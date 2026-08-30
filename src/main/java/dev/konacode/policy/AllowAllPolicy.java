@@ -1,18 +1,29 @@
 package dev.konacode.policy;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import dev.konacode.tools.Tool;
+import dev.konacode.tools.Action;
+
+import java.util.Optional;
 
 /**
- * The default policy: allows everything.
+ * Allows every call, and asks nothing.
  *
- * <p>The seam exists so restrictions can be added without touching the agent loop; the default
- * behavior imposes none. See FOLLOWUP.md for the confinement policy this will be replaced by.
+ * <p>It is no longer a default. {@code JudgePolicy} starts both interfaces, and {@code /policy
+ * allow-all} selects this one for a user who wants no judge and no question.
  */
 public final class AllowAllPolicy implements ToolPolicy {
 
     @Override
-    public Decision check(Tool tool, JsonNode args) {
+    public Decision check(Action action, String userText) {
         return Decision.allow();
+    }
+
+    @Override
+    public String label() {
+        return "allow-all";
+    }
+
+    @Override
+    public Optional<String> refusal() {
+        return Optional.empty();
     }
 }

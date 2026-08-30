@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 539 tests, all offline, no network
+mvn test                        # 628 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -24,6 +24,7 @@ property configures konacode.
 |---|---|---|---|
 | `OPENAI_API_KEY` | environment | yes | — |
 | `KONACODE_MODEL` | environment | no | `gpt-5-mini` |
+| `KONACODE_JUDGE_MODEL` | environment | no | the value of `KONACODE_MODEL` |
 | `KONACODE_BASE_URL` | environment | no | `https://api.openai.com/v1` |
 | `konacode.maxIterations` | property | no | `8` |
 | `konacode.ui` | property | no | `auto` |
@@ -53,15 +54,20 @@ needs. This keeps tools writable without knowing an LLM exists. If you find your
 `dev.konacode.llm` from `dev.konacode.tools`, the adapter is the answer, not the import.
 
 The approval seam keeps three jobs apart. The tool states a fact, the policy decides, and the
-loop asks the user. No part does two of those jobs.
+loop asks the user. No part does two of those jobs. A standing permission is a decision the user
+already made, so the loop applies it before it consults the policy.
 
 **A question shows a string the model chose, so it goes through `Ansi.oneLine` first.** The model
 picks the path, the command line, the name of a tool and the arguments of a call. A newline in one
 of those draws a second question below the real one, and an escape code repaints the screen, so the
 user approves something they did not read. A user cannot approve what they cannot read. The two
 words konacode writes, the name in the first line of a question and the sentence beside it, need no
-guard: `Agent` finds the tool in the registry before it calls `policy.check`, so `EffectPolicy`
-writes `tool.name()` and never `call.name()`.
+guard: each tool writes its own `name()` into the `Action` it states, so `EffectPolicy` writes
+`action.toolName()` and never `call.name()`.
+
+**A line ends with the payload the model chose, and puts no delimiter around it.** A delimiter is a
+character the model can write too: a backtick around an operand let the operand close the backtick
+and write a verdict of its own. A payload with nothing after it can forge nothing.
 
 ## Definitions
 
@@ -83,7 +89,7 @@ writes `tool.name()` and never `call.name()`.
 
 | Element | Kind | Definition |
 |---|---|---|
-| `OpenAiConfig` | record `(apiKey, model, baseUrl, timeout)` | Provider settings. |
+| `OpenAiConfig` | record `(apiKey, model, judgeModel, baseUrl, timeout)` | Provider settings. `forJudge()` gives the same key, base URL and timeout, with the model the judge uses. |
 | `Usage` | record `(prompt, completion, total)` | The token counts of one reply. `ChatCompletionsCodec.decodeUsage` reads them, and never throws: a count is a diagnostic, so a reply konacode cannot read here has no counts and is not a failed turn. |
 | `ChatCompletionsCodec` | final class, pure | Translates `Message`/`ToolSpec` to request JSON and response JSON back to `AssistantMessage`. **Contains no HTTP.** This is what makes the wire format testable against fixtures. |
 | `OpenAiClient` | implements `LlmClient` | `java.net.http.HttpClient` plus the codec. Owns status handling and error translation, nothing else — it retries only through `ReplyValidator`, on a garbled reply; a transient HTTP failure gets no retry, see FOLLOWUP.md. |
@@ -95,7 +101,7 @@ writes `tool.name()` and never `call.name()`.
 |---|---|---|
 | `Tool` | interface | `name()`, `description()`, `inputSchema()`, `ToolResult execute(JsonNode args)`, `boolean stopsOnInterrupt()`, `Action computeAction(JsonNode args)`. The description is written for the model to read — it is prompt text, not a code comment. `stopsOnInterrupt` and `computeAction` are abstract and not a default, so a new tool must answer both, the way the sealed `Decision` makes a new case a compile error everywhere. |
 | `Effect` | enum | `READS_INSIDE`, `READS_OUTSIDE`, `WRITES_INSIDE`, `WRITES_OUTSIDE`, `RUNS`. What one call to a tool does. The tool states this fact and decides nothing; a `ToolPolicy` reads it and decides. |
-| `Action` | record `(Effect effect, String operand, Optional<Permission> permission)` | What one call does, what it acts on, and what a standing "always" would cover. An empty permission says that no standing "always" can describe this call. |
+| `Action` | record `(String toolName, Effect effect, String toolOperand, Optional<Permission> standingPermission)` | The name of the tool that states the action, what one call does, what it acts on, and what a standing "always" would cover. An empty permission says that no standing "always" can describe this call. |
 | `Permission` | sealed interface | `InFolder(toolName, folder)` or `ExactCommand(toolName, command)`. konacode compares two permissions and never examines one, so a record gives the whole lookup, and a sealed set makes a third kind a compile error at `inWords`. |
 | `Actions` | static helper, package-private | `read`, `write` and `readThenWrite` build the `Action` of a tool that acts on one path. Three named entry points, because the two questions a path needs must agree, and two loose lambdas let a caller pair them wrongly. |
 | `ToolResult` | sealed interface | `Ok(String text)` or `Err(String message)`. Typed rather than a bare string so the loop and the policy can react to failure without sniffing for `"<error>"`. |
@@ -114,11 +120,13 @@ writes `tool.name()` and never `call.name()`.
 
 | Element | Kind | Definition |
 |---|---|---|
-| `ToolPolicy` | interface | `Decision check(Tool tool, JsonNode args)`. Consulted before every tool execution. |
-| `Decision` | sealed interface | `Allow`, `Deny(String reason)`, or `Ask(String toolName, String intent, String operand, Optional<Permission> permission)`. Sealed on purpose: a new case is a compile error at every handling site. |
+| `ToolPolicy` | interface | `Decision check(Action action, String userText)`. Consulted before every tool execution. The loop computes the `Action`, so a policy cannot run a tool or read the raw arguments. It gets the message the user typed, because a policy that judges the call must know why the agent acts. It also answers `label()`, the word the user types after `/policy`, and `refusal()`, the words for what it refuses when nothing can answer its question, empty when it asks nothing. One method and not two, because a boolean beside the words must be kept in step with them for ever. Both are abstract, so a new policy names itself, and `Commands` reads a policy with no `instanceof`. |
+| `Decision` | sealed interface | `Allow`, `Deny(String reason)`, or `Ask(String toolName, String toolIntent, String toolOperand, Optional<Permission> standingPermission, String note)`. The note says why konacode asks, and it is empty when the question needs no reason. Sealed on purpose: a new case is a compile error at every handling site. |
 | `EffectPolicy` | implements `ToolPolicy` | Allows a call inside the launch directory. Asks about every other one. It holds no state: it reads the `Action` the tool states, and it adds only the words. |
+| `Judge` | interface | `Decision judge(Decision.Ask ask, String userText)`. It answers allow, the same `Ask`, a `Deny`, or the `Ask` with the note `NO_ANSWER`. An interface, because an implementation needs a model, and `agent` depends on `policy`. |
+| `JudgePolicy` | implements `ToolPolicy` | Uses `EffectPolicy`, and calls the judge for an `Ask` only. **A call inside this project reaches no judge**, because `EffectPolicy` allows it and writes no `Ask`. The judge sees a read or a write outside this project, and a command. It decides nothing: it takes the answer, and for a refusal it writes the frame around the reason. The frame names one call and ends with "This answers one call and sets no rule", because the main model reads the reason of a `Deny` and a rule stops it from calling the tool again. It strips the reason, cuts it to 200 characters with the mark `Level` uses, and adds a full stop when the reason has none, so the last sentence keeps its boundary. It emits a `Judged` for every answer, with the time the judge took, because a call the judge allows runs with no question and a judgement is the cost of this policy. Both interfaces start with it: a pipe answers `NO`, so it refuses every call outside this project, and every command, that the judge does not allow. |
 | `SelectedPolicy` | implements `ToolPolicy` | The policy in use now. `/policy` changes it while a session runs; `Agent` holds this one policy and never learns that the choice can change. |
-| `AllowAllPolicy` | implements `ToolPolicy` | Allows every call. The default for an interface that cannot ask a question. A user chooses it with `/policy allow-all`. |
+| `AllowAllPolicy` | implements `ToolPolicy` | Allows every call. A user chooses it with `/policy allow-all`, in a terminal and in a pipe. `JudgePolicy` is the default now. |
 
 ### `dev.konacode.skills`
 
@@ -133,10 +141,11 @@ writes `tool.name()` and never `call.name()`.
 
 | Element | Kind | Definition |
 |---|---|---|
-| `TraceEvent` | sealed interface | One thing that happened. Nine records. Each carries strings, numbers and booleans only, so this package depends on no other konacode package and both `agent` and `llm` can emit into it. |
+| `TraceEvent` | sealed interface | One thing that happened. Eleven records. Each carries strings, numbers and booleans only, so this package depends on no other konacode package and both `agent` and `llm` can emit into it. `FromAgent(agent, event)` holds one other event and the name of the agent that made it, because konacode runs more than one agent and two turns share one stream. `Judged(toolName, verdict, millis, toolOperand)` holds what the judge answered about one call, and the time the judge took. The operand is last, because the model wrote it. |
 | `Trace` | interface | `void emit(TraceEvent)`. `NONE` discards, `fanOut` combines. A sink never throws into the caller. |
-| `Level` | enum | `OFF`, `BASIC`, `FULL`. `keep(TraceEvent)` gives back the event a level keeps, with the payloads already cut. The rule lives here, because each sink holds its own level. |
-| `JsonlTrace` | implements `Trace` | The file sink. One JSON line for each event, in `~/.konacode/traces/`, one file for each session. It sweeps the oldest files when it opens, and it flushes every line. |
+| `NamedTrace` | implements `Trace` | Puts each event inside a `FromAgent` and passes it on. The name travels in the data, and not in a thread local, because a turn on another thread would take the wrong name and nothing would fail. |
+| `Level` | enum | `OFF`, `BASIC`, `FULL`. `keep(TraceEvent)` gives back the event a level keeps, with the payloads already cut. It reaches the event inside a `FromAgent`, and a `FromAgent` goes when the event inside it goes. `BASIC` keeps a `Judged`, because a call that ran with no question is the fact a user most needs to see. The rule lives here, because each sink holds its own level. |
+| `JsonlTrace` | implements `Trace` | The file sink. One JSON line for each event, in `~/.konacode/traces/`, one file for each session. A `FromAgent` writes an `agent` field beside the fields of the event inside it, so a reader can filter by agent. It sweeps the oldest files when it opens, and it flushes every line. |
 
 ### `dev.konacode.agent`
 
@@ -144,26 +153,27 @@ writes `tool.name()` and never `call.name()`.
 |---|---|---|
 | `Agent` | final class | `String respond(String userText)`. The loop. Depends only on interfaces. |
 | `Conversation` | final class | `add(Message)`, `messages()`, `restart(List<Message>)`. The history of one session, and the only state the loop keeps. It is a class and not an interface, because `messages()` and `restart` together cover every change to the history. A caller reads all of it, transforms it, and writes all of it back. `/clear` and `/compact` both work that way. |
-| `Cancellation` | final class | The user's request to stop one turn. `request` and `stopped` are public; `arm` and `disarm` are not, because only the loop may decide where an interrupt is safe. One lock keeps an interrupt from arriving after the clear. Implements `StopCheck`. |
+| `Cancellation` | final class | The user's request to stop one turn. `request` and `stopped` are public; `arm` and `disarm` are not, because only the loop may decide where an interrupt is safe. One lock keeps an interrupt from arriving after the clear. `Repl` clears it before each turn, and not `Agent`, because the stale key was pressed at the prompt and a judgement inside a turn must not erase a stop the user asked for. Implements `StopCheck`. |
 | `ToolApproval` | interface | `Answer ask(Decision.Ask ask)`, `boolean canAsk()`. `Answer` is `YES`, `NO` or `ALWAYS`. The loop asks, and not the policy, because `Cancellation` lives here and only the loop knows where an interrupt is safe. |
-| `Approvals` | final class | The set of permissions the user gave during this session. Coverage is equality. The memory sits here and not in the policy, so `/policy` changes the policy and the answers stay. Nothing is written to disk. |
+| `Approvals` | final class | The set of permissions the user gave during this session. `covers(Action)` reads the set, and the loop calls it before the policy. `approve(Ask)` puts the question and records an `always`. Two methods, so the memory is tested in one place. Coverage is equality. The memory sits here and not in the policy, so `/policy` changes the policy and the answers stay. Nothing is written to disk. |
 | `ToolSpecs` | static adapter | `Tool` to `ToolSpec`. The one place `tools` and `llm` meet. |
+| `AgentJudge` | implements `policy.Judge` | A second `Agent` with no tool, no history and one iteration. It sends one JSON object that Jackson builds, so an operand the model wrote cannot end its own field, and it reads one word back. It lives here because it needs `Agent`. |
 
 ### `dev.konacode.cli`
 
 | Element | Kind | Definition |
 |---|---|---|
 | `Ui` | interface | Everything konacode shows the user, and the one thing it reads from them. It extends `Trace`, because showing what the agent did is a user interface concern, and it gains `liveTrace`, the level the screen shows. It extends `ToolApproval` for the same reason: asking a question is a user interface concern too. One object then owns the screen and the keyboard. |
-| `PlainUi` | implements `Ui` | The interface for a pipe. It reads with a `BufferedReader` and prints what konacode printed before there were two interfaces. It renders no markdown and shows no spinner. It calls `Ansi.oneLine` on the name and the arguments of a call, the way the rich interface does. |
-| `RichUi` | implements `Ui` | The interface for a terminal. JLine gives the line editing, the history in `~/.konacode/chat_history`, and `alt-enter` for a second line. It renders markdown, and it owns the spinner and the `EscapeWatcher`. It calls `Ansi.oneLine` on four strings the model chose — the operand, the permission, the name of a tool and the arguments of a call — and it cuts the operand line, the `always` line and the tool line to the width of the terminal, because a user cannot approve what they cannot read. `emit` stops the spinner before it prints a line, and restarts it once a tool finishes; the watcher keeps running, so ESC still works while a tool runs. The constructor takes every collaborator, and `open()` builds the real ones, which is why the class can have tests. |
-| `Repl` | final class | The loop. Read a line, skip it when empty, run it as a command when it starts with `/`, otherwise ask the agent. Both interfaces share it. |
-| `Commands` | final class | `/help`, `/tools`, `/skill`, `/trace`, `/policy`, `/clear` and `/exit`. `run` returns false when the session must end, so every command lives in one class and `Repl` gains one line. A command writes markdown, so the rich interface renders it and needs no second output method. An unknown command prints an error and never reaches the model. |
+| `PlainUi` | implements `Ui` | The interface for a pipe. It reads with a `BufferedReader` and prints what konacode printed before there were two interfaces. It renders no markdown and shows no spinner. It calls `Ansi.oneLine` on the name and the arguments of a call, the way the rich interface does. It shows a `Judged` at every level under the word `judged: `, the way the rich interface does, because a call the judge allowed runs with no question. It cannot ask a question, so it answers `NO` and konacode refuses the call. |
+| `RichUi` | implements `Ui` | The interface for a terminal. JLine gives the line editing, the history in `~/.konacode/chat_history`, and `alt-enter` for a second line. It renders markdown, and it owns the spinner and the `EscapeWatcher`. It calls `Ansi.oneLine` on four strings the model chose — the operand, the permission, the name of a tool and the arguments of a call — and it cuts the operand line, the `always` line, the tool line and the judged line to the columns of the terminal, because a user cannot approve what they cannot read. `emit` stops the spinner before it prints a line, and restarts it once a tool finishes; the watcher keeps running, so ESC still works while a tool runs. It shows a `Judged` at every level under the word `judged: `, the way it shows a `ToolCalled` under `tool: `, because a call the judge allowed runs with no question. The word `trace: ` marks a line the level gates, and this line is not one. The constructor takes every collaborator, and `open()` builds the real ones, which is why the class can have tests. |
+| `Repl` | final class | The loop. Read a line, skip it when empty, run it as a command when it starts with `/`, otherwise clear the `Cancellation` and ask the agent. Both interfaces share it. |
+| `Commands` | final class | `/help`, `/tools`, `/skill`, `/trace`, `/policy`, `/clear` and `/exit`. `/policy` takes `allow-all`, `effect` or `judge`, and it selects the one `JudgePolicy` that `Main` built, because a second one would build a second judge. It holds a `JudgePolicy` and not a `ToolPolicy`, so the compiler refuses another policy in that seat. The sentence that names what a pipe refuses comes from the policy, so `Commands` holds no `instanceof`. `run` returns false when the session must end, so every command lives in one class and `Repl` gains one line. A command writes markdown, so the rich interface renders it and needs no second output method. An unknown command prints an error and never reaches the model. |
 | `EscapeWatcher` | class | Reads the terminal during a turn and calls `Cancellation.request()` on the byte `0x1B`. A sibling of `Spinner`: one daemon thread, `start` and `stop`, both idempotent, not final so a test can record. Raw mode keeps `ISIG` on, so ctrl-C still ends konacode. |
 | `Spinner` | class | One daemon thread that draws and erases a character while the agent works. `RichUi` stops it before every write of its own. It is not final, so a test can record the calls. |
 | `Banner` | final class | The art from the README, which reads `kona`. It is 41 columns wide, so a narrower terminal gets the plain name. Generated from `README.md`, not retyped. |
-| `Ansi` | final class | The escape codes, plus `strip`, `visibleLength` and `oneLine`. A code takes bytes and no columns, so word wrap and table alignment both need `visibleLength`. `oneLine` makes one line of a string the model wrote, and it lives here because every place that prints such a string needs the same guard. |
-| `TraceLine` | final class | `of(TraceEvent)`. One event as one line of text. `PlainUi` and `RichUi` both call it, so the two interfaces show the same words. It calls `Ansi.oneLine` on every payload the model or the provider chose, the name of a tool included, and on no word konacode writes, because one guard here covers both interfaces. |
-| `Main` | final class | Reads the environment, picks the interface, wires the parts. The only place that names a concrete implementation. |
+| `Ansi` | final class | The escape codes, plus `strip`, `visibleLength`, `cutToColumns` and `oneLine`. A code takes bytes and no columns, so word wrap and table alignment both need `visibleLength`. It counts columns and not characters, and `cutToColumns` cuts by columns, because a fullwidth character takes two columns: a count of characters let a padded operand pass the cut in `RichUi` and wrap into a line that reads as a line konacode wrote. `oneLine` makes one line of a string the model wrote, and it lives here because every place that prints such a string needs the same guard. |
+| `TraceLine` | final class | `of(TraceEvent)`. One event as one line of text. `PlainUi` and `RichUi` both call it, so the two interfaces show the same words. It calls `Ansi.oneLine` on every payload the model or the provider chose, the name of a tool included, and on no word konacode writes, because one guard here covers both interfaces. A line ends with the payload the model chose, and puts no delimiter around it: a delimiter is a character the model can write too, so an operand closed a backtick and wrote a verdict of its own. A `FromAgent` writes the agent name, then `> `, then the line of the event inside it. `inside` and `names` give an interface the event a `FromAgent` holds and the names around it, because an interface that matches one kind of event must reach through the name first. |
+| `Main` | final class | Reads the environment and every `konacode.*` system property, picks the interface, wires the parts. The only place that names a concrete implementation. It builds two clients on one `HttpClient` and one codec, `kona` and `judge`, so the request, the reply and the token counts of a judgement carry their own name. It builds them inside the `try`, so a failure there closes the interface and the trace file. `Level.configured` stays on `Level`, because it is a factory for its own type; a reader that returns a plain value belongs here. |
 
 ### `dev.konacode.cli.markdown`
 
@@ -184,6 +194,11 @@ Four, deliberately not merged:
 
 Never promote a tool failure to an exception. Never hand an `LlmException` to the model.
 
+**A failure in the judge is not a fifth channel.** `Agent.respond` never throws, so a transport
+failure reaches `AgentJudge` as `<error> …` text, which is not one of the three words. The judge
+then answers with the same `Ask` and the note `NO_ANSWER`, and the user decides. A failure in the
+judge must never end a turn the loop can finish.
+
 **An `Err` the model reads is prompt text.** Treat it the way you treat a tool description. Name one
 call and one path. A message that names a kind of call teaches the model a rule: the first refusal
 said "to read outside this project", and the model then stopped calling the tool at all, so konacode
@@ -197,7 +212,7 @@ answer with the number only.
 ## Comments
 
 Do not write a comment that repeats the code. Write a comment only when a reader cannot
-understand the code without it. Give the reason, not the action.
+understand the code without it. Give the reason, not the action. A comment is one line.
 
 Javadoc on a public type or method is different. Write it when the contract needs an
 explanation.
@@ -220,6 +235,11 @@ Write all documents and all replies in ASD-STE100 Simplified Technical English.
 ## Conventions
 
 - Java 21. Records for data, sealed interfaces for closed sets, pattern-matching switch over them.
+- Keep a statement on one line while it fits in 180 columns. Do not break the line after the
+  opening bracket of a call. Break a line only when the statement does not fit.
+- Extend an existing concept before you add a new one. A parallel type copies fields that must
+  then be kept in step for ever. Add a new type only when the existing one would have to hold a
+  field that is meaningless for most of its uses.
 - Dependencies: konacode has no agent framework, no HTTP client library, and no dependency
   injection container. Those three hide the mechanism this project exists to show. A library that
   solves a different problem is allowed. Jackson, JLine, commonmark, JUnit 5, and Mockito are

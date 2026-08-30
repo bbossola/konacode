@@ -1,5 +1,7 @@
 package dev.konacode.trace;
 
+import dev.konacode.trace.TraceEvent.FromAgent;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.RequestSent;
 import dev.konacode.trace.TraceEvent.ToolCalled;
@@ -63,6 +65,49 @@ class LevelTest {
                 Level.BASIC.keep(new ToolCalled(1, "read_file", "{\"path\":\"a\"}")).orElseThrow());
 
         assertEquals("{\"path\":\"a\"}", kept.argumentsJson());
+    }
+
+    @Test
+    void basicCutsThePayloadInsideAFromAgentAndKeepsTheName() {
+        FromAgent kept = assertInstanceOf(FromAgent.class, Level.BASIC
+                .keep(new FromAgent("judge", new RequestSent("http://x", "m", 2, 3, "{\"a\":1}")))
+                .orElseThrow());
+
+        assertEquals("judge", kept.agent());
+        assertEquals(new RequestSent("http://x", "m", 2, 3, ""), kept.event());
+    }
+
+    @Test
+    void aFromAgentGoesWhenTheEventInsideItGoes() {
+        assertEquals(Optional.empty(),
+                Level.OFF.keep(new FromAgent("judge", new TokensUsed(1, 2, 3))));
+    }
+
+    @Test
+    void basicKeepsAJudgement() {
+        Judged event = new Judged("run_command", "allow", 412, "mvn -q test");
+
+        assertEquals(Optional.of(event), Level.BASIC.keep(event));
+    }
+
+    @Test
+    void basicCutsTheOperandOfAJudgement() {
+        Judged kept = assertInstanceOf(Judged.class,
+                Level.BASIC.keep(new Judged("run_command", "deny", 412, "x".repeat(5000))).orElseThrow());
+
+        assertEquals(2049, kept.toolOperand().length());
+        assertTrue(kept.toolOperand().endsWith("…"), kept.toolOperand());
+        assertEquals("deny", kept.verdict());
+    }
+
+    @Test
+    void basicCutsTheOperandInsideAFromAgent() {
+        FromAgent kept = assertInstanceOf(FromAgent.class, Level.BASIC
+                .keep(new FromAgent("kona", new Judged("run_command", "allow", 412, "x".repeat(5000))))
+                .orElseThrow());
+
+        assertEquals("kona", kept.agent());
+        assertEquals(new Judged("run_command", "allow", 412, "x".repeat(2048) + "…"), kept.event());
     }
 
     @Test

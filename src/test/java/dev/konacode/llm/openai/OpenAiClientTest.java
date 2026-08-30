@@ -42,7 +42,7 @@ class OpenAiClientTest {
 
     private static OpenAiClient clientWith(String apiKey, String baseUrl) {
         return new OpenAiClient(
-                new OpenAiConfig(apiKey, "gpt-5-mini", baseUrl, Duration.ofSeconds(1)), Trace.NONE);
+                new OpenAiConfig(apiKey, "gpt-5-mini", "gpt-5-mini", baseUrl, Duration.ofSeconds(1)), Trace.NONE);
     }
 
     @Test
@@ -159,8 +159,7 @@ class OpenAiClientTest {
     private static final String API_KEY = "sk-secret-do-not-log";
 
     private static OpenAiConfig configWithTheKey() {
-        return new OpenAiConfig(API_KEY, "gpt-5-mini", "https://example.test/v1",
-                Duration.ofSeconds(1));
+        return new OpenAiConfig(API_KEY, "gpt-5-mini", "gpt-5-mini", "https://example.test/v1", Duration.ofSeconds(1));
     }
 
     private void stubHttpToReturn(int status, String body) throws Exception {

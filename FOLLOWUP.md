@@ -101,19 +101,31 @@ adds planning, and expect to revisit the default.
   the result and the time, and never the output. `JsonlTrace` writes it through Jackson, which
   escapes a control character. The day a printing site shows it, it needs `Ansi.oneLine` like every
   other such string.
-- **`Ansi.visibleLength` counts characters and not columns.** A CJK character takes two columns and
-  an emoji takes two `char` values, so word wrap, table alignment and the new cut in `RichUi` are
-  all one character out for those. This is one problem in the whole interface, and not a defect of
-  one caller.
+- **`Ansi.visibleLength` counts columns — built.** It counted characters, so a fullwidth character
+  passed the cut in `RichUi` with two columns and wrapped into a second line at column 1. A review
+  forged a `tool:` line that way, on the `judged:` line, which prints at every trace level.
+  `visibleLength` counts columns now, and `cutToColumns` cuts by them, so word wrap, table
+  alignment and the cut all read one count.
 - **An approved command line can run code written later.** `a` remembers the exact line, and the
   line is honest. Its meaning is not: `make` reads a `Makefile`, and the model may change that file
   inside the project with no question, then run the approved line again with no question. No test
   of the characters in a line can see this. Decide whether an `ExactCommand` permission should end
-  when a file inside the project changes.
-- **`AllowAllPolicy` is the default for a piped session, and `run_command` now exists.** A pipe
-  has no user to answer a question, so konacode allows every call there. That was one risk while
-  every tool acted on a path. It is a larger one now, because a piped session runs any shell line
-  with no question. Decide whether a pipe should refuse a `RUNS` call instead of allowing it.
+  when a file inside the project changes. The judge does not close this, because a call a standing
+  permission covers never reaches the judge.
+- **`AllowAllPolicy` was the default for a piped session — built.** Both interfaces now start with
+  `JudgePolicy`, so a pipe refuses every call outside this project, and every command, that the
+  judge does not allow. A call inside this project reaches no judge, so a pipe still edits and
+  deletes a file there. `AllowAllPolicy` stays, and `/policy allow-all` selects it. See
+  [the design](docs/superpowers/specs/2026-08-28-judge-design.md).
+- **The judge remembers nothing, so it costs one model call for every judged call.** `AgentJudge`
+  restarts its conversation before each judgement, so the same command in one turn is judged twice.
+  The user pays the latency and the tokens each time. `KONACODE_JUDGE_MODEL` reduces the price and
+  not the count. A judge that remembers its own answers, and a permission written to disk, are both
+  out of scope of [the design](docs/superpowers/specs/2026-08-28-judge-design.md).
+- **A judge failure refuses the call in a pipe.** The judge answers with the question when it cannot
+  decide, and `PlainUi` answers `NO` to every question. So a provider failure in the judge turns a
+  routine call into a refusal in a piped session, where a terminal would show the user the question.
+  There is no `never` answer either, so a user cannot record a standing refusal.
 - **Bounded retry in `OpenAiClient`.** The client makes exactly one attempt, so a single transient
   `429` or `5xx` discards a whole turn — costly for a loop that may make eight round trips per
   user message. Two or three attempts with backoff, scoped to `429`, `502`, `503`, `504` and
@@ -129,12 +141,6 @@ adds planning, and expect to revisit the default.
   verified: `writeAtomic` moves a file onto the path and breaks the hard link, and `delete_file`
   removes one name while the other survives. A path check cannot close this. The answer is a
   check on the file after it is opened.
-- **`Commands` reads a policy with `instanceof` in three places.** Twice in `label` and once in
-  the warning. A third policy would be named "a policy konacode cannot name", which is loud, and
-  would silently skip the warning, which is not. An abstract `ToolPolicy.label()`, or a method
-  that says whether a policy asks questions, closes both. It is not worth the cost while two
-  policies exist, because `ToolPolicy` has one method on purpose and the tests use it as a
-  lambda.
 - **Nothing proves the tools and the policy share a root.** `Main.build` builds both from one
   `Workspace`, so no caller can pass a mismatch. If someone changed `build` to use two, no test
   would notice: both wiring tests use an absolute path outside the project, and

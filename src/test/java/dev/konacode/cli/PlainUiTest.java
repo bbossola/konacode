@@ -4,6 +4,8 @@ import dev.konacode.agent.ToolApproval;
 import dev.konacode.policy.Decision;
 import dev.konacode.tools.Permission;
 import dev.konacode.trace.Level;
+import dev.konacode.trace.TraceEvent.FromAgent;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.Outcome;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.ToolFinished;
@@ -68,6 +70,13 @@ class PlainUiTest {
     }
 
     @Test
+    void printsTheToolLineOfANamedCall() {
+        ui("").emit(new FromAgent("judge", new ToolCalled(1, "read_file", "{\"path\":\"pom.xml\"}")));
+
+        assertEquals("tool: judge> read_file({\"path\":\"pom.xml\"})" + System.lineSeparator(), written());
+    }
+
+    @Test
     void printsNothingForAToolResult() {
         ui("").emit(new ToolFinished(1, "read_file", true, "content", 5));
 
@@ -113,11 +122,35 @@ class PlainUiTest {
     }
 
     @Test
+    void alwaysShowsWhatTheJudgeAnswered() {
+        ui("").emit(new Judged("run_command", "allow", 412, "mvn -q test"));
+
+        assertEquals("judged: allow run_command 412ms mvn -q test" + System.lineSeparator(), written());
+    }
+
+    @Test
+    void showsAJudgementOnce() {
+        PlainUi ui = ui("");
+        ui.liveTrace(Level.FULL);
+
+        ui.emit(new Judged("run_command", "allow", 412, "mvn -q test"));
+
+        assertEquals(1, written().lines().count(), written());
+    }
+
+    @Test
+    void namesTheAgentBesideAJudgement() {
+        ui("").emit(new FromAgent("kona", new Judged("run_command", "allow", 412, "mvn -q test")));
+
+        assertEquals("judged: kona> allow run_command 412ms mvn -q test" + System.lineSeparator(), written());
+    }
+
+    @Test
     void itCannotAskSoItRefuses() {
         assertEquals(ToolApproval.Answer.NO,
                 ui("").ask(new Decision.Ask("edit_file", "write outside this project",
                         "/etc/hosts",
-                        Optional.of(new Permission.InFolder("edit_file", Path.of("/etc"))))));
+                        Optional.of(new Permission.InFolder("edit_file", Path.of("/etc"))), "")));
     }
 
     @Test

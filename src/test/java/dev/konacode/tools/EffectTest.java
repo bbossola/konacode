@@ -59,7 +59,7 @@ class EffectTest {
     void listFilesWithNoPathNamesTheRoot() {
         assertEquals(root.toString(),
                 new ListFiles(workspace(), StopCheck.NEVER)
-                        .computeAction(MAPPER.createObjectNode()).operand(),
+                        .computeAction(MAPPER.createObjectNode()).toolOperand(),
                 "the operand must name the place execute() reaches");
     }
 

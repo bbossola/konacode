@@ -9,6 +9,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 
+
+import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
@@ -21,11 +23,19 @@ class AllowAllPolicyTest {
     void allowsEveryToolCall() {
         ToolPolicy policy = new AllowAllPolicy();
 
-        Decision decision = policy.check(
-                new ListFiles(new Workspace(root), StopCheck.NEVER),
-                new ObjectMapper().createObjectNode());
+        ListFiles tool = new ListFiles(new Workspace(root), StopCheck.NEVER);
+
+        Decision decision = policy.check(tool.computeAction(new ObjectMapper().createObjectNode()), "list the files");
 
         assertInstanceOf(Decision.Allow.class, decision);
+    }
+
+    @Test
+    void itNamesItselfAndRefusesNothing() {
+        ToolPolicy policy = new AllowAllPolicy();
+
+        assertEquals("allow-all", policy.label());
+        assertEquals(Optional.empty(), policy.refusal());
     }
 
     @Test

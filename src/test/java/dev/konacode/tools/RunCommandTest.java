@@ -15,7 +15,6 @@ import java.time.Duration;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Timeout(30)
@@ -64,7 +63,7 @@ class RunCommandTest {
 
     @Test
     void theOperandIsTheCommandLine() {
-        assertEquals("mvn -q test", tool().computeAction(command("mvn -q test")).operand());
+        assertEquals("mvn -q test", tool().computeAction(command("mvn -q test")).toolOperand());
     }
 
     @Test
@@ -72,14 +71,14 @@ class RunCommandTest {
         Action action = tool().computeAction(command("mvn -q test"));
 
         assertEquals(new Permission.ExactCommand("run_command", "mvn -q test"),
-                action.permission().orElseThrow());
+                action.standingPermission().orElseThrow());
     }
 
     @Test
     void aLineThatJoinsCommandsStillOffersTheExactLine() {
         Action action = tool().computeAction(command("git add -A && git status | head -5; true"));
 
-        assertTrue(action.permission().isPresent(),
+        assertTrue(action.standingPermission().isPresent(),
                 "a pipe, && and ; mean the same thing on the next day");
     }
 
@@ -91,7 +90,7 @@ class RunCommandTest {
             Action action = tool().computeAction(command(line));
 
             assertEquals(Effect.RUNS, action.effect(), line);
-            assertTrue(action.permission().isEmpty(),
+            assertTrue(action.standingPermission().isEmpty(),
                     "this line means something else on another day: " + line);
         }
     }
@@ -101,8 +100,8 @@ class RunCommandTest {
         Action action = tool().computeAction(MAPPER.createObjectNode());
 
         assertEquals(Effect.RUNS, action.effect());
-        assertEquals("run_command", action.operand());
-        assertTrue(action.permission().isEmpty());
+        assertEquals("run_command", action.toolOperand());
+        assertTrue(action.standingPermission().isEmpty());
     }
 
     @Test
@@ -110,8 +109,8 @@ class RunCommandTest {
         Action action = tool().computeAction(command("   "));
 
         assertEquals(Effect.RUNS, action.effect());
-        assertEquals("run_command", action.operand());
-        assertTrue(action.permission().isEmpty());
+        assertEquals("run_command", action.toolOperand());
+        assertTrue(action.standingPermission().isEmpty());
     }
 
     @Test
@@ -122,8 +121,8 @@ class RunCommandTest {
         Action action = tool().computeAction(args);
 
         assertEquals(Effect.RUNS, action.effect());
-        assertEquals("run_command", action.operand());
-        assertTrue(action.permission().isEmpty());
+        assertEquals("run_command", action.toolOperand());
+        assertTrue(action.standingPermission().isEmpty());
     }
 
     @Test
@@ -257,43 +256,6 @@ class RunCommandTest {
 
         long millis = (System.nanoTime() - started) / 1_000_000;
         assertTrue(millis < 1_000, "the command must end at once, and it took " + millis + " ms");
-    }
-
-    @Test
-    void theDefaultTimeoutIsTenMinutes() {
-        assertEquals(Duration.ofSeconds(600), RunCommand.DEFAULT_TIMEOUT);
-    }
-
-    @Test
-    void aConfiguredTimeoutIsUsed() {
-        System.setProperty("konacode.command.timeoutSeconds", "5");
-        try {
-            assertEquals(Duration.ofSeconds(5), RunCommand.configuredTimeout());
-        } finally {
-            System.clearProperty("konacode.command.timeoutSeconds");
-        }
-    }
-
-    @Test
-    void aWrongTimeoutFailsLoudly() {
-        System.setProperty("konacode.command.timeoutSeconds", "soon");
-        try {
-            IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
-                    RunCommand::configuredTimeout);
-            assertTrue(thrown.getMessage().contains("konacode.command.timeoutSeconds"));
-        } finally {
-            System.clearProperty("konacode.command.timeoutSeconds");
-        }
-    }
-
-    @Test
-    void aTimeoutBelowOneSecondFailsLoudly() {
-        System.setProperty("konacode.command.timeoutSeconds", "0");
-        try {
-            assertThrows(IllegalArgumentException.class, RunCommand::configuredTimeout);
-        } finally {
-            System.clearProperty("konacode.command.timeoutSeconds");
-        }
     }
 
     @Test

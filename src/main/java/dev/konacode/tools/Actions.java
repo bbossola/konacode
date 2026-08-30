@@ -68,24 +68,22 @@ final class Actions {
                                  Function<Path, Optional<Path>> reaches) {
         Optional<Path> resolved = workspace.tryResolve(pathNode);
         if (resolved.isEmpty()) {
-            return Action.once(outsideEffect,
-                    pathNode.isTextual() ? pathNode.asText() : toolName);
+            return Action.once(toolName, outsideEffect, pathNode.isTextual() ? pathNode.asText() : toolName);
         }
         Path path = resolved.get();
         if (staysInside.test(path)) {
-            return Action.once(insideEffect, path.toString());
+            return Action.once(toolName, insideEffect, path.toString());
         }
         Optional<Path> target = reaches.apply(path);
         if (target.isEmpty()) {
-            return Action.once(outsideEffect, path.toString());
+            return Action.once(toolName, outsideEffect, path.toString());
         }
         Path reached = target.get();
         return workspace.folderOf(reached)
-                .<Action>map(folder -> Action.of(outsideEffect, reached.toString(),
-                        new Permission.InFolder(toolName, folder)))
+                .<Action>map(folder -> Action.of(toolName, outsideEffect, reached.toString(), new Permission.InFolder(toolName, folder)))
                 // Defensive: reached is already resolved, but folderOf can still fail to resolve
                 // its folder, for example when toRealPath meets a permission error. No portable
                 // test can force that, so this branch stands with no test of its own.
-                .orElseGet(() -> Action.once(outsideEffect, reached.toString()));
+                .orElseGet(() -> Action.once(toolName, outsideEffect, reached.toString()));
     }
 }

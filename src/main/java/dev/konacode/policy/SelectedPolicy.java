@@ -1,9 +1,9 @@
 package dev.konacode.policy;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import dev.konacode.tools.Tool;
+import dev.konacode.tools.Action;
 
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * The policy in use now. {@code /policy} changes it while a session runs.
@@ -22,8 +22,18 @@ public final class SelectedPolicy implements ToolPolicy {
     }
 
     @Override
-    public Decision check(Tool tool, JsonNode args) {
-        return current.check(tool, args);
+    public Decision check(Action action, String userText) {
+        return current.check(action, userText);
+    }
+
+    @Override
+    public String label() {
+        return current.label();
+    }
+
+    @Override
+    public Optional<String> refusal() {
+        return current.refusal();
     }
 
     public void select(ToolPolicy policy) {

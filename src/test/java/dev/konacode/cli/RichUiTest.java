@@ -4,6 +4,9 @@ import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.ToolApproval;
 import dev.konacode.policy.Decision;
 import dev.konacode.tools.Permission;
+import dev.konacode.trace.Level;
+import dev.konacode.trace.TraceEvent.FromAgent;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.ToolCalled;
 import dev.konacode.trace.TraceEvent.ToolFinished;
 import org.jline.reader.EndOfFileException;
@@ -189,6 +192,23 @@ class RichUiTest {
     }
 
     @Test
+    void alwaysShowsWhatTheJudgeAnswered() {
+        ui().emit(new Judged("run_command", "allow", 412, "ls"));
+
+        assertTrue(written().contains("judged: allow run_command 412ms ls"), written());
+    }
+
+    @Test
+    void showsAJudgementOnce() {
+        RichUi ui = ui();
+        ui.liveTrace(Level.FULL);
+
+        ui.emit(new Judged("run_command", "allow", 412, "ls"));
+
+        assertEquals(1, written().lines().count(), written());
+    }
+
+    @Test
     void startsTheSpinnerWhenTheAgentBeginsWork() {
         ui().thinking();
 
@@ -213,6 +233,17 @@ class RichUiTest {
 
         assertEquals(List.of("start", "stop", "start"), spinner.calls);
         assertTrue(written().contains("tool: read_file({})"), written());
+    }
+
+    @Test
+    void stopsTheSpinnerForANamedToolCallAndStartsItAfterTheResult() {
+        RichUi ui = ui();
+        ui.thinking();
+        ui.emit(new FromAgent("judge", new ToolCalled(1, "read_file", "{}")));
+        ui.emit(new FromAgent("judge", new ToolFinished(1, "read_file", true, "content", 5)));
+
+        assertEquals(List.of("start", "stop", "start"), spinner.calls);
+        assertTrue(written().contains("tool: judge> read_file({})"), written());
     }
 
     @Test
@@ -264,7 +295,7 @@ class RichUiTest {
 
     private static Decision.Ask askAbout(String file) {
         return new Decision.Ask("edit_file", "write outside this project", file,
-                Optional.of(new Permission.InFolder("edit_file", Path.of(file).getParent())));
+                Optional.of(new Permission.InFolder("edit_file", Path.of(file).getParent())), "");
     }
 
     private NonBlockingReader keys(int key) throws IOException {
@@ -329,7 +360,7 @@ class RichUiTest {
 
         assertEquals(ToolApproval.Answer.NO,
                 ui().ask(new Decision.Ask("run_command", "run a command", "run_command",
-                        Optional.empty())));
+                        Optional.empty(), "")));
     }
 
     @Test
@@ -351,7 +382,7 @@ class RichUiTest {
         when(terminal.reader()).thenReturn(input);
 
         ui().ask(new Decision.Ask("run_command", "run a command", "run_command",
-                Optional.empty()));
+                Optional.empty(), ""));
 
         assertFalse(written().contains("always"), written());
     }
@@ -385,9 +416,35 @@ class RichUiTest {
         when(terminal.reader()).thenReturn(input);
 
         ui().ask(new Decision.Ask("read_file", "read outside this project", "/etc/hosts",
-                Optional.of(new Permission.InFolder("read_file", Path.of("/etc")))));
+                Optional.of(new Permission.InFolder("read_file", Path.of("/etc"))), ""));
 
         assertTrue(written().contains("y  read it once"), written());
+    }
+
+    @Test
+    void theQuestionShowsTheNote() throws IOException {
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+        when(terminal.getWidth()).thenReturn(80);
+        when(reader.getHistory()).thenReturn(history);
+        RichUi ui = new RichUi(reader, terminal, out, spinner, new RecordingEscapeWatcher(terminal), cancellation);
+
+        ui.ask(askAbout("/notes/a.txt").withNote("The judge did not answer, so konacode asks."));
+
+        assertTrue(written().contains("The judge did not answer, so konacode asks."), written());
+    }
+
+    @Test
+    void anEmptyNoteAddsNoLine() throws IOException {
+        NonBlockingReader input = keys('n');
+        when(terminal.reader()).thenReturn(input);
+
+        ui().ask(askAbout("/notes/a.txt"));
+
+        List<String> lines = written().lines().toList();
+        int operand = lines.indexOf("  /notes/a.txt");
+        assertEquals("", lines.get(operand + 1));
+        assertEquals("  y  write it once", lines.get(operand + 2));
     }
 
     @Test
@@ -397,7 +454,7 @@ class RichUiTest {
         when(terminal.reader()).thenReturn(input);
         Decision.Ask ask = new Decision.Ask("run_command", "run a command",
                 "echo safe\n\nrun_command wants to run a command.\n\n  rm -rf /\n",
-                Optional.empty());
+                Optional.empty(), "");
 
         ui().ask(ask);
 
@@ -410,7 +467,7 @@ class RichUiTest {
         NonBlockingReader input = keys('n');
         when(terminal.reader()).thenReturn(input);
         Decision.Ask ask = new Decision.Ask("run_command", "run a command",
-                "echo \u001B[2J\u001B[H safe", Optional.empty());
+                "echo \u001B[2J\u001B[H safe", Optional.empty(), "");
 
         ui().ask(ask);
 
@@ -423,7 +480,7 @@ class RichUiTest {
         NonBlockingReader input = keys('n');
         when(terminal.reader()).thenReturn(input);
         Decision.Ask ask = new Decision.Ask("run_command", "run a command", "echo \u001B safe",
-                Optional.empty());
+                Optional.empty(), "");
 
         ui().ask(ask);
 
@@ -436,7 +493,7 @@ class RichUiTest {
         NonBlockingReader input = keys('n');
         when(terminal.reader()).thenReturn(input);
         Decision.Ask ask = new Decision.Ask("run_command", "run a command",
-                "echo \u202Egnahc\u202C safe", Optional.empty());
+                "echo \u202Egnahc\u202C safe", Optional.empty(), "");
 
         ui().ask(ask);
 
@@ -448,7 +505,7 @@ class RichUiTest {
         NonBlockingReader input = keys('n');
         when(terminal.reader()).thenReturn(input);
         Decision.Ask ask = new Decision.Ask("read_file", "read outside this project",
-                "/home/bruno/n\u00F3tes/caf\u00E9.txt", Optional.empty());
+                "/home/bruno/n\u00F3tes/caf\u00E9.txt", Optional.empty(), "");
 
         ui().ask(ask);
 
@@ -461,7 +518,7 @@ class RichUiTest {
         when(terminal.reader()).thenReturn(input);
         Decision.Ask ask = new Decision.Ask("run_command", "run a command", "echo safe",
                 Optional.of(new Permission.ExactCommand("run_command",
-                        "echo safe\n  y  run it once")));
+                        "echo safe\n  y  run it once")), "");
 
         ui().ask(ask);
 

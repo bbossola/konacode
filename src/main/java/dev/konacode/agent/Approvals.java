@@ -1,11 +1,11 @@
 package dev.konacode.agent;
 
 import dev.konacode.policy.Decision;
+import dev.konacode.tools.Action;
 import dev.konacode.tools.Permission;
 
 import java.util.HashSet;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -25,18 +25,22 @@ public final class Approvals {
         this.approval = Objects.requireNonNull(approval, "approval");
     }
 
-    /** True when the call may run. */
+    /** True when the user already answered "always" for this exact permission. */
+    public boolean covers(Action action) {
+        return action.standingPermission().map(given::contains).orElse(false);
+    }
+
+    /**
+     * True when the call may run. The caller has already tested {@link #covers}. An "always" answer
+     * writes the permission to the memory, when the question offers one.
+     */
     public boolean approve(Decision.Ask ask) {
-        Optional<Permission> permission = ask.permission();
-        if (permission.isPresent() && given.contains(permission.get())) {
-            return true;
-        }
         return switch (approval.ask(ask)) {
             case YES -> true;
             case NO -> false;
             case ALWAYS -> {
                 // With no permission there is nothing to remember, so the answer counts once.
-                permission.ifPresent(given::add);
+                ask.standingPermission().ifPresent(given::add);
                 yield true;
             }
         };

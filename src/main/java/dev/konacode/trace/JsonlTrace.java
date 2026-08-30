@@ -2,7 +2,9 @@ package dev.konacode.trace;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dev.konacode.trace.TraceEvent.FromAgent;
 import dev.konacode.trace.TraceEvent.IterationStarted;
+import dev.konacode.trace.TraceEvent.Judged;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.RequestSent;
 import dev.konacode.trace.TraceEvent.RetryRequested;
@@ -46,8 +48,6 @@ public final class JsonlTrace implements Trace {
         this.out = out;
         this.warnings = warnings;
     }
-
-    public static final int DEFAULT_MAX_FILES = 100;
 
     private static final DateTimeFormatter NAME =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss-SSS").withZone(ZoneId.systemDefault());
@@ -94,30 +94,6 @@ public final class JsonlTrace implements Trace {
         }
     }
 
-    /**
-     * How many trace files konacode keeps.
-     *
-     * <p>A wrong value is an error, for the reason {@code konacode.maxIterations} gives.
-     */
-    public static int configuredMaxFiles() {
-        String configured = System.getProperty("konacode.trace.maxFiles");
-        if (configured == null) {
-            return DEFAULT_MAX_FILES;
-        }
-        int value;
-        try {
-            value = Integer.parseInt(configured.trim());
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(
-                    "konacode.trace.maxFiles must be a whole number, but was: " + configured);
-        }
-        if (value < 1) {
-            throw new IllegalArgumentException(
-                    "konacode.trace.maxFiles must be 1 or more, but was: " + configured);
-        }
-        return value;
-    }
-
     @Override
     public void emit(TraceEvent event) {
         if (broken) {
@@ -149,6 +125,11 @@ public final class JsonlTrace implements Trace {
     private String line(TraceEvent event) {
         ObjectNode node = mapper.createObjectNode();
         node.put("at", Instant.now().toString());
+        fill(node, event);
+        return node.toString();
+    }
+
+    private void fill(ObjectNode node, TraceEvent event) {
         switch (event) {
             case TurnStarted e -> {
                 node.put("event", "turn_started");
@@ -206,7 +187,17 @@ public final class JsonlTrace implements Trace {
                 node.put("event", "retry_requested");
                 node.put("reason", e.reason());
             }
+            case Judged e -> {
+                node.put("event", "judged");
+                node.put("toolName", e.toolName());
+                node.put("verdict", e.verdict());
+                node.put("millis", e.millis());
+                node.put("toolOperand", e.toolOperand());
+            }
+            case FromAgent e -> {
+                node.put("agent", e.agent());
+                fill(node, e.event());
+            }
         }
-        return node.toString();
     }
 }

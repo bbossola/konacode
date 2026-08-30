@@ -59,6 +59,5 @@ back:
 
 ## Not doing yet
 
-Streaming, interrupting a turn, conversation persistence, token budgets, sub-agents, a
-`run_command` tool, path confinement, and reasoning support. See [FOLLOWUP.md](FOLLOWUP.md) for
-the ones that carry a design consequence.
+Streaming, conversation persistence, token budgets, a sub-agent the model can call, and reasoning
+support. See [FOLLOWUP.md](FOLLOWUP.md) for the ones that carry a design consequence.

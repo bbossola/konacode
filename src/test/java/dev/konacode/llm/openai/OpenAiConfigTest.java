@@ -31,6 +31,45 @@ class OpenAiConfigTest {
     }
 
     @Test
+    void theJudgeModelDefaultsToTheMainModel() {
+        OpenAiConfig config = OpenAiConfig.fromEnvironment(Map.of("OPENAI_API_KEY", "k", "KONACODE_MODEL", "gpt-5"));
+
+        assertEquals("gpt-5", config.forJudge().model());
+    }
+
+    @Test
+    void theJudgeModelCanBeSetOnItsOwn() {
+        OpenAiConfig config = OpenAiConfig.fromEnvironment(
+                Map.of("OPENAI_API_KEY", "k", "KONACODE_MODEL", "gpt-5", "KONACODE_JUDGE_MODEL", "gpt-5-mini"));
+
+        assertEquals("gpt-5-mini", config.forJudge().model());
+        assertEquals("gpt-5", config.model());
+    }
+
+    @Test
+    void theJudgeTalksToTheSameEndpointWithTheSameKey() {
+        OpenAiConfig config = OpenAiConfig.fromEnvironment(Map.of(
+                "OPENAI_API_KEY", "sk-test",
+                "KONACODE_MODEL", "gpt-5",
+                "KONACODE_JUDGE_MODEL", "gpt-5-mini",
+                "KONACODE_BASE_URL", "https://example.test/v1"));
+
+        OpenAiConfig judge = config.forJudge();
+
+        assertEquals(config.apiKey(), judge.apiKey());
+        assertEquals(config.baseUrl(), judge.baseUrl());
+        assertEquals(config.timeout(), judge.timeout());
+    }
+
+    @Test
+    void bothModelsFallBackToTheSameBuiltInDefault() {
+        OpenAiConfig config = OpenAiConfig.fromEnvironment(Map.of("OPENAI_API_KEY", "k"));
+
+        assertEquals(OpenAiConfig.DEFAULT_MODEL, config.model());
+        assertEquals(OpenAiConfig.DEFAULT_MODEL, config.forJudge().model());
+    }
+
+    @Test
     void acceptsAnyNonBlankKeySoLocalModelsWork() {
         // Validating the key's shape (an "sk-" prefix, say) would look like sensible input
         // validation and would break every Ollama user. Presence only.

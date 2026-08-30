@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+
+import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -67,7 +69,7 @@ class EffectPolicyTest {
 
         @Override
         public Action computeAction(JsonNode args) {
-            return Action.once(Effect.RUNS, "run_command");
+            return Action.once(name(), Effect.RUNS, "run_command");
         }
     }
 
@@ -85,81 +87,73 @@ class EffectPolicyTest {
         return new EffectPolicy();
     }
 
+    /** The loop computes the action and gives the policy the user's text, so the test does too. */
+    private Decision check(Tool tool, JsonNode args) {
+        return policy().check(tool.computeAction(args), "do the work");
+    }
+
     @Test
     void aReadInsideIsAllowed() {
-        assertInstanceOf(Decision.Allow.class,
-                policy().check(new ReadFile(workspace(), StopCheck.NEVER), path("notes.txt")));
+        assertInstanceOf(Decision.Allow.class, check(new ReadFile(workspace(), StopCheck.NEVER), path("notes.txt")));
     }
 
     @Test
     void aWriteInsideIsAllowed() {
-        assertInstanceOf(Decision.Allow.class,
-                policy().check(new EditFile(workspace(), StopCheck.NEVER), path("src/Main.java")));
+        assertInstanceOf(Decision.Allow.class, check(new EditFile(workspace(), StopCheck.NEVER), path("src/Main.java")));
     }
 
     @Test
     void aListWithNoPathIsAllowed() {
-        assertInstanceOf(Decision.Allow.class,
-                policy().check(new ListFiles(workspace(), StopCheck.NEVER),
-                        MAPPER.createObjectNode()));
+        assertInstanceOf(Decision.Allow.class, check(new ListFiles(workspace(), StopCheck.NEVER), MAPPER.createObjectNode()));
     }
 
     @Test
     void aReadOutsideAsksAndNamesTheToolThePathAndThePermission() throws IOException {
         Path file = outside.toRealPath().resolve("secret.txt");
 
-        Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
-                policy().check(new ReadFile(workspace(), StopCheck.NEVER),
-                        path(file.toString())));
+        Decision.Ask ask = assertInstanceOf(Decision.Ask.class, check(new ReadFile(workspace(), StopCheck.NEVER), path(file.toString())));
 
         assertEquals("read_file", ask.toolName());
-        assertEquals("read outside this project", ask.intent());
-        assertEquals(file.toString(), ask.operand());
+        assertEquals("read outside this project", ask.toolIntent());
+        assertEquals(file.toString(), ask.toolOperand());
         assertEquals(new Permission.InFolder("read_file", outside.toRealPath()),
-                ask.permission().orElseThrow());
+                ask.standingPermission().orElseThrow());
     }
 
     @Test
     void aWriteOutsideAsks() throws IOException {
         Path file = outside.toRealPath().resolve("notes.txt");
 
-        Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
-                policy().check(new EditFile(workspace(), StopCheck.NEVER),
-                        path(file.toString())));
+        Decision.Ask ask = assertInstanceOf(Decision.Ask.class, check(new EditFile(workspace(), StopCheck.NEVER), path(file.toString())));
 
-        assertEquals("write outside this project", ask.intent());
+        assertEquals("write outside this project", ask.toolIntent());
         assertEquals(new Permission.InFolder("edit_file", outside.toRealPath()),
-                ask.permission().orElseThrow());
+                ask.standingPermission().orElseThrow());
     }
 
     @Test
     void aDeleteOutsideAsks() {
-        Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
-                policy().check(new DeleteFile(workspace()),
-                        path(outside.resolve("old.txt").toString())));
+        Decision.Ask ask = assertInstanceOf(Decision.Ask.class, check(new DeleteFile(workspace()), path(outside.resolve("old.txt").toString())));
 
-        assertEquals("write outside this project", ask.intent());
+        assertEquals("write outside this project", ask.toolIntent());
     }
 
     @Test
     void aCommandAsksAndOffersNoPermission() {
-        Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
-                policy().check(new Running(), MAPPER.createObjectNode()));
+        Decision.Ask ask = assertInstanceOf(Decision.Ask.class, check(new Running(), MAPPER.createObjectNode()));
 
         assertEquals("run_command", ask.toolName());
-        assertEquals("run a command", ask.intent());
-        assertEquals("run_command", ask.operand());
-        assertTrue(ask.permission().isEmpty());
+        assertEquals("run a command", ask.toolIntent());
+        assertEquals("run_command", ask.toolOperand());
+        assertTrue(ask.standingPermission().isEmpty());
     }
 
     @Test
     void aCallWithNoUsablePathOffersNoPermission() {
-        Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
-                policy().check(new EditFile(workspace(), StopCheck.NEVER),
-                        MAPPER.createObjectNode()));
+        Decision.Ask ask = assertInstanceOf(Decision.Ask.class, check(new EditFile(workspace(), StopCheck.NEVER), MAPPER.createObjectNode()));
 
-        assertEquals("edit_file", ask.operand());
-        assertTrue(ask.permission().isEmpty());
+        assertEquals("edit_file", ask.toolOperand());
+        assertTrue(ask.standingPermission().isEmpty());
     }
 
     @Test
@@ -167,21 +161,19 @@ class EffectPolicyTest {
         ObjectNode args = MAPPER.createObjectNode();
         args.put("path", 123);
 
-        Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
-                policy().check(new EditFile(workspace(), StopCheck.NEVER), args));
+        Decision.Ask ask = assertInstanceOf(Decision.Ask.class, check(new EditFile(workspace(), StopCheck.NEVER), args));
 
-        assertEquals("edit_file", ask.operand());
-        assertTrue(ask.permission().isEmpty());
+        assertEquals("edit_file", ask.toolOperand());
+        assertTrue(ask.standingPermission().isEmpty());
     }
 
     @Test
     void thePolicyHoldsNoStateAndAnswersTheSameTwice() throws IOException {
         Path file = outside.toRealPath().resolve("secret.txt");
         EffectPolicy policy = policy();
-        ReadFile tool = new ReadFile(workspace(), StopCheck.NEVER);
+        Action action = new ReadFile(workspace(), StopCheck.NEVER).computeAction(path(file.toString()));
 
-        assertEquals(policy.check(tool, path(file.toString())),
-                policy.check(tool, path(file.toString())));
+        assertEquals(policy.check(action, "read the secret"), policy.check(action, "read the secret"));
     }
 
     @Test
@@ -190,23 +182,20 @@ class EffectPolicyTest {
         ReadFile tool = new ReadFile(workspace(), StopCheck.NEVER);
         Action action = tool.computeAction(path(file.toString()));
 
-        Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
-                policy().check(tool, path(file.toString())));
+        Decision.Ask ask = assertInstanceOf(Decision.Ask.class, check(tool, path(file.toString())));
 
-        assertEquals(action.operand(), ask.operand());
-        assertEquals(action.permission(), ask.permission());
+        assertEquals(action.toolOperand(), ask.toolOperand());
+        assertEquals(action.standingPermission(), ask.standingPermission());
     }
 
     @Test
     void listingAFolderRemembersThatFolderAndNotItsParent() throws IOException {
         Path folder = Files.createDirectories(outside.resolve("logs"));
 
-        Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
-                policy().check(new ListFiles(workspace(), StopCheck.NEVER),
-                        path(folder.toString())));
+        Decision.Ask ask = assertInstanceOf(Decision.Ask.class, check(new ListFiles(workspace(), StopCheck.NEVER), path(folder.toString())));
 
         assertEquals(new Permission.InFolder("list_files", folder.toRealPath()),
-                ask.permission().orElseThrow(),
+                ask.standingPermission().orElseThrow(),
                 "always must cover the folder the user listed");
     }
 
@@ -216,13 +205,11 @@ class EffectPolicyTest {
         Path link = Files.createSymbolicLink(root.resolve("a.txt"), secret);
 
         try {
-            Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
-                    policy().check(new ReadFile(workspace(), StopCheck.NEVER),
-                            path(link.toString())));
+            Decision.Ask ask = assertInstanceOf(Decision.Ask.class, check(new ReadFile(workspace(), StopCheck.NEVER), path(link.toString())));
 
-            assertEquals(secret.toRealPath().toString(), ask.operand());
+            assertEquals(secret.toRealPath().toString(), ask.toolOperand());
             assertEquals(new Permission.InFolder("read_file", outside.toRealPath()),
-                    ask.permission().orElseThrow());
+                    ask.standingPermission().orElseThrow());
         } finally {
             Files.delete(link);
         }
@@ -233,11 +220,9 @@ class EffectPolicyTest {
         Path link = Files.createSymbolicLink(root.resolve("dangling"), outside.resolve("gone"));
 
         try {
-            Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
-                    policy().check(new ReadFile(workspace(), StopCheck.NEVER),
-                            path(link.toString())));
+            Decision.Ask ask = assertInstanceOf(Decision.Ask.class, check(new ReadFile(workspace(), StopCheck.NEVER), path(link.toString())));
 
-            assertTrue(ask.permission().isEmpty(), "a call that reaches nothing offers no always");
+            assertTrue(ask.standingPermission().isEmpty(), "a call that reaches nothing offers no always");
         } finally {
             Files.delete(link);
         }
@@ -249,12 +234,10 @@ class EffectPolicyTest {
         Path link = Files.createSymbolicLink(outside.resolve("link.txt"), inside);
 
         try {
-            Decision.Ask ask = assertInstanceOf(Decision.Ask.class,
-                    policy().check(new EditFile(workspace(), StopCheck.NEVER),
-                            path(link.toString())));
+            Decision.Ask ask = assertInstanceOf(Decision.Ask.class, check(new EditFile(workspace(), StopCheck.NEVER), path(link.toString())));
 
             assertEquals(new Permission.InFolder("edit_file", outside.toRealPath()),
-                    ask.permission().orElseThrow(),
+                    ask.standingPermission().orElseThrow(),
                     "a write replaces the entry, so the entry's folder is what is approved");
         } finally {
             Files.delete(link);
@@ -262,20 +245,17 @@ class EffectPolicyTest {
     }
 
     /**
-     * Pins the verb {@link dev.konacode.cli.RichUi} actually reads out of {@code intent}:
-     * {@code intent.split(" ", 2)[0]}. Reads a real {@link Decision.Ask} from the policy for
+     * Pins the verb {@link dev.konacode.cli.RichUi} actually reads out of {@code toolIntent}:
+     * {@code toolIntent.split(" ", 2)[0]}. Reads a real {@link Decision.Ask} from the policy for
      * each of the three intents it can produce, rather than asserting a literal against itself.
      */
     @Test
     void everyIntentBeginsWithAnImperativeVerb() {
         Path file = outside.resolve("secret.txt");
 
-        Decision.Ask read = assertInstanceOf(Decision.Ask.class,
-                policy().check(new ReadFile(workspace(), StopCheck.NEVER), path(file.toString())));
-        Decision.Ask write = assertInstanceOf(Decision.Ask.class,
-                policy().check(new EditFile(workspace(), StopCheck.NEVER), path(file.toString())));
-        Decision.Ask run = assertInstanceOf(Decision.Ask.class,
-                policy().check(new Running(), MAPPER.createObjectNode()));
+        Decision.Ask read = assertInstanceOf(Decision.Ask.class, check(new ReadFile(workspace(), StopCheck.NEVER), path(file.toString())));
+        Decision.Ask write = assertInstanceOf(Decision.Ask.class, check(new EditFile(workspace(), StopCheck.NEVER), path(file.toString())));
+        Decision.Ask run = assertInstanceOf(Decision.Ask.class, check(new Running(), MAPPER.createObjectNode()));
 
         assertEquals("read", verbOf(read));
         assertEquals("write", verbOf(write));
@@ -285,10 +265,18 @@ class EffectPolicyTest {
     @Test
     void aQuestionRefusesANullPermission() {
         assertThrows(NullPointerException.class,
-                () -> new Decision.Ask("read_file", "read outside this project", "/etc", null));
+                () -> new Decision.Ask("read_file", "read outside this project", "/etc", null, ""));
+    }
+
+    @Test
+    void itNamesItselfAndNamesWhatItRefuses() {
+        ToolPolicy policy = new EffectPolicy();
+
+        assertEquals("effect", policy.label());
+        assertEquals(Optional.of("refuses every call outside this project"), policy.refusal());
     }
 
     private static String verbOf(Decision.Ask ask) {
-        return ask.intent().split(" ", 2)[0];
+        return ask.toolIntent().split(" ", 2)[0];
     }
 }

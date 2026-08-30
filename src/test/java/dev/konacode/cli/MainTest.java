@@ -8,17 +8,27 @@ import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.ToolMessage;
 import dev.konacode.llm.ToolCall;
 import dev.konacode.llm.ToolSpec;
-import dev.konacode.policy.AllowAllPolicy;
-import dev.konacode.policy.EffectPolicy;
+import dev.konacode.llm.openai.OpenAiConfig;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.Workspace;
 import dev.konacode.trace.Level;
+import dev.konacode.trace.RecordingTrace;
 import dev.konacode.trace.Trace;
+import dev.konacode.trace.TraceEvent;
+import dev.konacode.trace.TraceEvent.FromAgent;
+import dev.konacode.trace.TraceEvent.RequestSent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -28,10 +38,15 @@ import java.util.Deque;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class MainTest {
 
     @TempDir
@@ -120,10 +135,59 @@ class MainTest {
                 "a skill must load without a question");
     }
 
+    /** Runs one session that types {@code /policy} only, and gives back what the screen showed. */
+    private String policyLine(boolean canAsk) {
+        Workspace workspace = new Workspace(root);
+        SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
+        RecordingUi ui = new RecordingUi("/policy");
+        ui.canAsk = canAsk;
+
+        Main.build(new ScriptedClient(), new ScriptedClient(), skills, ui, Level.OFF,
+                new Cancellation(), 8, Trace.NONE, workspace, Duration.ofSeconds(600)).run();
+
+        return ui.answers.get(ui.answers.size() - 1);
+    }
+
     @Test
-    void anInterfaceThatCanAskGetsTheNewPolicy() {
-        assertInstanceOf(EffectPolicy.class, Main.defaultPolicy(true));
-        assertInstanceOf(AllowAllPolicy.class, Main.defaultPolicy(false));
+    void bothInterfacesStartWithTheJudge() {
+        assertTrue(policyLine(true).contains("uses `judge`"), policyLine(true));
+        assertTrue(policyLine(false).contains("uses `judge`"), policyLine(false));
+    }
+
+    @Mock
+    HttpClient http;
+
+    @Mock
+    HttpResponse<String> response;
+
+    @Test
+    void theLoopAndTheJudgeAreTwoClientsWithTwoNames() throws Exception {
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}");
+        when(http.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any())).thenReturn(response);
+        OpenAiConfig config = new OpenAiConfig("sk-test", "big", "small", "https://example.test/v1", Duration.ofSeconds(1));
+        List<TraceEvent> events = new ArrayList<>();
+
+        Main.Clients clients = Main.clients(config, http, events::add);
+
+        assertNotSame(clients.loop(), clients.judge(), "the judge needs its own trace, so it needs its own client");
+        clients.loop().chat(List.of(), List.of());
+        assertTrue(events.stream().allMatch(event -> event instanceof FromAgent named && named.agent().equals("kona")), events.toString());
+        assertTrue(requestModel(events).contains("\"model\":\"big\""), requestModel(events));
+        events.clear();
+        clients.judge().chat(List.of(), List.of());
+        assertTrue(events.stream().allMatch(event -> event instanceof FromAgent named && named.agent().equals("judge")), events.toString());
+        assertTrue(requestModel(events).contains("\"model\":\"small\""), requestModel(events));
+    }
+
+    private static String requestModel(List<TraceEvent> events) {
+        return events.stream()
+                .filter(FromAgent.class::isInstance)
+                .map(event -> ((FromAgent) event).event())
+                .filter(RequestSent.class::isInstance)
+                .map(event -> ((RequestSent) event).bodyJson())
+                .findFirst()
+                .orElseThrow();
     }
 
     @Test
@@ -132,10 +196,25 @@ class MainTest {
         SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
         RecordingUi ui = new RecordingUi("/tools");
 
-        Main.build(new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
+        Main.build(new ScriptedClient(), new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
                 workspace, Duration.ofSeconds(600)).run();
 
         assertTrue(ui.answers.get(0).contains("run_command"), ui.answers.get(0));
+    }
+
+    @Test
+    void theLoopNamesEveryEventKona() {
+        Workspace workspace = new Workspace(root);
+        SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
+        ScriptedClient client = new ScriptedClient().reply(new AssistantMessage("done", List.of()));
+        RecordingTrace trace = new RecordingTrace();
+
+        Main.build(client, new ScriptedClient(), skills, new RecordingUi("hello"), Level.OFF, new Cancellation(), 8, trace,
+                workspace, Duration.ofSeconds(600)).run();
+
+        assertFalse(trace.events().isEmpty());
+        assertTrue(trace.events().stream().allMatch(event ->
+                event instanceof FromAgent named && named.agent().equals("kona")), trace.events().toString());
     }
 
     @Test
@@ -152,7 +231,7 @@ class MainTest {
         RecordingUi ui = new RecordingUi("/policy allow-all", "read it", "/policy effect",
                 "read it");
 
-        Main.build(client, skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
+        Main.build(client, new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
                 workspace, Duration.ofSeconds(600)).run();
 
         assertEquals(4, client.histories.size(), "each turn calls chat twice");
@@ -178,7 +257,7 @@ class MainTest {
                 "read it", "/policy");
         ui.nextAsk = Answer.ALWAYS;
 
-        Main.build(client, skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
+        Main.build(client, new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
                 workspace, Duration.ofSeconds(600)).run();
 
         assertEquals(1, ui.askCount, "the memory in Approvals must survive the policy change");
@@ -186,5 +265,80 @@ class MainTest {
                 "the remembered ALWAYS must still approve the call");
         assertTrue(ui.answers.get(ui.answers.size() - 1).contains("uses `effect`"),
                 "the policy the second read passed a check against must still be effect");
+    }
+
+    @Test
+    void readsTheIterationCeilingFromASystemProperty() {
+        withProperty("konacode.maxIterations", "42", () -> assertEquals(42, Main.maxIterations()));
+    }
+
+    @Test
+    void theIterationCeilingDefaultsToEight() {
+        withProperty("konacode.maxIterations", null, () -> assertEquals(8, Main.maxIterations()));
+    }
+
+    @Test
+    void rejectsAMalformedMaxIterationsPropertyRatherThanSilentlyDefaulting() {
+        withProperty("konacode.maxIterations", "eihgt", () -> assertThrows(IllegalArgumentException.class, Main::maxIterations));
+    }
+
+    @Test
+    void theTraceFileCountDefaultsToOneHundred() {
+        withProperty("konacode.trace.maxFiles", null, () -> assertEquals(100, Main.maxTraceFiles()));
+    }
+
+    @Test
+    void aTraceFileCountThatIsNotAWholeNumberIsAnError() {
+        withProperty("konacode.trace.maxFiles", "many", () -> {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class, Main::maxTraceFiles);
+            assertTrue(e.getMessage().contains("konacode.trace.maxFiles"), e.getMessage());
+        });
+    }
+
+    @Test
+    void aTraceFileCountBelowOneIsAnError() {
+        withProperty("konacode.trace.maxFiles", "0", () -> assertThrows(IllegalArgumentException.class, Main::maxTraceFiles));
+    }
+
+    @Test
+    void theCommandTimeoutDefaultsToTenMinutes() {
+        withProperty("konacode.command.timeoutSeconds", null, () -> assertEquals(Duration.ofSeconds(600), Main.commandTimeout()));
+    }
+
+    @Test
+    void aConfiguredCommandTimeoutIsUsed() {
+        withProperty("konacode.command.timeoutSeconds", "5", () -> assertEquals(Duration.ofSeconds(5), Main.commandTimeout()));
+    }
+
+    @Test
+    void aWrongCommandTimeoutFailsLoudly() {
+        withProperty("konacode.command.timeoutSeconds", "soon", () -> {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class, Main::commandTimeout);
+            assertTrue(e.getMessage().contains("konacode.command.timeoutSeconds"), e.getMessage());
+        });
+    }
+
+    @Test
+    void aCommandTimeoutBelowOneSecondFailsLoudly() {
+        withProperty("konacode.command.timeoutSeconds", "0", () -> assertThrows(IllegalArgumentException.class, Main::commandTimeout));
+    }
+
+    /** Sets one system property, runs the body, and puts the property back as it was. */
+    private static void withProperty(String name, String value, Runnable body) {
+        String previous = System.getProperty(name);
+        try {
+            if (value == null) {
+                System.clearProperty(name);
+            } else {
+                System.setProperty(name, value);
+            }
+            body.run();
+        } finally {
+            if (previous == null) {
+                System.clearProperty(name);
+            } else {
+                System.setProperty(name, previous);
+            }
+        }
     }
 }
