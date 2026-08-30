@@ -279,4 +279,11 @@ class EffectPolicyTest {
     private static String verbOf(Decision.Ask ask) {
         return ask.toolIntent().split(" ", 2)[0];
     }
+
+    @Test
+    void allowsACallThatReachesNothing() {
+        Decision decision = new EffectPolicy().check(Action.once("plan", Effect.NONE, ""), "rename it");
+
+        assertInstanceOf(Decision.Allow.class, decision);
+    }
 }

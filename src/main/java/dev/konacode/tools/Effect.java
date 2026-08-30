@@ -12,11 +12,15 @@ package dev.konacode.tools;
  *
  * <p>{@code RUNS} has one tool that answers it: {@code run_command}. A command names no path,
  * so this value has no {@code INSIDE} form and no {@code OUTSIDE} form.
+ *
+ * <p>{@code NONE} has one tool that answers it: {@code plan}. That call reaches nothing outside
+ * the session, so it names no place, and no policy has a question to ask about it.
  */
 public enum Effect {
     READS_INSIDE,
     READS_OUTSIDE,
     WRITES_INSIDE,
     WRITES_OUTSIDE,
-    RUNS
+    RUNS,
+    NONE
 }

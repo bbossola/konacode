@@ -20,6 +20,7 @@ public final class EffectPolicy implements ToolPolicy {
     public Decision check(Action action, String userText) {
         return switch (action.effect()) {
             case READS_INSIDE, WRITES_INSIDE -> Decision.allow();
+            case NONE -> Decision.allow();
             case READS_OUTSIDE -> ask("read outside this project", action);
             case WRITES_OUTSIDE -> ask("write outside this project", action);
             case RUNS -> ask("run a command", action);
