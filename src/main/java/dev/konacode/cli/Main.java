@@ -128,6 +128,7 @@ public final class Main {
         return """
                 You are konacode, a concise CLI assistant.
                 The working directory is %s.
+                Plan with the plan tool before work that needs more than two or three tool calls.
                 Read a file before you edit the file, because edit_file needs the exact text of old_str.
                 An <error> reports a failed tool call. Read the reason and try a different approach.
                 """.formatted(directory);

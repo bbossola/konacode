@@ -325,6 +325,11 @@ class MainTest {
     }
 
     @Test
+    void theSystemPromptAsksForAPlan() {
+        assertTrue(Main.systemPrompt(root).contains("plan tool"), Main.systemPrompt(root));
+    }
+
+    @Test
     void theSystemPromptTellsTheModelToReadBeforeItEdits() {
         assertTrue(Main.systemPrompt(root).contains("Read a file before you edit"), Main.systemPrompt(root));
     }
