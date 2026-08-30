@@ -100,6 +100,23 @@ describes it.
 conversation. You can load several skills at the same time, and `/clear` removes them all. The
 model reads a reference file in the skill folder with `read_file`, only when it needs it.
 
+## What is new in 0.2.0
+
+0.1.0 was the loop, three tools and two interfaces. The loop is the same. Everything 0.2.0 adds is
+a control layer around it.
+
+- **konacode asks before it acts outside this project.** A tool states what one call does, a
+  policy decides, and the loop asks you. `a` remembers the answer for the session.
+- **A judge answers first.** A second agent reads every question the policy writes and answers
+  allow, ask or deny. A piped session is no longer wide open.
+- **Two more tools**: `delete_file` and `run_command`.
+- **`esc` stops a turn**, and the tools stop between two steps of their work.
+- **konacode says what it did.** Nine kinds of trace event, on the screen with `/trace` and in a
+  file in `~/.konacode/traces/`.
+- **Skills.** `/skill` loads reusable instructions from `~/.konacode/skills/`.
+
+[CHANGELOG.md](CHANGELOG.md) has the whole list.
+
 ## Run it
 
 You will need Java 21 and an OpenAI API key.
