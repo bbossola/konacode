@@ -16,7 +16,7 @@ import java.util.Set;
  * <p>This tool lives in {@code agent} and not in {@code tools}, because it acts on the turn and
  * not on the world. It reaches no file and runs no command, so it states {@link Effect#NONE}.
  *
- * <p>konacode stores no plan. The result goes into the conversation, and konacode sends the whole
+ * <p>konacode stores no plan. The result goes into the conversation. konacode sends the whole
  * conversation on each request, so the model reads its own plan on each iteration.
  */
 public final class PlanTool implements Tool {
@@ -106,7 +106,7 @@ public final class PlanTool implements Tool {
             number++;
         }
 
-        // After the list is read, so a call that states no plan earns no iteration.
+        // PlanTool reads the whole list first, so a call it refuses does not raise the maximum.
         budget.extend();
         return ToolResult.ok(list.toString());
     }
@@ -123,9 +123,10 @@ public final class PlanTool implements Tool {
 
     /**
      * Makes one line of the text of a step, because a newline draws a second numbered line, and
-     * that line is not konacode's. This is not {@code Ansi.oneLine}, which guards a line konacode
-     * prints on the screen: it also removes an escape code, and it writes a glyph for a control
-     * character. This text goes to the model, so one space for each line break is enough.
+     * konacode did not write that line. This is not {@code Ansi.oneLine}, which guards a line
+     * konacode prints on the screen. {@code Ansi.oneLine} also removes an escape code, and it
+     * writes a glyph for a control character. This text goes to the model, so one space for each
+     * line break is enough.
      */
     private static String oneLine(String text) {
         return text.replace("\r\n", " ").replace('\r', ' ').replace('\n', ' ');

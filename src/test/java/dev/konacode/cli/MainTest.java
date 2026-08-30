@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -380,6 +381,70 @@ class MainTest {
                     assertThrows(IllegalArgumentException.class, Main::maxIterationsWhenPlanning);
             assertTrue(e.getMessage().contains("konacode.maxIterations.whenPlanning"), e.getMessage());
         });
+    }
+
+    @Test
+    void theMaximumWhenPlanningFollowsARaisedOrdinaryMaximum() {
+        withProperty("konacode.maxIterations", "30",
+                () -> withProperty("konacode.maxIterations.whenPlanning", null, () -> {
+                    assertEquals(30, Main.maxIterationsWhenPlanning(), "a default must not refuse a value the user set");
+                    assertDoesNotThrow(Main::budget);
+                }));
+    }
+
+    @Test
+    void aMaximumWhenPlanningBelowTheOrdinaryOneNamesBothProperties() {
+        withProperty("konacode.maxIterations", "30",
+                () -> withProperty("konacode.maxIterations.whenPlanning", "10", () -> {
+                    IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, Main::budget);
+                    assertTrue(thrown.getMessage().contains("konacode.maxIterations.whenPlanning (10)"), thrown.getMessage());
+                    assertTrue(thrown.getMessage().contains("konacode.maxIterations (30)"), thrown.getMessage());
+                }));
+    }
+
+    @Test
+    void theBudgetDefaultsToEightAndTwentyFour() {
+        withProperty("konacode.maxIterations", null,
+                () -> withProperty("konacode.maxIterations.whenPlanning", null, () -> {
+                    assertEquals(8, requests(Main.budget(), readCall("1", root.resolve("missing.txt").toString())),
+                            "a turn that records no plan stops at the ordinary maximum");
+                    assertEquals(24, requests(Main.budget(), planCall()),
+                            "a turn that records a plan stops at the planned maximum");
+                }));
+    }
+
+    @Test
+    void thePlanToolAndTheLoopShareOneBudget() {
+        Workspace workspace = new Workspace(root);
+        SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
+        ScriptedClient client = new ScriptedClient()
+                .reply(planCall()).reply(planCall()).reply(planCall()).reply(planCall());
+        RecordingUi ui = new RecordingUi("do the work");
+
+        Main.build(client, new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(),
+                new TurnBudget(2, 4), Trace.NONE, workspace, Duration.ofSeconds(600)).run();
+
+        assertEquals(4, client.histories.size(), "the maximum the plan tool raises must be the maximum the loop reads");
+    }
+
+    private static AssistantMessage planCall() {
+        return new AssistantMessage("", List.of(new ToolCall("1", "plan",
+                "{\"steps\":[{\"text\":\"do the work\",\"state\":\"doing\"}]}")));
+    }
+
+    /** Runs one turn against a model that repeats one call, and gives back the number of requests. */
+    private int requests(TurnBudget budget, AssistantMessage call) {
+        Workspace workspace = new Workspace(root);
+        SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
+        ScriptedClient client = new ScriptedClient();
+        for (int i = 0; i < 40; i++) {
+            client.reply(call);
+        }
+
+        Main.build(client, new ScriptedClient(), skills, new RecordingUi("do the work"), Level.OFF,
+                new Cancellation(), budget, Trace.NONE, workspace, Duration.ofSeconds(600)).run();
+
+        return client.histories.size();
     }
 
     @Test

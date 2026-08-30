@@ -4,15 +4,15 @@ package dev.konacode.agent;
  * The number of iterations one turn may use.
  *
  * <p>A turn starts at the ordinary maximum. The tool that records a plan calls {@link #extend()},
- * and the turn then runs to the planned maximum. {@code reset} puts the number back, so the larger
- * maximum ends with the turn that earned it.
+ * and the turn then runs to the planned maximum. {@code reset} puts the number back, so only the
+ * turn in which the model records a plan uses the larger maximum.
  *
  * <p>{@code extend} is public, because a tool calls it. {@code reset} and {@code max} are
  * package-private, because only the loop uses them.
  *
  * <p>One budget serves one agent, because {@code reset} states that a new turn starts. A second
- * agent that shares this budget ends the larger maximum of the first agent. A sub-agent, issue
- * #20, must get its own budget.
+ * agent that shares this budget puts the number back in the middle of a turn of the first agent.
+ * A sub-agent, issue #20, must get its own budget.
  */
 public final class TurnBudget {
 
@@ -22,7 +22,7 @@ public final class TurnBudget {
 
     public TurnBudget(int ordinary, int planned) {
         if (ordinary < 1) {
-            throw new IllegalArgumentException("maxIterations must be at least 1.");
+            throw new IllegalArgumentException("konacode.maxIterations must be at least 1.");
         }
         if (planned < ordinary) {
             throw new IllegalArgumentException(

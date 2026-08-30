@@ -56,7 +56,7 @@ public final class Main {
         Ui ui;
         try {
             config = OpenAiConfig.fromEnvironment(System.getenv());
-            budget = new TurnBudget(maxIterations(), maxIterationsWhenPlanning());
+            budget = budget();
             traceLevel = Level.configured();
             maxTraceFiles = maxTraceFiles();
             commandTimeout = commandTimeout();
@@ -155,19 +155,37 @@ public final class Main {
 
     /**
      * The maximum for a turn in which the model records a plan. Work of several steps needs more
-     * iterations than a read and one edit, and a turn that records no plan keeps the smaller
-     * maximum.
+     * iterations than a read and one edit. A turn that records no plan keeps the smaller maximum.
+     *
+     * <p>The default follows a raised {@code konacode.maxIterations}, because a default must never
+     * refuse a value the user did set.
      */
     static int maxIterationsWhenPlanning() {
         String configured = System.getProperty("konacode.maxIterations.whenPlanning");
         if (configured == null) {
-            return DEFAULT_MAX_ITERATIONS_WHEN_PLANNING;
+            return Math.max(DEFAULT_MAX_ITERATIONS_WHEN_PLANNING, maxIterations());
         }
         try {
             return Integer.parseInt(configured.trim());
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("konacode.maxIterations.whenPlanning must be a whole number, but was: " + configured);
         }
+    }
+
+    /**
+     * The two maximums of one turn.
+     *
+     * <p>{@link TurnBudget} makes the same check, because it owns both numbers. This one names both
+     * properties, so the user reads the name of the value they typed.
+     */
+    static TurnBudget budget() {
+        int ordinary = maxIterations();
+        int whenPlanning = maxIterationsWhenPlanning();
+        if (whenPlanning < ordinary) {
+            throw new IllegalArgumentException("konacode.maxIterations.whenPlanning (" + whenPlanning
+                    + ") must be at least konacode.maxIterations (" + ordinary + ").");
+        }
+        return new TurnBudget(ordinary, whenPlanning);
     }
 
     /** How many trace files konacode keeps. A wrong value is an error, as every property is. */

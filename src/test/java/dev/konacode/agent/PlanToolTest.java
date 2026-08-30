@@ -53,7 +53,7 @@ class PlanToolTest {
     private String refusal(String json) {
         ToolResult result = tool.execute(args(json));
 
-        assertEquals(8, budget.max(), "a call that states no plan earns no iteration");
+        assertEquals(8, budget.max(), "PlanTool reads the whole list first, so a call it refuses does not raise the maximum");
         return assertInstanceOf(ToolResult.Err.class, result).message();
     }
 
