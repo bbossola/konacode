@@ -18,6 +18,7 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -27,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,6 +37,9 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -145,6 +150,82 @@ class OpenAiClientTest {
         assertEquals(List.of(), events);
     }
 
+    /** A backoff that does not sleep, so a test of the retry costs no time. */
+    private static final OpenAiClient.Backoff NO_WAIT = attempt -> {
+    };
+
+    private static Supplier<AssistantMessage> failsThenAnswers(int failures, AtomicInteger sends) {
+        return () -> {
+            if (sends.incrementAndGet() <= failures) {
+                throw new TransientFailure("HTTP 503: busy", "The provider answered HTTP 503.");
+            }
+            return plain("Done.");
+        };
+    }
+
+    @Test
+    void retriesATransientFailureAndThenSucceeds() {
+        AtomicInteger sends = new AtomicInteger();
+
+        AssistantMessage reply = OpenAiClient.sendUntilDelivered(failsThenAnswers(1, sends), NO_WAIT, Trace.NONE);
+
+        assertEquals("Done.", reply.text());
+        assertEquals(2, sends.get());
+    }
+
+    @Test
+    void doesNotRetryAPermanentFailure() {
+        AtomicInteger sends = new AtomicInteger();
+        Supplier<AssistantMessage> send = () -> {
+            sends.incrementAndGet();
+            throw new LlmException("HTTP 401: bad key");
+        };
+
+        assertThrows(LlmException.class, () -> OpenAiClient.sendUntilDelivered(send, NO_WAIT, Trace.NONE));
+
+        assertEquals(1, sends.get(), "a key konacode cannot fix must not be asked about twice");
+    }
+
+    @Test
+    void givesUpAfterTheThirdAttemptAndReportsTheLastFailure() {
+        AtomicInteger sends = new AtomicInteger();
+
+        LlmException thrown = assertThrows(LlmException.class,
+                () -> OpenAiClient.sendUntilDelivered(failsThenAnswers(9, sends), NO_WAIT, Trace.NONE));
+
+        assertEquals(3, sends.get());
+        assertTrue(thrown.getMessage().contains("503"), thrown.getMessage());
+    }
+
+    @Test
+    void reportsEveryTransportRetry() {
+        List<TraceEvent> events = new ArrayList<>();
+
+        OpenAiClient.sendUntilDelivered(failsThenAnswers(1, new AtomicInteger()), NO_WAIT, events::add);
+
+        List<String> reasons = events.stream()
+                .filter(RetryRequested.class::isInstance)
+                .map(event -> ((RetryRequested) event).reason())
+                .toList();
+        assertEquals(1, reasons.size(), events.toString());
+        assertTrue(reasons.get(0).contains("503"), reasons.get(0));
+    }
+
+    @Test
+    void stopsTheRetryWhenTheThreadIsInterrupted() {
+        AtomicInteger sends = new AtomicInteger();
+        try {
+            Thread.currentThread().interrupt();
+
+            assertThrows(LlmException.class,
+                    () -> OpenAiClient.sendUntilDelivered(failsThenAnswers(9, sends), NO_WAIT, Trace.NONE));
+
+            assertEquals(1, sends.get(), "esc must end the retry, and not wait for the budget");
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
     /**
      * {@code sendOnce} is private, and only {@code chat} reaches it. These tests mock
      * {@link HttpClient} so no socket opens, per {@code CLAUDE.md}: use Mockito for a type this
@@ -172,7 +253,15 @@ class OpenAiClientTest {
 
     private OpenAiClient clientWithMockedHttp(List<TraceEvent> events) {
         return new OpenAiClient(configWithTheKey(), http, new ChatCompletionsCodec(new ObjectMapper()),
-                events::add);
+                events::add, NO_WAIT);
+    }
+
+    private static HttpResponse<String> answer(int status, String body) {
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> stub = mock(HttpResponse.class);
+        when(stub.statusCode()).thenReturn(status);
+        when(stub.body()).thenReturn(body);
+        return stub;
     }
 
     @Test
@@ -243,5 +332,43 @@ class OpenAiClientTest {
         client.chat(List.of(), List.of());
 
         assertTrue(events.stream().noneMatch(TokensUsed.class::isInstance));
+    }
+
+    @Test
+    void retriesA503AndSucceeds() throws Exception {
+        // Both stubs are built before the send is stubbed: a when() inside a thenReturn() would
+        // leave the outer stubbing unfinished.
+        HttpResponse<String> busy = answer(503, "{\"error\":\"busy\"}");
+        HttpResponse<String> ok = answer(200, "{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}");
+        when(http.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
+                .thenReturn(busy, ok);
+        OpenAiClient client = clientWithMockedHttp(new ArrayList<>());
+
+        assertEquals("hi", client.chat(List.of(), List.of()).text());
+
+        verify(http, times(2)).send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
+    }
+
+    @Test
+    void retriesARequestThatDidNotArrive() throws Exception {
+        HttpResponse<String> ok = answer(200, "{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}");
+        when(http.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
+                .thenThrow(new IOException("connection reset"))
+                .thenReturn(ok);
+        OpenAiClient client = clientWithMockedHttp(new ArrayList<>());
+
+        assertEquals("hi", client.chat(List.of(), List.of()).text());
+
+        verify(http, times(2)).send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
+    }
+
+    @Test
+    void doesNotRetryA401() throws Exception {
+        stubHttpToReturn(401, "{\"error\":\"bad key\"}");
+        OpenAiClient client = clientWithMockedHttp(new ArrayList<>());
+
+        assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
+
+        verify(http, times(1)).send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
     }
 }

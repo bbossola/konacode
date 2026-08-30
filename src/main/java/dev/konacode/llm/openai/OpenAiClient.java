@@ -18,7 +18,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -29,10 +31,24 @@ public final class OpenAiClient implements LlmClient {
 
     private static final int ERROR_BODY_LIMIT = 500;
 
+    /** The statuses that say "later", and not "no". Every other one is the answer of the provider. */
+    private static final Set<Integer> TRANSIENT_STATUSES = Set.of(429, 502, 503, 504);
+
+    static final int MAX_ATTEMPTS = 3;
+    private static final Duration FIRST_WAIT = Duration.ofMillis(500);
+
     private final OpenAiConfig config;
     private final HttpClient http;
     private final ChatCompletionsCodec codec;
     private final Trace trace;
+    private final Backoff backoff;
+
+    /** The wait before one more attempt. A test gives one that does not sleep. */
+    @FunctionalInterface
+    interface Backoff {
+        /** Waits before {@code attempt}, which counts from two. */
+        void pauseBefore(int attempt);
+    }
 
     public OpenAiClient(OpenAiConfig config, Trace trace) {
         this(config,
@@ -43,10 +59,16 @@ public final class OpenAiClient implements LlmClient {
 
     public OpenAiClient(OpenAiConfig config, HttpClient http, ChatCompletionsCodec codec,
                         Trace trace) {
+        this(config, http, codec, trace, OpenAiClient::sleepBefore);
+    }
+
+    OpenAiClient(OpenAiConfig config, HttpClient http, ChatCompletionsCodec codec, Trace trace,
+                 Backoff backoff) {
         this.config = config;
         this.http = http;
         this.codec = codec;
         this.trace = trace;
+        this.backoff = backoff;
     }
 
     @Override
@@ -55,7 +77,8 @@ public final class OpenAiClient implements LlmClient {
         ReplyValidator validator = ReplyValidator.create(config.model(), tools);
 
         return sendUntilAccepted(validator,
-                () -> sendOnce(body, history.size(), tools.size()), trace);
+                () -> sendUntilDelivered(() -> sendOnce(body, history.size(), tools.size()), backoff, trace),
+                trace);
     }
 
     /**
@@ -74,6 +97,40 @@ public final class OpenAiClient implements LlmClient {
             reply = send.get();
         }
         return reply;
+    }
+
+    /**
+     * Sends until the request arrives, or until the budget ends. A transient failure buys another
+     * attempt; every other failure ends the turn at once, because the model cannot fix a 401.
+     *
+     * <p>This budget is not the budget of the validator. That one repairs the protocol, and this
+     * one repairs the transport, so a garbled reply on a poor network spends neither twice.
+     */
+    static AssistantMessage sendUntilDelivered(Supplier<AssistantMessage> send, Backoff backoff, Trace trace) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return send.get();
+            } catch (TransientFailure e) {
+                if (attempt == MAX_ATTEMPTS) {
+                    throw e;
+                }
+                // The interrupt is how esc reaches a turn, so it ends the retry before the wait.
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new LlmException("Request was interrupted.", e);
+                }
+                trace.emit(new RetryRequested(e.retryReason()));
+            }
+            backoff.pauseBefore(attempt + 1);
+        }
+    }
+
+    private static void sleepBefore(int attempt) {
+        try {
+            Thread.sleep(FIRST_WAIT.toMillis() << (attempt - 2));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new LlmException("Request was interrupted.", e);
+        }
     }
 
     private AssistantMessage sendOnce(ObjectNode body, int messageCount, int toolCount) {
@@ -102,14 +159,20 @@ public final class OpenAiClient implements LlmClient {
             response = http.send(request,
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         } catch (IOException e) {
-            throw new LlmException(
-                    "Request to " + config.chatCompletionsUri() + " failed: " + e.getMessage(), e);
+            throw new TransientFailure(
+                    "Request to " + config.chatCompletionsUri() + " failed: " + e.getMessage(),
+                    "The request did not reach the provider.", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new LlmException("Request was interrupted.", e);
         }
         trace.emit(new ReplyReceived(response.statusCode(),
                 (System.nanoTime() - started) / 1_000_000, response.body()));
+
+        if (TRANSIENT_STATUSES.contains(response.statusCode())) {
+            throw new TransientFailure("HTTP " + response.statusCode() + ": " + truncate(response.body()),
+                    "The provider answered HTTP " + response.statusCode() + ".");
+        }
 
         if (response.statusCode() / 100 != 2) {
             throw new LlmException(
