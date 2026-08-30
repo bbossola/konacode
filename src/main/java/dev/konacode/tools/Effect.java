@@ -14,7 +14,7 @@ package dev.konacode.tools;
  * so this value has no {@code INSIDE} form and no {@code OUTSIDE} form.
  *
  * <p>{@code NONE} has one tool that answers it: {@code plan}. That call reaches nothing outside
- * the session, so it names no place, and no policy has a question to ask about it.
+ * the session, so this value names no place, and a policy asks no question about it.
  */
 public enum Effect {
     READS_INSIDE,
