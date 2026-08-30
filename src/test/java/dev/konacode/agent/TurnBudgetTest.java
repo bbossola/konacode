@@ -39,7 +39,7 @@ class TurnBudgetTest {
 
         budget.reset();
 
-        assertEquals(8, budget.max(), "the larger maximum ends with the turn that earned it");
+        assertEquals(8, budget.max(), "only the turn in which the model records a plan uses the larger maximum");
     }
 
     @Test
