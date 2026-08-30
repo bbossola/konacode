@@ -71,7 +71,8 @@ The description is prompt text. It tells the model when to call the tool.
 ```
 Record the steps of the work you are going to do, and give the list back.
 Use this before work that needs more than two or three tool calls.
-Write one short step for each thing you must do, and write 20 steps or fewer.
+Write one short step for each thing you must do. Write 20 steps or fewer, and keep each
+step to 200 characters or fewer.
 Each step has a state: todo, doing or done. Keep one step doing at a time.
 Call this tool again at each change: mark the step you finished done, mark the next step
 doing, and send the whole list in one call.
@@ -100,14 +101,19 @@ ten steps again to find the one word that failed. `EditFile` and `DeleteFile` bo
 | Fault | The message |
 |---|---|
 | `steps` is missing, or it is not an array | The shape of the call, in the way `DeleteFile` answers |
+| A step is not an object | The shape of the call. The model sent a string where an object goes, so the shape is the fault. |
 | The list is empty | The plan has no step. Send at least one step. |
 | The list holds more than 20 steps | The plan has N steps. Send 20 steps or fewer. |
 | A step has no text | Step N has no text. Give one short sentence for each step. |
-| The text of a step is longer than 200 characters | Step N is too long. Keep a step under 200 characters. |
+| The text of a step is longer than 200 characters | Step N is M characters. Keep a step to 200 characters or fewer. |
 | A step has a state konacode does not know | Step N has a state konacode does not know. Use todo, doing or done. |
 
 No message repeats a word the model wrote. The state of step N is a word the model chose, so the
-message names the step and never the word.
+message names the step and never the word. A number is not a word the model wrote, so a message
+gives the number of steps and the number of characters.
+
+Each message names the same limit as the check. The check refuses 21 steps and 201 characters, so
+the message says "20 steps or fewer" and "200 characters or fewer". "Under 200" would name 199.
 
 Two caps hold the size: 20 steps, and 200 characters for the text of one step. Every other tool
 caps what it gives back. This one gives its result back on every later iteration of the turn,
