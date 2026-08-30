@@ -43,8 +43,9 @@ the model asks for it. Adding a seventh means writing one class and registering 
 
 ## Approval
 
-konacode reads and writes inside this project with no question. For a read or a write outside this
-project, and for a command, a judge decides. The judge is a second agent. It reads the name of the
+konacode reads and writes inside this project with no question. A call to `plan` records the steps
+of the work, and it reaches nothing outside the session, so that call needs no question either. For
+a read or a write outside this project, and for a command, a judge decides. The judge is a second agent. It reads the name of the
 tool, what the call does, what the call acts on, where the project is, and the message you typed,
 and it answers allow, ask or deny. It answers ask when it is not sure, and konacode then puts the
 question to you. In the rich interface the question looks like this:
@@ -260,13 +261,17 @@ design is shaped this way.
 A loop where the model decides when the loop ends deserves some skepticism. konacode keeps
 things honest with:
 
-- **A ceiling on tool iterations** per user message, so a confused model cannot spin forever.
+- **A ceiling on tool iterations** per user message, so a confused model cannot run without an
+  end. The `plan` tool raises the ceiling of one turn, and konacode puts it back at the start of
+  the next turn. Both numbers are yours: `konacode.maxIterations` and
+  `konacode.maxIterations.whenPlanning`.
 - **Output caps** on reads and listings, so one stray `target/` does not flood the context
   window — or the bill.
 - **Unambiguous edits only** — `edit_file` fails loudly rather than guessing when the search
   string matches more than once.
 - **A policy** consulted before every tool call. The default policy allows a read and a write
-  inside this project, and it asks a judge about everything else. See [Approval](#approval).
+  inside this project, and it asks a judge about everything else. A call to `plan` reaches nothing
+  outside the session, so no judge reads it. See [Approval](#approval).
 
 Production agents add sandboxing, token budgets, rate limiting and permission prompts on top.
 Same skeleton, more armor. [FOLLOWUP.md](FOLLOWUP.md) tracks what is coming.

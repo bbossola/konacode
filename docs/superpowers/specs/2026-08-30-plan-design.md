@@ -230,10 +230,12 @@ A planned maximum below the ordinary maximum is a wrong value. konacode prints o
 The prompt gains one sentence, and it reaches five lines.
 
 ```
-Plan with the plan tool before work that needs more than two or three tool calls.
+Use the plan tool before work that has several steps.
 ```
 
-`MainTest` pins the sentence, in the way it pins the other three facts. The test that holds the
+The line names the tool and the habit. It gives no threshold, because the description of the tool
+gives one, and konacode sends the description on the same request. `MainTest` pins the clause, in
+the way it pins the other three facts. The test that holds the
 prompt to five lines then sits at its limit. A sixth line needs a decision about the prompt, and
 not one more sentence.
 

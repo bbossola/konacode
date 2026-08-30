@@ -159,7 +159,7 @@ and write a verdict of its own. A payload with nothing after it can forge nothin
 | `ToolApproval` | interface | `Answer ask(Decision.Ask ask)`, `boolean canAsk()`. `Answer` is `YES`, `NO` or `ALWAYS`. The loop asks, and not the policy, because `Cancellation` lives here and only the loop knows where an interrupt is safe. |
 | `Approvals` | final class | The set of permissions the user gave during this session. `covers(Action)` reads the set, and the loop calls it before the policy. `approve(Ask)` puts the question and records an `always`. Two methods, so the memory is tested in one place. Coverage is equality. The memory sits here and not in the policy, so `/policy` changes the policy and the answers stay. Nothing is written to disk. |
 | `ToolSpecs` | static adapter | `Tool` to `ToolSpec`. The one place `tools` and `llm` meet. |
-| `PlanTool` | implements `Tool` | Records the steps of the work, and gives the list back. It is the only tool outside `tools`, because it acts on the turn and the five tools in `tools` act on the world. konacode stores no plan: the result goes into the conversation, and konacode sends the whole conversation on each request. Two caps limit the size, 20 steps and 200 characters for one step, because that result enters the conversation again on every later iteration of the turn. It reads the whole list before it calls `TurnBudget.extend`, so a call it refuses adds no iteration. Each `Err` names one fault and the step that holds it, and no message repeats a word the model wrote. |
+| `PlanTool` | implements `Tool` | Records the steps of the work, and gives the list back. It is the only tool outside `tools`, because it acts on the turn and the five tools in `tools` act on the world. konacode stores no plan: the result goes into the conversation, and konacode sends the whole conversation on each request. Two caps limit the size: 20 steps, and 200 characters for one step. The result enters the conversation again on every later iteration of the turn. It reads the whole list before it calls `TurnBudget.extend`, so a call it refuses adds no iteration. Each `Err` names one fault and the step that holds it, and no message repeats a word the model wrote. |
 | `TurnBudget` | final class | The number of iterations one turn may use. `PlanTool` calls `extend()`, and the loop reads `max()`. `Agent.respond` calls `reset()` once for each turn, so only the turn that records a plan uses the larger maximum. One budget serves one agent: a second agent that shares it puts the number back in the middle of the first turn. |
 | `AgentJudge` | implements `policy.Judge` | A second `Agent` with no tool, no history and one iteration. It sends one JSON object that Jackson builds, so an operand the model wrote cannot end its own field, and it reads one word back. It lives here because it needs `Agent`. |
 
@@ -235,9 +235,9 @@ Write all documents and all replies in ASD-STE100 Simplified Technical English.
 - Write positive statements. Do not put two negatives in one sentence.
 - Use simple verb tenses.
 - Write literally. Do not use a metaphor or an idiom.
-- Do not make a verb from the name of a type. `Decision.Ask` gives "the policy writes a
-  question", and the reader learns nothing. Write what each part does: `EffectPolicy` allows
-  the call, so konacode asks the user nothing.
+- Do not make a verb from the name of a type. Do not write "the policy asks", because the type
+  is `Decision.Ask`. Write what each part does: `EffectPolicy` gives back an `Ask`, and the loop
+  puts the question to the user.
 
 ## Conventions
 
