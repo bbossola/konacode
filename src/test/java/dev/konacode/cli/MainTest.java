@@ -323,6 +323,38 @@ class MainTest {
         withProperty("konacode.command.timeoutSeconds", "0", () -> assertThrows(IllegalArgumentException.class, Main::commandTimeout));
     }
 
+    @Test
+    void theSystemPromptTellsTheModelToReadBeforeItEdits() {
+        assertTrue(Main.systemPrompt(root).contains("Read a file before you edit"), Main.systemPrompt(root));
+    }
+
+    @Test
+    void theSystemPromptSaysWhatAnErrorMeans() {
+        assertTrue(Main.systemPrompt(root).contains("<error>"), Main.systemPrompt(root));
+    }
+
+    @Test
+    void theSystemPromptNamesTheWorkingDirectory() {
+        assertTrue(Main.systemPrompt(root).contains(root.toString()), Main.systemPrompt(root));
+    }
+
+    @Test
+    void theSystemPromptStaysUnderFiveLines() {
+        assertTrue(Main.systemPrompt(root).lines().count() <= 5, Main.systemPrompt(root));
+    }
+
+    @Test
+    void theLoopReceivesThePromptOfTheWorkingDirectory() {
+        Workspace workspace = new Workspace(root);
+        SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
+        ScriptedClient client = new ScriptedClient().reply(new AssistantMessage("hi", List.of()));
+
+        Main.build(client, new ScriptedClient(), skills, new RecordingUi("hello"), Level.OFF,
+                new Cancellation(), 8, Trace.NONE, workspace, Duration.ofSeconds(600)).run();
+
+        assertEquals(new Message.SystemMessage(Main.systemPrompt(workspace.root())), client.histories.get(0).get(0));
+    }
+
     /** Sets one system property, runs the body, and puts the property back as it was. */
     private static void withProperty(String name, String value, Runnable body) {
         String previous = System.getProperty(name);

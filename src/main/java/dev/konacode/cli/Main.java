@@ -36,8 +36,6 @@ import java.util.List;
 
 public final class Main {
 
-    private static final String SYSTEM_PROMPT = "You are konacode, a concise CLI assistant.";
-
     static final int DEFAULT_MAX_ITERATIONS = 8;
     static final int DEFAULT_MAX_TRACE_FILES = 100;
     static final Duration DEFAULT_COMMAND_TIMEOUT = Duration.ofSeconds(600);
@@ -103,7 +101,7 @@ public final class Main {
                 new EditFile(workspace, cancellation),
                 new DeleteFile(workspace),
                 new RunCommand(workspace, cancellation, commandTimeout));
-        SystemMessage system = new SystemMessage(SYSTEM_PROMPT);
+        SystemMessage system = new SystemMessage(systemPrompt(workspace.root()));
         Conversation conversation = new Conversation(system);
         Trace kona = new NamedTrace("kona", trace);
         Judge judge = new AgentJudge(judgeClient, workspace.root(), trace, cancellation);
@@ -116,6 +114,19 @@ public final class Main {
                 policies, judgePolicy);
 
         return new Repl(agent, ui, cancellation, commands);
+    }
+
+    /**
+     * The standing instruction. It stays short, because every turn pays for it. Each line after the
+     * first answers a question the model would otherwise answer with a failed tool call.
+     */
+    static String systemPrompt(Path directory) {
+        return """
+                You are konacode, a concise CLI assistant.
+                The working directory is %s.
+                Read a file before you edit the file, because edit_file needs the exact text of old_str.
+                An <error> reports a failed tool call. Read the reason and try a different approach.
+                """.formatted(directory);
     }
 
     /**
