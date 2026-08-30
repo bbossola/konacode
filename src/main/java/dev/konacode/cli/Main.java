@@ -6,6 +6,8 @@ import dev.konacode.agent.AgentJudge;
 import dev.konacode.agent.Approvals;
 import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.Conversation;
+import dev.konacode.agent.PlanTool;
+import dev.konacode.agent.TurnBudget;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.openai.ChatCompletionsCodec;
@@ -37,6 +39,7 @@ import java.util.List;
 public final class Main {
 
     static final int DEFAULT_MAX_ITERATIONS = 8;
+    static final int DEFAULT_PLANNED_MAX_ITERATIONS = 24;
     static final int DEFAULT_MAX_TRACE_FILES = 100;
     static final Duration DEFAULT_COMMAND_TIMEOUT = Duration.ofSeconds(600);
 
@@ -46,14 +49,14 @@ public final class Main {
     public static void main(String[] args) {
         Cancellation cancellation = new Cancellation();
         OpenAiConfig config;
-        int maxIterations;
+        TurnBudget budget;
         Level traceLevel;
         int maxTraceFiles;
         Duration commandTimeout;
         Ui ui;
         try {
             config = OpenAiConfig.fromEnvironment(System.getenv());
-            maxIterations = maxIterations();
+            budget = new TurnBudget(maxIterations(), plannedMaxIterations());
             traceLevel = Level.configured();
             maxTraceFiles = maxTraceFiles();
             commandTimeout = commandTimeout();
@@ -79,7 +82,7 @@ public final class Main {
             HttpClient http = HttpClient.newBuilder().connectTimeout(config.timeout()).build();
             Clients clients = clients(config, http, trace);
             build(clients.loop(), clients.judge(), skills, ui, fileLevel, cancellation,
-                    maxIterations, trace, workspace, commandTimeout).run();
+                    budget, trace, workspace, commandTimeout).run();
         } catch (Exception e) {
             System.err.println(e.getMessage());
             System.exit(1);
@@ -93,14 +96,15 @@ public final class Main {
      * collaborators to prove the loop and the command share the policy.
      */
     static Repl build(LlmClient client, LlmClient judgeClient, SkillRegistry skills, Ui ui,
-                       Level fileLevel, Cancellation cancellation, int maxIterations, Trace trace,
+                       Level fileLevel, Cancellation cancellation, TurnBudget budget, Trace trace,
                        Workspace workspace, Duration commandTimeout) {
         ToolRegistry registry = ToolRegistry.of(
                 new ListFiles(workspace, cancellation),
                 new ReadFile(workspace, cancellation),
                 new EditFile(workspace, cancellation),
                 new DeleteFile(workspace),
-                new RunCommand(workspace, cancellation, commandTimeout));
+                new RunCommand(workspace, cancellation, commandTimeout),
+                new PlanTool(budget));
         SystemMessage system = new SystemMessage(systemPrompt(workspace.root()));
         Conversation conversation = new Conversation(system);
         Trace kona = new NamedTrace("kona", trace);
@@ -109,7 +113,7 @@ public final class Main {
         SelectedPolicy policies = new SelectedPolicy(judgePolicy);
 
         Agent agent = new Agent(client, registry, policies, new Approvals(ui), conversation, kona,
-                cancellation, maxIterations);
+                cancellation, budget);
         Commands commands = new Commands(conversation, system, registry, skills, ui, fileLevel,
                 policies, judgePolicy);
 
@@ -145,6 +149,22 @@ public final class Main {
             return Integer.parseInt(configured.trim());
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("konacode.maxIterations must be a whole number, but was: " + configured);
+        }
+    }
+
+    /**
+     * The maximum for a turn in which the model records a plan. Work that plans needs more
+     * iterations than read-read-edit, and a turn that does not plan must not pay for them.
+     */
+    static int plannedMaxIterations() {
+        String configured = System.getProperty("konacode.maxIterations.planned");
+        if (configured == null) {
+            return DEFAULT_PLANNED_MAX_ITERATIONS;
+        }
+        try {
+            return Integer.parseInt(configured.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("konacode.maxIterations.planned must be a whole number, but was: " + configured);
         }
     }
 

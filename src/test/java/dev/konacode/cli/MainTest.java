@@ -2,6 +2,7 @@ package dev.konacode.cli;
 
 import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.ToolApproval.Answer;
+import dev.konacode.agent.TurnBudget;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.Message;
 import dev.konacode.llm.Message.AssistantMessage;
@@ -143,7 +144,7 @@ class MainTest {
         ui.canAsk = canAsk;
 
         Main.build(new ScriptedClient(), new ScriptedClient(), skills, ui, Level.OFF,
-                new Cancellation(), 8, Trace.NONE, workspace, Duration.ofSeconds(600)).run();
+                new Cancellation(), new TurnBudget(8, 24), Trace.NONE, workspace, Duration.ofSeconds(600)).run();
 
         return ui.answers.get(ui.answers.size() - 1);
     }
@@ -196,7 +197,7 @@ class MainTest {
         SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
         RecordingUi ui = new RecordingUi("/tools");
 
-        Main.build(new ScriptedClient(), new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
+        Main.build(new ScriptedClient(), new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), new TurnBudget(8, 24), Trace.NONE,
                 workspace, Duration.ofSeconds(600)).run();
 
         assertTrue(ui.answers.get(0).contains("run_command"), ui.answers.get(0));
@@ -209,7 +210,7 @@ class MainTest {
         ScriptedClient client = new ScriptedClient().reply(new AssistantMessage("done", List.of()));
         RecordingTrace trace = new RecordingTrace();
 
-        Main.build(client, new ScriptedClient(), skills, new RecordingUi("hello"), Level.OFF, new Cancellation(), 8, trace,
+        Main.build(client, new ScriptedClient(), skills, new RecordingUi("hello"), Level.OFF, new Cancellation(), new TurnBudget(8, 24), trace,
                 workspace, Duration.ofSeconds(600)).run();
 
         assertFalse(trace.events().isEmpty());
@@ -231,7 +232,7 @@ class MainTest {
         RecordingUi ui = new RecordingUi("/policy allow-all", "read it", "/policy effect",
                 "read it");
 
-        Main.build(client, new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
+        Main.build(client, new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), new TurnBudget(8, 24), Trace.NONE,
                 workspace, Duration.ofSeconds(600)).run();
 
         assertEquals(4, client.histories.size(), "each turn calls chat twice");
@@ -257,7 +258,7 @@ class MainTest {
                 "read it", "/policy");
         ui.nextAsk = Answer.ALWAYS;
 
-        Main.build(client, new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
+        Main.build(client, new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), new TurnBudget(8, 24), Trace.NONE,
                 workspace, Duration.ofSeconds(600)).run();
 
         assertEquals(1, ui.askCount, "the memory in Approvals must survive the policy change");
@@ -350,9 +351,43 @@ class MainTest {
         ScriptedClient client = new ScriptedClient().reply(new AssistantMessage("hi", List.of()));
 
         Main.build(client, new ScriptedClient(), skills, new RecordingUi("hello"), Level.OFF,
-                new Cancellation(), 8, Trace.NONE, workspace, Duration.ofSeconds(600)).run();
+                new Cancellation(), new TurnBudget(8, 24), Trace.NONE, workspace, Duration.ofSeconds(600)).run();
 
         assertEquals(new Message.SystemMessage(Main.systemPrompt(workspace.root())), client.histories.get(0).get(0));
+    }
+
+    @Test
+    void thePlannedMaximumDefaultsTo24() {
+        withProperty("konacode.maxIterations.planned", null,
+                () -> assertEquals(24, Main.plannedMaxIterations()));
+    }
+
+    @Test
+    void aConfiguredPlannedMaximumIsUsed() {
+        withProperty("konacode.maxIterations.planned", "40",
+                () -> assertEquals(40, Main.plannedMaxIterations()));
+    }
+
+    @Test
+    void aWrongPlannedMaximumFailsLoudly() {
+        withProperty("konacode.maxIterations.planned", "many", () -> {
+            IllegalArgumentException e =
+                    assertThrows(IllegalArgumentException.class, Main::plannedMaxIterations);
+            assertTrue(e.getMessage().contains("konacode.maxIterations.planned"), e.getMessage());
+        });
+    }
+
+    @Test
+    void theRegistryHoldsPlan() {
+        Workspace workspace = new Workspace(root);
+        SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
+        RecordingUi ui = new RecordingUi("/tools");
+
+        Main.build(new ScriptedClient(), new ScriptedClient(), skills, ui, Level.OFF,
+                new Cancellation(), new TurnBudget(8, 24), Trace.NONE, workspace,
+                Duration.ofSeconds(600)).run();
+
+        assertTrue(String.join("\n", ui.answers).contains("plan"), ui.answers.toString());
     }
 
     /** Sets one system property, runs the body, and puts the property back as it was. */
