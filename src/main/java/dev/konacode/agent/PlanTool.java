@@ -24,9 +24,9 @@ public final class PlanTool implements Tool {
     private static final Set<String> STATES = Set.of("todo", "doing", "done");
 
     /** The result enters the conversation again on every later iteration, so the size has a cap. */
-    private static final int MAX_STEPS = 20;
+    static final int MAX_STEPS = 20;
 
-    private static final int MAX_TEXT = 200;
+    static final int MAX_TEXT = 200;
 
     private static final String USAGE = "Invalid arguments for plan. Expected: "
             + "{\"steps\": [{\"text\": \"...\", \"state\": \"todo|doing|done\"}]}";
@@ -47,7 +47,8 @@ public final class PlanTool implements Tool {
         return """
                 Record the steps of the work you are going to do, and give the list back. \
                 Use this before work that needs more than two or three tool calls. \
-                Write one short step for each thing you must do, and write 20 steps or fewer. \
+                Write one short step for each thing you must do. Write 20 steps or fewer, and keep each \
+                step to 200 characters or fewer. \
                 Each step has a state: todo, doing or done. Keep one step doing at a time. \
                 Call this tool again at each change: mark the step you finished done, mark the next step \
                 doing, and send the whole list in one call. \
@@ -82,12 +83,15 @@ public final class PlanTool implements Tool {
         StringBuilder list = new StringBuilder();
         int number = 1;
         for (JsonNode step : steps) {
+            if (!step.isObject()) {
+                return ToolResult.err(USAGE);
+            }
             JsonNode text = step.path("text");
             if (!text.isTextual() || text.asText().isBlank()) {
                 return ToolResult.err("Step " + number + " has no text. Give one short sentence for each step.");
             }
             if (text.asText().length() > MAX_TEXT) {
-                return ToolResult.err("Step " + number + " is too long. Keep a step under " + MAX_TEXT + " characters.");
+                return ToolResult.err("Step " + number + " is " + text.asText().length() + " characters. Keep a step to " + MAX_TEXT + " characters or fewer.");
             }
             String state = step.path("state").asText("");
             if (!STATES.contains(state)) {
@@ -97,6 +101,7 @@ public final class PlanTool implements Tool {
             if (!list.isEmpty()) {
                 list.append('\n');
             }
+            // The 7 is the length of the longest state in STATES, with the two brackets.
             list.append(String.format("%d. %-7s %s", number, "[" + state + "]", oneLine(text.asText())));
             number++;
         }
@@ -116,8 +121,13 @@ public final class PlanTool implements Tool {
         return Action.once(name(), Effect.NONE, "");
     }
 
-    /** A newline in the text of a step draws a second numbered line, and that line is not konacode's. */
+    /**
+     * Makes one line of the text of a step, because a newline draws a second numbered line, and
+     * that line is not konacode's. This is not {@code Ansi.oneLine}, which guards a line konacode
+     * prints on the screen: it also removes an escape code, and it writes a glyph for a control
+     * character. This text goes to the model, so one space for each line break is enough.
+     */
     private static String oneLine(String text) {
-        return text.replace('\r', ' ').replace('\n', ' ');
+        return text.replace("\r\n", " ").replace('\r', ' ').replace('\n', ' ');
     }
 }

@@ -24,6 +24,9 @@ class PlanToolTest {
               {"text":"edit the files that use it","state":"todo"},
               {"text":"run mvn test","state":"todo"}]}""";
 
+    private static final String SHAPE = "Invalid arguments for plan. Expected: "
+            + "{\"steps\": [{\"text\": \"...\", \"state\": \"todo|doing|done\"}]}";
+
     private static JsonNode args(String json) {
         try {
             return MAPPER.readTree(json);
@@ -32,8 +35,20 @@ class PlanToolTest {
         }
     }
 
+    private static String plan(int steps) {
+        StringBuilder json = new StringBuilder("{\"steps\":[");
+        for (int i = 1; i <= steps; i++) {
+            json.append(i > 1 ? "," : "").append("{\"text\":\"step ").append(i).append("\",\"state\":\"todo\"}");
+        }
+        return json.append("]}").toString();
+    }
+
     private final TurnBudget budget = new TurnBudget(8, 24);
     private final PlanTool tool = new PlanTool(budget);
+
+    private String accepted(String json) {
+        return assertInstanceOf(ToolResult.Ok.class, tool.execute(args(json))).text();
+    }
 
     private String refusal(String json) {
         ToolResult result = tool.execute(args(json));
@@ -44,13 +59,10 @@ class PlanToolTest {
 
     @Test
     void givesTheListBack() {
-        ToolResult result = tool.execute(args(THREE_STEPS));
-
         assertEquals("""
                 1. [doing] find every use of respond
                 2. [todo]  edit the files that use it
-                3. [todo]  run mvn test""",
-                assertInstanceOf(ToolResult.Ok.class, result).text());
+                3. [todo]  run mvn test""", accepted(THREE_STEPS));
     }
 
     @Test
@@ -61,10 +73,36 @@ class PlanToolTest {
     }
 
     @Test
-    void makesOneLineOfAStepThatHoldsTwoLines() {
-        ToolResult result = tool.execute(args("{\"steps\":[{\"text\":\"read\\nthen write\",\"state\":\"todo\"}]}"));
+    void acceptsTheNumberOfStepsAtTheCap() {
+        String list = accepted(plan(PlanTool.MAX_STEPS));
 
-        assertEquals("1. [todo]  read then write", assertInstanceOf(ToolResult.Ok.class, result).text());
+        assertEquals(PlanTool.MAX_STEPS, list.lines().count());
+        assertEquals(24, budget.max());
+    }
+
+    @Test
+    void acceptsATextAtTheCap() {
+        String text = "x".repeat(PlanTool.MAX_TEXT);
+
+        assertEquals("1. [todo]  " + text, accepted("{\"steps\":[{\"text\":\"" + text + "\",\"state\":\"todo\"}]}"));
+    }
+
+    @Test
+    void makesOneLineOfAStepThatHoldsANewline() {
+        assertEquals("1. [todo]  read then write",
+                accepted("{\"steps\":[{\"text\":\"read\\nthen write\",\"state\":\"todo\"}]}"));
+    }
+
+    @Test
+    void makesOneLineOfAStepThatHoldsACarriageReturn() {
+        assertEquals("1. [todo]  read then write",
+                accepted("{\"steps\":[{\"text\":\"read\\rthen write\",\"state\":\"todo\"}]}"));
+    }
+
+    @Test
+    void makesOneLineOfAStepThatHoldsBothCharacters() {
+        assertEquals("1. [todo]  read then write",
+                accepted("{\"steps\":[{\"text\":\"read\\r\\nthen write\",\"state\":\"todo\"}]}"));
     }
 
     @Test
@@ -74,24 +112,23 @@ class PlanToolTest {
 
     @Test
     void refusesAMissingList() {
-        assertEquals("Invalid arguments for plan. Expected: "
-                + "{\"steps\": [{\"text\": \"...\", \"state\": \"todo|doing|done\"}]}", refusal("{}"));
+        assertEquals(SHAPE, refusal("{}"));
     }
 
     @Test
     void refusesAListThatIsNotAnArray() {
-        assertEquals("Invalid arguments for plan. Expected: "
-                + "{\"steps\": [{\"text\": \"...\", \"state\": \"todo|doing|done\"}]}", refusal("{\"steps\":\"find every use\"}"));
+        assertEquals(SHAPE, refusal("{\"steps\":\"find every use\"}"));
+    }
+
+    @Test
+    void refusesAStepThatIsNotAnObject() {
+        assertEquals(SHAPE, refusal("{\"steps\":[\"find every use of respond\"]}"));
     }
 
     @Test
     void refusesMoreStepsThanTheCap() {
-        StringBuilder steps = new StringBuilder("{\"steps\":[");
-        for (int i = 1; i <= 21; i++) {
-            steps.append(i > 1 ? "," : "").append("{\"text\":\"step ").append(i).append("\",\"state\":\"todo\"}");
-        }
-
-        assertEquals("The plan has 21 steps. Send 20 steps or fewer.", refusal(steps.append("]}").toString()));
+        assertEquals("The plan has " + (PlanTool.MAX_STEPS + 1) + " steps. Send " + PlanTool.MAX_STEPS + " steps or fewer.",
+                refusal(plan(PlanTool.MAX_STEPS + 1)));
     }
 
     @Test
@@ -115,16 +152,10 @@ class PlanToolTest {
     }
 
     @Test
-    void refusesAStepThatIsNotAnObject() {
-        assertEquals("Step 1 has no text. Give one short sentence for each step.",
-                refusal("{\"steps\":[\"find every use of respond\"]}"));
-    }
-
-    @Test
     void refusesATextLongerThanTheCap() {
-        String tooLong = "x".repeat(201);
+        String tooLong = "x".repeat(PlanTool.MAX_TEXT + 1);
 
-        assertEquals("Step 1 is too long. Keep a step under 200 characters.",
+        assertEquals("Step 1 is " + (PlanTool.MAX_TEXT + 1) + " characters. Keep a step to " + PlanTool.MAX_TEXT + " characters or fewer.",
                 refusal("{\"steps\":[{\"text\":\"" + tooLong + "\",\"state\":\"todo\"}]}"));
     }
 
@@ -158,7 +189,15 @@ class PlanToolTest {
     }
 
     @Test
-    void theDescriptionNamesTheCapOnTheNumberOfSteps() {
-        assertTrue(tool.description().contains("20 steps or fewer"), tool.description());
+    void theDescriptionAsksForOneCallAtEachChange() {
+        assertTrue(tool.description().contains("in one call"), tool.description());
+    }
+
+    @Test
+    void theDescriptionNamesTheTwoCaps() {
+        String description = tool.description();
+
+        assertTrue(description.contains(PlanTool.MAX_STEPS + " steps or fewer"), description);
+        assertTrue(description.contains(PlanTool.MAX_TEXT + " characters or fewer"), description);
     }
 }
