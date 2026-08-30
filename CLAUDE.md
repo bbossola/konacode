@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 633 tests, all offline, no network
+mvn test                        # 641 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -92,7 +92,8 @@ and write a verdict of its own. A payload with nothing after it can forge nothin
 | `OpenAiConfig` | record `(apiKey, model, judgeModel, baseUrl, timeout)` | Provider settings. `forJudge()` gives the same key, base URL and timeout, with the model the judge uses. |
 | `Usage` | record `(prompt, completion, total)` | The token counts of one reply. `ChatCompletionsCodec.decodeUsage` reads them, and never throws: a count is a diagnostic, so a reply konacode cannot read here has no counts and is not a failed turn. |
 | `ChatCompletionsCodec` | final class, pure | Translates `Message`/`ToolSpec` to request JSON and response JSON back to `AssistantMessage`. **Contains no HTTP.** This is what makes the wire format testable against fixtures. |
-| `OpenAiClient` | implements `LlmClient` | `java.net.http.HttpClient` plus the codec. Owns status handling and error translation, nothing else — it retries only through `ReplyValidator`, on a garbled reply; a transient HTTP failure gets no retry, see FOLLOWUP.md. |
+| `OpenAiClient` | implements `LlmClient` | `java.net.http.HttpClient` plus the codec. Owns status handling and error translation, nothing else. It holds two retry loops, and two budgets. `sendUntilAccepted` repairs the protocol through `ReplyValidator`, on a garbled reply. `sendUntilDelivered` repairs the transport: three attempts, and a wait of 500 ms then 1 s, which a test replaces with a `Backoff` that does not sleep. The two budgets stay apart, so a garbled reply on a poor network spends neither twice. |
+| `TransientFailure` | extends `LlmException`, package-private | A failure another attempt may pass: `429`, `502`, `503`, `504`, or a request that did not arrive. `sendOnce` states this fact and decides nothing; `sendUntilDelivered` reads the type and decides. It carries `retryReason` beside the message, because the message holds the answer of the provider and a trace line must carry only the words konacode wrote. Every other status ends the turn at once: the model cannot fix a 401, and a second attempt wastes the time of the user twice. |
 | `ReplyValidator` | class, one for each request | Finds a tool call that the model wrote as prose. Owns the budget for a second attempt. `accepts` is final, so the retry loop in the client always stops. `isMisencodedToolCall` is the extension point for the quirk of another model. |
 
 ### `dev.konacode.tools`

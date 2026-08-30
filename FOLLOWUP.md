@@ -126,11 +126,11 @@ adds planning, and expect to revisit the default.
   decide, and `PlainUi` answers `NO` to every question. So a provider failure in the judge turns a
   routine call into a refusal in a piped session, where a terminal would show the user the question.
   There is no `never` answer either, so a user cannot record a standing refusal.
-- **Bounded retry in `OpenAiClient`.** The client makes exactly one attempt, so a single transient
-  `429` or `5xx` discards a whole turn — costly for a loop that may make eight round trips per
-  user message. Two or three attempts with backoff, scoped to `429`, `502`, `503`, `504` and
-  `IOException`, and never to a `4xx`: the model cannot fix a 401, and retrying one wastes the
-  user's time twice.
+- **Bounded retry in `OpenAiClient` — built.** The client made exactly one attempt, so one
+  transient `429` or `5xx` discarded a whole turn. `sendUntilDelivered` now makes three attempts,
+  and waits 500 ms then 1 s. It retries `429`, `502`, `503`, `504` and a request that did not
+  arrive, and nothing else: the model cannot fix a 401. The interrupt ends the retry, so `esc`
+  does not wait for the budget. The budget of the transport is not the budget of `ReplyValidator`.
 - **`finish_reason` is decoded and discarded.** A completion truncated at the token limit
   (`finish_reason: "length"`) is currently indistinguishable from a complete one. Plain text is
   silently cut off; a truncated tool call usually fails argument parsing and recovers by accident

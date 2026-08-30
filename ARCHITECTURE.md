@@ -123,7 +123,8 @@ than the screen, or less.
 - `TurnEnded` — the loop ends a turn, with the outcome.
 - `RequestSent` and `ReplyReceived` — the provider sends the request and reads the reply.
 - `TokensUsed` — the provider reports the token counts of the reply.
-- `RetryRequested` — the provider asks the model again, because it wrote a tool call as prose.
+- `RetryRequested` — the provider sends the same request again. The reply carried a tool call
+  written as prose, or the transport failed in a way another attempt may pass.
 - `Judged` — the judge answers about one call, with the tool name, the operand and the verdict.
   The verdict is one word, and the line ends with the operand, so nothing the model wrote is
   followed by a word the reader trusts.
