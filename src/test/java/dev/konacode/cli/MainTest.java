@@ -2,6 +2,7 @@ package dev.konacode.cli;
 
 import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.ToolApproval.Answer;
+import dev.konacode.agent.TurnBudget;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.Message;
 import dev.konacode.llm.Message.AssistantMessage;
@@ -37,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -143,7 +145,7 @@ class MainTest {
         ui.canAsk = canAsk;
 
         Main.build(new ScriptedClient(), new ScriptedClient(), skills, ui, Level.OFF,
-                new Cancellation(), 8, Trace.NONE, workspace, Duration.ofSeconds(600)).run();
+                new Cancellation(), new TurnBudget(8, 24), Trace.NONE, workspace, Duration.ofSeconds(600)).run();
 
         return ui.answers.get(ui.answers.size() - 1);
     }
@@ -196,7 +198,7 @@ class MainTest {
         SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
         RecordingUi ui = new RecordingUi("/tools");
 
-        Main.build(new ScriptedClient(), new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
+        Main.build(new ScriptedClient(), new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), new TurnBudget(8, 24), Trace.NONE,
                 workspace, Duration.ofSeconds(600)).run();
 
         assertTrue(ui.answers.get(0).contains("run_command"), ui.answers.get(0));
@@ -209,7 +211,7 @@ class MainTest {
         ScriptedClient client = new ScriptedClient().reply(new AssistantMessage("done", List.of()));
         RecordingTrace trace = new RecordingTrace();
 
-        Main.build(client, new ScriptedClient(), skills, new RecordingUi("hello"), Level.OFF, new Cancellation(), 8, trace,
+        Main.build(client, new ScriptedClient(), skills, new RecordingUi("hello"), Level.OFF, new Cancellation(), new TurnBudget(8, 24), trace,
                 workspace, Duration.ofSeconds(600)).run();
 
         assertFalse(trace.events().isEmpty());
@@ -231,7 +233,7 @@ class MainTest {
         RecordingUi ui = new RecordingUi("/policy allow-all", "read it", "/policy effect",
                 "read it");
 
-        Main.build(client, new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
+        Main.build(client, new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), new TurnBudget(8, 24), Trace.NONE,
                 workspace, Duration.ofSeconds(600)).run();
 
         assertEquals(4, client.histories.size(), "each turn calls chat twice");
@@ -257,7 +259,7 @@ class MainTest {
                 "read it", "/policy");
         ui.nextAsk = Answer.ALWAYS;
 
-        Main.build(client, new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), 8, Trace.NONE,
+        Main.build(client, new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), new TurnBudget(8, 24), Trace.NONE,
                 workspace, Duration.ofSeconds(600)).run();
 
         assertEquals(1, ui.askCount, "the memory in Approvals must survive the policy change");
@@ -324,6 +326,11 @@ class MainTest {
     }
 
     @Test
+    void theSystemPromptAsksForAPlan() {
+        assertTrue(Main.systemPrompt(root).contains("Use the plan tool before"), Main.systemPrompt(root));
+    }
+
+    @Test
     void theSystemPromptTellsTheModelToReadBeforeItEdits() {
         assertTrue(Main.systemPrompt(root).contains("Read a file before you edit"), Main.systemPrompt(root));
     }
@@ -350,9 +357,107 @@ class MainTest {
         ScriptedClient client = new ScriptedClient().reply(new AssistantMessage("hi", List.of()));
 
         Main.build(client, new ScriptedClient(), skills, new RecordingUi("hello"), Level.OFF,
-                new Cancellation(), 8, Trace.NONE, workspace, Duration.ofSeconds(600)).run();
+                new Cancellation(), new TurnBudget(8, 24), Trace.NONE, workspace, Duration.ofSeconds(600)).run();
 
         assertEquals(new Message.SystemMessage(Main.systemPrompt(workspace.root())), client.histories.get(0).get(0));
+    }
+
+    @Test
+    void theMaximumWhenPlanningDefaultsTo24() {
+        withProperty("konacode.maxIterations.whenPlanning", null,
+                () -> assertEquals(24, Main.maxIterationsWhenPlanning()));
+    }
+
+    @Test
+    void aConfiguredMaximumWhenPlanningIsUsed() {
+        withProperty("konacode.maxIterations.whenPlanning", "40",
+                () -> assertEquals(40, Main.maxIterationsWhenPlanning()));
+    }
+
+    @Test
+    void aWrongMaximumWhenPlanningFailsLoudly() {
+        withProperty("konacode.maxIterations.whenPlanning", "many", () -> {
+            IllegalArgumentException e =
+                    assertThrows(IllegalArgumentException.class, Main::maxIterationsWhenPlanning);
+            assertTrue(e.getMessage().contains("konacode.maxIterations.whenPlanning"), e.getMessage());
+        });
+    }
+
+    @Test
+    void theMaximumWhenPlanningFollowsARaisedOrdinaryMaximum() {
+        withProperty("konacode.maxIterations", "30",
+                () -> withProperty("konacode.maxIterations.whenPlanning", null, () -> {
+                    assertEquals(30, Main.maxIterationsWhenPlanning(), "a default must not refuse a value the user set");
+                    assertDoesNotThrow(Main::budget);
+                }));
+    }
+
+    @Test
+    void aMaximumWhenPlanningBelowTheOrdinaryOneNamesBothProperties() {
+        withProperty("konacode.maxIterations", "30",
+                () -> withProperty("konacode.maxIterations.whenPlanning", "10", () -> {
+                    IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class, Main::budget);
+                    assertTrue(thrown.getMessage().contains("konacode.maxIterations.whenPlanning (10)"), thrown.getMessage());
+                    assertTrue(thrown.getMessage().contains("konacode.maxIterations (30)"), thrown.getMessage());
+                }));
+    }
+
+    @Test
+    void theBudgetDefaultsToEightAndTwentyFour() {
+        withProperty("konacode.maxIterations", null,
+                () -> withProperty("konacode.maxIterations.whenPlanning", null, () -> {
+                    assertEquals(8, requests(Main.budget(), readCall("1", root.resolve("missing.txt").toString())),
+                            "a turn that records no plan stops at the ordinary maximum");
+                    assertEquals(24, requests(Main.budget(), planCall()),
+                            "a turn that records a plan stops at the planned maximum");
+                }));
+    }
+
+    @Test
+    void thePlanToolAndTheLoopShareOneBudget() {
+        Workspace workspace = new Workspace(root);
+        SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
+        ScriptedClient client = new ScriptedClient()
+                .reply(planCall()).reply(planCall()).reply(planCall()).reply(planCall());
+        RecordingUi ui = new RecordingUi("do the work");
+
+        Main.build(client, new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(),
+                new TurnBudget(2, 4), Trace.NONE, workspace, Duration.ofSeconds(600)).run();
+
+        assertEquals(4, client.histories.size(), "the maximum the plan tool raises must be the maximum the loop reads");
+    }
+
+    private static AssistantMessage planCall() {
+        return new AssistantMessage("", List.of(new ToolCall("1", "plan",
+                "{\"steps\":[{\"text\":\"do the work\",\"state\":\"doing\"}]}")));
+    }
+
+    /** Runs one turn against a model that repeats one call, and gives back the number of requests. */
+    private int requests(TurnBudget budget, AssistantMessage call) {
+        Workspace workspace = new Workspace(root);
+        SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
+        ScriptedClient client = new ScriptedClient();
+        for (int i = 0; i < 40; i++) {
+            client.reply(call);
+        }
+
+        Main.build(client, new ScriptedClient(), skills, new RecordingUi("do the work"), Level.OFF,
+                new Cancellation(), budget, Trace.NONE, workspace, Duration.ofSeconds(600)).run();
+
+        return client.histories.size();
+    }
+
+    @Test
+    void theRegistryHoldsPlan() {
+        Workspace workspace = new Workspace(root);
+        SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
+        RecordingUi ui = new RecordingUi("/tools");
+
+        Main.build(new ScriptedClient(), new ScriptedClient(), skills, ui, Level.OFF,
+                new Cancellation(), new TurnBudget(8, 24), Trace.NONE, workspace,
+                Duration.ofSeconds(600)).run();
+
+        assertTrue(String.join("\n", ui.answers).contains("plan"), ui.answers.toString());
     }
 
     /** Sets one system property, runs the body, and puts the property back as it was. */

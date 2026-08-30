@@ -46,9 +46,10 @@ public final class Agent {
     private final Conversation conversation;
     private final Trace trace;
     private final Cancellation cancellation;
-    private final int maxIterations;
+    private final TurnBudget budget;
     private int turn;
 
+    /** An agent whose maximum never changes. */
     public Agent(LlmClient client,
                  ToolRegistry registry,
                  ToolPolicy policy,
@@ -57,6 +58,17 @@ public final class Agent {
                  Trace trace,
                  Cancellation cancellation,
                  int maxIterations) {
+        this(client, registry, policy, approvals, conversation, trace, cancellation, new TurnBudget(maxIterations, maxIterations));
+    }
+
+    public Agent(LlmClient client,
+                 ToolRegistry registry,
+                 ToolPolicy policy,
+                 Approvals approvals,
+                 Conversation conversation,
+                 Trace trace,
+                 Cancellation cancellation,
+                 TurnBudget budget) {
         this.client = Objects.requireNonNull(client, "client");
         this.registry = Objects.requireNonNull(registry, "registry");
         this.policy = Objects.requireNonNull(policy, "policy");
@@ -64,22 +76,20 @@ public final class Agent {
         this.conversation = Objects.requireNonNull(conversation, "conversation");
         this.trace = Objects.requireNonNull(trace, "trace");
         this.cancellation = Objects.requireNonNull(cancellation, "cancellation");
-        if (maxIterations < 1) {
-            throw new IllegalArgumentException("maxIterations must be at least 1.");
-        }
-        this.maxIterations = maxIterations;
+        this.budget = Objects.requireNonNull(budget, "budget");
     }
 
     public String respond(String userText) {
         turn++;
+        budget.reset();
         long started = System.nanoTime();
         trace.emit(new TurnStarted(turn, userText));
         conversation.add(new UserMessage(userText));
         List<ToolSpec> tools = ToolSpecs.from(registry);
         int iterations = 1;
         try {
-            for (; iterations <= maxIterations; iterations++) {
-                trace.emit(new IterationStarted(turn, iterations, maxIterations));
+            for (; iterations <= budget.max(); iterations++) {
+                trace.emit(new IterationStarted(turn, iterations, budget.max()));
 
                 AssistantMessage reply = chat(tools);
                 conversation.add(reply);
@@ -101,7 +111,7 @@ public final class Agent {
                     return end(Outcome.STOPPED, iterations, started, closeStoppedTurn(List.of()));
                 }
             }
-            return end(Outcome.EXHAUSTED, maxIterations, started, fail("<error> Exceeded maximum tool iterations."));
+            return end(Outcome.EXHAUSTED, iterations - 1, started, fail("<error> Exceeded maximum tool iterations."));
         } catch (LlmException e) {
             if (cancellation.stopped()) {
                 return end(Outcome.STOPPED, iterations, started, closeStoppedTurn(List.of()));

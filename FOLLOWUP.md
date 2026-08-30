@@ -68,15 +68,28 @@ chains tools without being told to. It is also where that stops.
 | Capability | Cost | Why |
 |---|---|---|
 | "Think step by step" in the system prompt | free | it is a string |
-| A `plan` / `todo` tool the model writes into and reads back | one class, one registration | what the tool registry was for |
+| A `plan` tool the model writes into and reads back — **built** | one class, one registration | what the tool registry was for. See [the design](docs/superpowers/specs/2026-08-30-plan-design.md). |
 | Reacting to tool failure with corrective guidance | small | `ToolResult.Err` is already typed, so the loop can branch on failure rather than pass a string through untouched |
 | Explicit plan-then-act phases | moderate | `Agent` grows a notion of phase; the loop is currently one flat `while` |
 | Sub-agents | one class | a `Tool` that owns its own `Agent`. Works because `Agent` depends only on interfaces and does not care that its caller is another agent |
 
-**Note:** `maxIterations` defaults to 8. That is sufficient for read-read-edit and nowhere near
-enough for anything that plans. It is already a system property
-(`-Dkonacode.maxIterations=...`) for exactly this reason — raise it in the same change that
-adds planning, and expect to revisit the default.
+**Note:** `maxIterations` still defaults to 8, and a turn that records a plan runs to
+`konacode.maxIterations.whenPlanning`, which defaults to 24. konacode prices the two turns apart,
+so a short question does not pay for the room that planning needs.
+
+Three things the `plan` tool does not do. Each one is a standing debt, and not a gap in that
+change.
+
+- **Nothing makes the model follow the plan.** konacode checks no step, and it refuses no call
+  that the plan does not cover. A plan the model abandons costs the calls and gives nothing.
+- **konacode measures nothing about whether planning helps.** The trace already separates the two
+  kinds of turn: `IterationStarted` carries the maximum of the turn, and `TurnEnded` carries the
+  outcome and the count. So a reader can compare a planned turn with an ordinary one in a JSONL
+  file today. Nobody has done it, and no number in this repository says the tool earns its cost.
+- **`Effect.NONE` is the first effect that no judge reads.** A call to `plan` raises one konacode
+  resource, the number of iterations, with no question to anyone. The bound is
+  `konacode.maxIterations.whenPlanning`, so this is a note and not a hole. `NONE` is now the door
+  that every later tool acting on the session will use, and the next such tool may reach further.
 
 ## 3. Smaller deferred items
 

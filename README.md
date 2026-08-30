@@ -9,7 +9,7 @@
 ░░░░ ░░░░░  ░░░░░░  ░░░░ ░░░░░  ░░░░░░░░
 ```
 
-**A coding agent in Java 21.** No framework, no orchestration library, no magic — a loop, five
+**A coding agent in Java 21.** No framework, no orchestration library, no magic — a loop, six
 tools, and a language model with opinions.
 
 ## The whole trick
@@ -27,7 +27,7 @@ That is `Agent.respond()`. Nobody taught the model to list a directory before re
 to re-read a file after a failed edit. That behavior emerges from the loop and the tool
 descriptions alone.
 
-## The five tools
+## The six tools
 
 | Tool | What it does | Guardrail |
 |---|---|---|
@@ -36,14 +36,16 @@ descriptions alone.
 | `edit_file` | Exact-match string replacement (creates the file when `old_str` is empty) | Refuses ambiguous matches |
 | `delete_file` | Remove a file | Refuses a directory |
 | `run_command` | Run a shell line in the project directory | Stopped by the timeout, default 600 seconds |
+| `plan` | Record the steps of the work, and give the list back | Capped at 20 steps of 200 characters |
 
 A tool is a name, a description the model reads, a JSON schema, and a function that runs when
-the model asks for it. Adding a sixth means writing one class and registering it.
+the model asks for it. Adding a seventh means writing one class and registering it.
 
 ## Approval
 
-konacode reads and writes inside this project with no question. For a read or a write outside this
-project, and for a command, a judge decides. The judge is a second agent. It reads the name of the
+konacode reads and writes inside this project with no question. A call to `plan` records the steps
+of the work, and it reaches nothing outside the session, so that call needs no question either. For
+a read or a write outside this project, and for a command, a judge decides. The judge is a second agent. It reads the name of the
 tool, what the call does, what the call acts on, where the project is, and the message you typed,
 and it answers allow, ask or deny. It answers ask when it is not sure, and konacode then puts the
 question to you. In the rich interface the question looks like this:
@@ -170,11 +172,12 @@ Things worth trying:
 The judge uses the same key and the same base URL. It runs on every call outside this project and
 on every command, so a large main model can have a small fast judge.
 
-Plus five system properties.
+Plus six system properties.
 
 | Property | Values | Purpose |
 |---|---|---|
 | `konacode.maxIterations` | a whole number, default `8` | the ceiling on tool calls for one message |
+| `konacode.maxIterations.whenPlanning` | a whole number, default `24` | the ceiling for a turn in which the model records a plan |
 | `konacode.ui` | `auto`, `plain`, `rich`, default `auto` | which interface to use |
 | `konacode.trace` | `off`, `basic`, `full`, default `off` | how much the trace file records |
 | `konacode.trace.maxFiles` | a whole number, default `100` | how many trace files konacode keeps |
@@ -258,13 +261,17 @@ design is shaped this way.
 A loop where the model decides when the loop ends deserves some skepticism. konacode keeps
 things honest with:
 
-- **A ceiling on tool iterations** per user message, so a confused model cannot spin forever.
+- **A ceiling on tool iterations** per user message, so a confused model cannot run without an
+  end. The `plan` tool raises the ceiling of one turn, and konacode puts it back at the start of
+  the next turn. Both numbers are yours: `konacode.maxIterations` and
+  `konacode.maxIterations.whenPlanning`.
 - **Output caps** on reads and listings, so one stray `target/` does not flood the context
   window — or the bill.
 - **Unambiguous edits only** — `edit_file` fails loudly rather than guessing when the search
   string matches more than once.
 - **A policy** consulted before every tool call. The default policy allows a read and a write
-  inside this project, and it asks a judge about everything else. See [Approval](#approval).
+  inside this project, and it asks a judge about everything else. A call to `plan` reaches nothing
+  outside the session, so no judge reads it. See [Approval](#approval).
 
 Production agents add sandboxing, token budgets, rate limiting and permission prompts on top.
 Same skeleton, more armor. [FOLLOWUP.md](FOLLOWUP.md) tracks what is coming.

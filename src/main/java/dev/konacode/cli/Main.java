@@ -6,6 +6,8 @@ import dev.konacode.agent.AgentJudge;
 import dev.konacode.agent.Approvals;
 import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.Conversation;
+import dev.konacode.agent.PlanTool;
+import dev.konacode.agent.TurnBudget;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.openai.ChatCompletionsCodec;
@@ -37,6 +39,7 @@ import java.util.List;
 public final class Main {
 
     static final int DEFAULT_MAX_ITERATIONS = 8;
+    static final int DEFAULT_MAX_ITERATIONS_WHEN_PLANNING = 24;
     static final int DEFAULT_MAX_TRACE_FILES = 100;
     static final Duration DEFAULT_COMMAND_TIMEOUT = Duration.ofSeconds(600);
 
@@ -46,14 +49,14 @@ public final class Main {
     public static void main(String[] args) {
         Cancellation cancellation = new Cancellation();
         OpenAiConfig config;
-        int maxIterations;
+        TurnBudget budget;
         Level traceLevel;
         int maxTraceFiles;
         Duration commandTimeout;
         Ui ui;
         try {
             config = OpenAiConfig.fromEnvironment(System.getenv());
-            maxIterations = maxIterations();
+            budget = budget();
             traceLevel = Level.configured();
             maxTraceFiles = maxTraceFiles();
             commandTimeout = commandTimeout();
@@ -79,7 +82,7 @@ public final class Main {
             HttpClient http = HttpClient.newBuilder().connectTimeout(config.timeout()).build();
             Clients clients = clients(config, http, trace);
             build(clients.loop(), clients.judge(), skills, ui, fileLevel, cancellation,
-                    maxIterations, trace, workspace, commandTimeout).run();
+                    budget, trace, workspace, commandTimeout).run();
         } catch (Exception e) {
             System.err.println(e.getMessage());
             System.exit(1);
@@ -93,14 +96,15 @@ public final class Main {
      * collaborators to prove the loop and the command share the policy.
      */
     static Repl build(LlmClient client, LlmClient judgeClient, SkillRegistry skills, Ui ui,
-                       Level fileLevel, Cancellation cancellation, int maxIterations, Trace trace,
+                       Level fileLevel, Cancellation cancellation, TurnBudget budget, Trace trace,
                        Workspace workspace, Duration commandTimeout) {
         ToolRegistry registry = ToolRegistry.of(
                 new ListFiles(workspace, cancellation),
                 new ReadFile(workspace, cancellation),
                 new EditFile(workspace, cancellation),
                 new DeleteFile(workspace),
-                new RunCommand(workspace, cancellation, commandTimeout));
+                new RunCommand(workspace, cancellation, commandTimeout),
+                new PlanTool(budget));
         SystemMessage system = new SystemMessage(systemPrompt(workspace.root()));
         Conversation conversation = new Conversation(system);
         Trace kona = new NamedTrace("kona", trace);
@@ -109,7 +113,7 @@ public final class Main {
         SelectedPolicy policies = new SelectedPolicy(judgePolicy);
 
         Agent agent = new Agent(client, registry, policies, new Approvals(ui), conversation, kona,
-                cancellation, maxIterations);
+                cancellation, budget);
         Commands commands = new Commands(conversation, system, registry, skills, ui, fileLevel,
                 policies, judgePolicy);
 
@@ -124,6 +128,7 @@ public final class Main {
         return """
                 You are konacode, a concise CLI assistant.
                 The working directory is %s.
+                Use the plan tool before work that has several steps.
                 Read a file before you edit the file, because edit_file needs the exact text of old_str.
                 An <error> reports a failed tool call. Read the reason and try a different approach.
                 """.formatted(directory);
@@ -146,6 +151,41 @@ public final class Main {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("konacode.maxIterations must be a whole number, but was: " + configured);
         }
+    }
+
+    /**
+     * The maximum for a turn in which the model records a plan. Work of several steps needs more
+     * iterations than a read and one edit. A turn that records no plan keeps the smaller maximum.
+     *
+     * <p>The default follows a raised {@code konacode.maxIterations}, because a default must never
+     * refuse a value the user did set.
+     */
+    static int maxIterationsWhenPlanning() {
+        String configured = System.getProperty("konacode.maxIterations.whenPlanning");
+        if (configured == null) {
+            return Math.max(DEFAULT_MAX_ITERATIONS_WHEN_PLANNING, maxIterations());
+        }
+        try {
+            return Integer.parseInt(configured.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("konacode.maxIterations.whenPlanning must be a whole number, but was: " + configured);
+        }
+    }
+
+    /**
+     * The two maximums of one turn.
+     *
+     * <p>{@link TurnBudget} makes the same check, because it owns both numbers. This one names both
+     * properties, so the user reads the name of the value they typed.
+     */
+    static TurnBudget budget() {
+        int ordinary = maxIterations();
+        int whenPlanning = maxIterationsWhenPlanning();
+        if (whenPlanning < ordinary) {
+            throw new IllegalArgumentException("konacode.maxIterations.whenPlanning (" + whenPlanning
+                    + ") must be at least konacode.maxIterations (" + ordinary + ").");
+        }
+        return new TurnBudget(ordinary, whenPlanning);
     }
 
     /** How many trace files konacode keeps. A wrong value is an error, as every property is. */

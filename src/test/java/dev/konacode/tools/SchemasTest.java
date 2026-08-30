@@ -29,4 +29,21 @@ class SchemasTest {
 
         assertFalse(schema.has("required"));
     }
+
+    @Test
+    void buildsARequiredArrayOfObjects() {
+        ObjectNode schema = Schemas.object()
+                .requiredArray("steps", "The whole list of steps, in order.",
+                        Schemas.object()
+                                .requiredString("text", "What this step does.")
+                                .build())
+                .build();
+
+        ObjectNode steps = (ObjectNode) schema.get("properties").get("steps");
+        assertEquals("array", steps.get("type").asText());
+        assertEquals("The whole list of steps, in order.", steps.get("description").asText());
+        assertEquals("object", steps.get("items").get("type").asText());
+        assertEquals("string", steps.get("items").get("properties").get("text").get("type").asText());
+        assertEquals("steps", schema.get("required").get(0).asText());
+    }
 }

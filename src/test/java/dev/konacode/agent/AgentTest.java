@@ -38,6 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AgentTest {
 
+    private static final String ONE_STEP = "{\"steps\":[{\"text\":\"do the work\",\"state\":\"doing\"}]}";
+
     /**
      * Echoes its arguments, so tests can see exactly what the loop passed through. Counts its
      * calls, so a test can confirm a refused call never runs.
@@ -242,6 +244,19 @@ class AgentTest {
                 trace,
                 new Cancellation(),
                 maxIterations);
+    }
+
+    private Agent agent(FakeLlmClient client, ToolRegistry registry, ToolPolicy policy,
+                        RecordingTrace trace, TurnBudget budget) {
+        return new Agent(
+                client,
+                registry,
+                policy,
+                refusesToAsk(),
+                new Conversation(new SystemMessage("You are konacode.")),
+                trace,
+                new Cancellation(),
+                budget);
     }
 
     @Test
@@ -525,6 +540,91 @@ class AgentTest {
 
         assertTrue(answer.startsWith("<error> Exceeded maximum tool iterations"), answer);
         assertEquals(3, client.receivedHistories().size());
+    }
+
+    @Test
+    void aTurnThatPlansRunsPastTheOrdinaryMaximum() {
+        TurnBudget budget = new TurnBudget(2, 4);
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("p1", "plan", ONE_STEP))));
+        for (int i = 0; i < 5; i++) {
+            client.reply(new AssistantMessage("", List.of(call("c" + i, "echo", "{}"))));
+        }
+
+        String answer = agent(client, ToolRegistry.of(new PlanTool(budget), new EchoTool("echo")),
+                new AllowAllPolicy(), new RecordingTrace(), budget).respond("go");
+
+        assertTrue(answer.startsWith("<error> Exceeded maximum tool iterations"), answer);
+        assertEquals(4, client.receivedHistories().size(), "the plan raised the maximum from 2 to 4");
+    }
+
+    @Test
+    void aTurnThatDoesNotPlanStopsAtTheOrdinaryMaximum() {
+        TurnBudget budget = new TurnBudget(2, 4);
+        FakeLlmClient client = new FakeLlmClient();
+        for (int i = 0; i < 5; i++) {
+            client.reply(new AssistantMessage("", List.of(call("c" + i, "echo", "{}"))));
+        }
+
+        agent(client, ToolRegistry.of(new PlanTool(budget), new EchoTool("echo")),
+                new AllowAllPolicy(), new RecordingTrace(), budget).respond("go");
+
+        assertEquals(2, client.receivedHistories().size());
+    }
+
+    @Test
+    void theTurnAfterAPlannedTurnStartsAtTheOrdinaryMaximum() {
+        TurnBudget budget = new TurnBudget(2, 4);
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("p1", "plan", ONE_STEP))))
+                .replyText("Done.");
+        for (int i = 0; i < 5; i++) {
+            client.reply(new AssistantMessage("", List.of(call("c" + i, "echo", "{}"))));
+        }
+        Agent agent = agent(client, ToolRegistry.of(new PlanTool(budget), new EchoTool("echo")),
+                new AllowAllPolicy(), new RecordingTrace(), budget);
+
+        agent.respond("plan it");
+        agent.respond("go");
+
+        assertEquals(4, client.receivedHistories().size(),
+                "two requests for the planned turn, and two for the turn after it");
+    }
+
+    @Test
+    void showsTheRaisedMaximumFromTheIterationThatFollowsThePlan() {
+        TurnBudget budget = new TurnBudget(2, 4);
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("p1", "plan", ONE_STEP))));
+        for (int i = 0; i < 5; i++) {
+            client.reply(new AssistantMessage("", List.of(call("c" + i, "echo", "{}"))));
+        }
+        RecordingTrace trace = new RecordingTrace();
+
+        agent(client, ToolRegistry.of(new PlanTool(budget), new EchoTool("echo")),
+                new AllowAllPolicy(), trace, budget).respond("go");
+
+        List<Integer> maximums = trace.events().stream()
+                .filter(IterationStarted.class::isInstance)
+                .map(event -> ((IterationStarted) event).maxIterations())
+                .toList();
+        assertEquals(List.of(2, 4, 4, 4), maximums, "the screen shows the maximum of the moment");
+    }
+
+    @Test
+    void aPlanOnTheLastOrdinaryIterationEnlargesTheSameTurn() {
+        TurnBudget budget = new TurnBudget(2, 4);
+        FakeLlmClient client = new FakeLlmClient()
+                .reply(new AssistantMessage("", List.of(call("c1", "echo", "{}"))))
+                .reply(new AssistantMessage("", List.of(call("p1", "plan", ONE_STEP))))
+                .reply(new AssistantMessage("", List.of(call("c2", "echo", "{}"))))
+                .replyText("Done.");
+
+        String answer = agent(client, ToolRegistry.of(new PlanTool(budget), new EchoTool("echo")),
+                new AllowAllPolicy(), new RecordingTrace(), budget).respond("go");
+
+        assertEquals("Done.", answer);
+        assertEquals(4, client.receivedHistories().size(), "the plan on iteration 2 raised the maximum to 4");
     }
 
     @Test

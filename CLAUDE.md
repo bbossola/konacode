@@ -12,7 +12,7 @@ extending any of them is a new class rather than a rewrite.
 
 ```bash
 sdk use java 21.0.2-open        # the default java on this machine is 11; konacode needs 21
-mvn test                        # 641 tests, all offline, no network
+mvn test                        # 684 tests, all offline, no network
 mvn package                     # produces an executable jar
 OPENAI_API_KEY=sk-... java -jar target/konacode.jar
 ```
@@ -27,6 +27,7 @@ property configures konacode.
 | `KONACODE_JUDGE_MODEL` | environment | no | the value of `KONACODE_MODEL` |
 | `KONACODE_BASE_URL` | environment | no | `https://api.openai.com/v1` |
 | `konacode.maxIterations` | property | no | `8` |
+| `konacode.maxIterations.whenPlanning` | property | no | `24` |
 | `konacode.ui` | property | no | `auto` |
 | `konacode.trace` | property | no | `off` |
 | `konacode.trace.maxFiles` | property | no | `100` |
@@ -101,7 +102,7 @@ and write a verdict of its own. A payload with nothing after it can forge nothin
 | Element | Kind | Definition |
 |---|---|---|
 | `Tool` | interface | `name()`, `description()`, `inputSchema()`, `ToolResult execute(JsonNode args)`, `boolean stopsOnInterrupt()`, `Action computeAction(JsonNode args)`. The description is written for the model to read — it is prompt text, not a code comment. `stopsOnInterrupt` and `computeAction` are abstract and not a default, so a new tool must answer both, the way the sealed `Decision` makes a new case a compile error everywhere. |
-| `Effect` | enum | `READS_INSIDE`, `READS_OUTSIDE`, `WRITES_INSIDE`, `WRITES_OUTSIDE`, `RUNS`. What one call to a tool does. The tool states this fact and decides nothing; a `ToolPolicy` reads it and decides. |
+| `Effect` | enum | `READS_INSIDE`, `READS_OUTSIDE`, `WRITES_INSIDE`, `WRITES_OUTSIDE`, `RUNS`, `NONE`. What one call to a tool does. The tool states this fact and decides nothing; a `ToolPolicy` reads it and decides. `NONE` is the value of a call that reaches nothing outside the session: it names no place, and a policy asks no question about it. |
 | `Action` | record `(String toolName, Effect effect, String toolOperand, Optional<Permission> standingPermission)` | The name of the tool that states the action, what one call does, what it acts on, and what a standing "always" would cover. An empty permission says that no standing "always" can describe this call. |
 | `Permission` | sealed interface | `InFolder(toolName, folder)` or `ExactCommand(toolName, command)`. konacode compares two permissions and never examines one, so a record gives the whole lookup, and a sealed set makes a third kind a compile error at `inWords`. |
 | `Actions` | static helper, package-private | `read`, `write` and `readThenWrite` build the `Action` of a tool that acts on one path. Three named entry points, because the two questions a path needs must agree, and two loose lambdas let a caller pair them wrongly. |
@@ -158,6 +159,8 @@ and write a verdict of its own. A payload with nothing after it can forge nothin
 | `ToolApproval` | interface | `Answer ask(Decision.Ask ask)`, `boolean canAsk()`. `Answer` is `YES`, `NO` or `ALWAYS`. The loop asks, and not the policy, because `Cancellation` lives here and only the loop knows where an interrupt is safe. |
 | `Approvals` | final class | The set of permissions the user gave during this session. `covers(Action)` reads the set, and the loop calls it before the policy. `approve(Ask)` puts the question and records an `always`. Two methods, so the memory is tested in one place. Coverage is equality. The memory sits here and not in the policy, so `/policy` changes the policy and the answers stay. Nothing is written to disk. |
 | `ToolSpecs` | static adapter | `Tool` to `ToolSpec`. The one place `tools` and `llm` meet. |
+| `PlanTool` | implements `Tool` | Records the steps of the work, and gives the list back. It is the only tool outside `tools`, because it acts on the turn and the five tools in `tools` act on the world. konacode stores no plan: the result goes into the conversation, and konacode sends the whole conversation on each request. Two caps limit the size: 20 steps, and 200 characters for one step. The result enters the conversation again on every later iteration of the turn. It reads the whole list before it calls `TurnBudget.extend`, so a call it refuses adds no iteration. Each `Err` names one fault and the step that holds it, and no message repeats a word the model wrote. |
+| `TurnBudget` | final class | The number of iterations one turn may use. `PlanTool` calls `extend()`, and the loop reads `max()`. `Agent.respond` calls `reset()` once for each turn, so only the turn that records a plan uses the larger maximum. One budget serves one agent: a second agent that shares it puts the number back in the middle of the first turn. |
 | `AgentJudge` | implements `policy.Judge` | A second `Agent` with no tool, no history and one iteration. It sends one JSON object that Jackson builds, so an operand the model wrote cannot end its own field, and it reads one word back. It lives here because it needs `Agent`. |
 
 ### `dev.konacode.cli`
@@ -232,9 +235,9 @@ Write all documents and all replies in ASD-STE100 Simplified Technical English.
 - Write positive statements. Do not put two negatives in one sentence.
 - Use simple verb tenses.
 - Write literally. Do not use a metaphor or an idiom.
-- Do not make a verb from the name of a type. `Decision.Ask` gives "the policy writes a
-  question", and the reader learns nothing. Write what each part does: `EffectPolicy` allows
-  the call, so konacode asks the user nothing.
+- Do not make a verb from the name of a type. Do not write "the policy asks", because the type
+  is `Decision.Ask`. Write what each part does: `EffectPolicy` gives back an `Ask`, and the loop
+  puts the question to the user.
 
 ## Conventions
 
