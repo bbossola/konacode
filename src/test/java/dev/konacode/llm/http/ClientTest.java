@@ -1,12 +1,15 @@
-package dev.konacode.llm.openai;
+package dev.konacode.llm.http;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.konacode.llm.LlmException;
+import dev.konacode.llm.Message;
 import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.llm.ToolSpec;
-import dev.konacode.llm.openai.Credential.ApiKey;
-import dev.konacode.llm.openai.Credential.CodexToken;
 import dev.konacode.tools.Schemas;
 import dev.konacode.trace.Trace;
 import dev.konacode.trace.TraceEvent;
@@ -31,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -47,17 +51,17 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class OpenAiClientTest {
+class ClientTest {
 
-    private static OpenAiClient clientWith(String apiKey, String baseUrl) {
-        return new OpenAiClient(
-                new OpenAiConfig(new ApiKey(apiKey), "gpt-5-mini", "gpt-5-mini", baseUrl, Duration.ofSeconds(1)), Trace.NONE);
+    private static Client clientWith(String secret, String baseUrl) {
+        ClientConfig config = new ClientConfig(new Stamp(secret), "gpt-5-mini", "gpt-5-mini", baseUrl, Duration.ofSeconds(1));
+        return new Client(config, HttpClient.newHttpClient(), new TextCodec(), Trace.NONE);
     }
 
     @Test
     void translatesAMalformedBaseUrlIntoAnLlmException() {
         // URI.create fails before any connection is attempted, so this touches no network.
-        OpenAiClient client = clientWith("sk-test", "https://my host/v1");
+        Client client = clientWith("sk-test", "https://my host/v1");
 
         assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
     }
@@ -66,21 +70,11 @@ class OpenAiClientTest {
     void translatesAKeyCarryingAControlCharacterIntoAnLlmExceptionThatDoesNotQuoteTheKey() {
         // Trimming handles a trailing newline; an embedded one still reaches
         // HttpRequest.header, which rejects it with an unchecked IllegalArgumentException.
-        OpenAiClient client = clientWith("sk-abc\ndef", "https://example.test/v1");
+        Client client = clientWith("sk-abc\ndef", "https://example.test/v1");
 
         LlmException thrown = assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
 
         assertFalse(thrown.getMessage().contains("sk-abc"), thrown.getMessage());
-    }
-
-    @Test
-    void aCodexTokenCarryingAControlCharacterReachesNoExceptionMessage() {
-        OpenAiConfig config = new OpenAiConfig(new CodexToken("tok\nen", "acct_1"), "gpt-5.5", "gpt-5.5", "https://example.test/codex", Duration.ofSeconds(1));
-        OpenAiClient client = new OpenAiClient(config, Trace.NONE);
-
-        LlmException thrown = assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
-
-        assertFalse(thrown.getMessage().contains("tok"), thrown.getMessage());
     }
 
     private static AssistantMessage garbled() {
@@ -119,7 +113,7 @@ class OpenAiClientTest {
     void sendsOnceWhenTheFirstReplyIsAccepted() {
         ScriptedSender sender = new ScriptedSender(plain("Two files here."));
 
-        AssistantMessage reply = OpenAiClient.sendUntilAccepted(validator(), sender, Trace.NONE);
+        AssistantMessage reply = Client.sendUntilAccepted(validator(), sender, Trace.NONE);
 
         assertEquals("Two files here.", reply.text());
         assertEquals(1, sender.sends);
@@ -129,7 +123,7 @@ class OpenAiClientTest {
     void asksAgainWhenTheFirstReplyIsAGarbledToolCall() {
         ScriptedSender sender = new ScriptedSender(garbled(), plain("Two files here."));
 
-        AssistantMessage reply = OpenAiClient.sendUntilAccepted(validator(), sender, Trace.NONE);
+        AssistantMessage reply = Client.sendUntilAccepted(validator(), sender, Trace.NONE);
 
         assertEquals("Two files here.", reply.text());
         assertEquals(2, sender.sends);
@@ -139,7 +133,7 @@ class OpenAiClientTest {
     void returnsTheSecondGarbledReplyAsItCameRatherThanRetryingForever() {
         ScriptedSender sender = new ScriptedSender(garbled(), garbled());
 
-        AssistantMessage reply = OpenAiClient.sendUntilAccepted(validator(), sender, Trace.NONE);
+        AssistantMessage reply = Client.sendUntilAccepted(validator(), sender, Trace.NONE);
 
         assertEquals(garbled().text(), reply.text());
         assertEquals(2, sender.sends);
@@ -150,7 +144,7 @@ class OpenAiClientTest {
         List<TraceEvent> events = new ArrayList<>();
         ScriptedSender sender = new ScriptedSender(garbled(), plain("Two files here."));
 
-        OpenAiClient.sendUntilAccepted(validator(), sender, events::add);
+        Client.sendUntilAccepted(validator(), sender, events::add);
 
         assertEquals(1, events.size(), events.toString());
         assertInstanceOf(RetryRequested.class, events.get(0));
@@ -160,15 +154,29 @@ class OpenAiClientTest {
     void reportsNoRetryWhenTheFirstReplyIsAccepted() {
         List<TraceEvent> events = new ArrayList<>();
 
-        OpenAiClient.sendUntilAccepted(validator(), new ScriptedSender(plain("Done.")),
+        Client.sendUntilAccepted(validator(), new ScriptedSender(plain("Done.")),
                 events::add);
 
         assertEquals(List.of(), events);
     }
 
     /** A backoff that does not sleep, so a test of the retry costs no time. */
-    private static final OpenAiClient.Backoff NO_WAIT = attempt -> {
+    private static final Client.Backoff NO_WAIT = attempt -> {
     };
+
+    /** One credential the tests own, so no test here names an OpenAI type. */
+    private record Stamp(String secret) implements Credential {
+
+        @Override
+        public Map<String, String> headers() {
+            return Map.of("Authorization", "Bearer " + secret, "X-Stamp", "konacode");
+        }
+
+        @Override
+        public String hint(int status) {
+            return status == 401 ? " Run the login again." : "";
+        }
+    }
 
     private static Supplier<AssistantMessage> failsThenAnswers(int failures, AtomicInteger sends) {
         return () -> {
@@ -183,7 +191,7 @@ class OpenAiClientTest {
     void retriesATransientFailureAndThenSucceeds() {
         AtomicInteger sends = new AtomicInteger();
 
-        AssistantMessage reply = OpenAiClient.sendUntilDelivered(failsThenAnswers(1, sends), NO_WAIT, Trace.NONE);
+        AssistantMessage reply = Client.sendUntilDelivered(failsThenAnswers(1, sends), NO_WAIT, Trace.NONE);
 
         assertEquals("Done.", reply.text());
         assertEquals(2, sends.get());
@@ -197,7 +205,7 @@ class OpenAiClientTest {
             throw new LlmException("HTTP 401: bad key");
         };
 
-        assertThrows(LlmException.class, () -> OpenAiClient.sendUntilDelivered(send, NO_WAIT, Trace.NONE));
+        assertThrows(LlmException.class, () -> Client.sendUntilDelivered(send, NO_WAIT, Trace.NONE));
 
         assertEquals(1, sends.get(), "a key konacode cannot fix must not be asked about twice");
     }
@@ -207,7 +215,7 @@ class OpenAiClientTest {
         AtomicInteger sends = new AtomicInteger();
 
         LlmException thrown = assertThrows(LlmException.class,
-                () -> OpenAiClient.sendUntilDelivered(failsThenAnswers(9, sends), NO_WAIT, Trace.NONE));
+                () -> Client.sendUntilDelivered(failsThenAnswers(9, sends), NO_WAIT, Trace.NONE));
 
         assertEquals(3, sends.get());
         assertTrue(thrown.getMessage().contains("503"), thrown.getMessage());
@@ -217,7 +225,7 @@ class OpenAiClientTest {
     void reportsEveryTransportRetry() {
         List<TraceEvent> events = new ArrayList<>();
 
-        OpenAiClient.sendUntilDelivered(failsThenAnswers(1, new AtomicInteger()), NO_WAIT, events::add);
+        Client.sendUntilDelivered(failsThenAnswers(1, new AtomicInteger()), NO_WAIT, events::add);
 
         List<String> reasons = events.stream()
                 .filter(RetryRequested.class::isInstance)
@@ -234,7 +242,7 @@ class OpenAiClientTest {
             Thread.currentThread().interrupt();
 
             assertThrows(LlmException.class,
-                    () -> OpenAiClient.sendUntilDelivered(failsThenAnswers(9, sends), NO_WAIT, Trace.NONE));
+                    () -> Client.sendUntilDelivered(failsThenAnswers(9, sends), NO_WAIT, Trace.NONE));
 
             assertEquals(1, sends.get(), "esc must end the retry, and not wait for the budget");
         } finally {
@@ -255,8 +263,8 @@ class OpenAiClientTest {
 
     private static final String API_KEY = "sk-secret-do-not-log";
 
-    private static OpenAiConfig configWithTheKey() {
-        return new OpenAiConfig(new ApiKey(API_KEY), "gpt-5-mini", "gpt-5-mini", "https://example.test/v1", Duration.ofSeconds(1));
+    private static ClientConfig configWithTheKey() {
+        return new ClientConfig(new Stamp(API_KEY), "gpt-5-mini", "gpt-5-mini", "https://example.test/v1", Duration.ofSeconds(1));
     }
 
     private void stubHttpToReturn(int status, String body) throws Exception {
@@ -267,19 +275,9 @@ class OpenAiClientTest {
                 .thenReturn(response);
     }
 
-    private OpenAiClient clientWithMockedHttp(List<TraceEvent> events) {
-        return new OpenAiClient(configWithTheKey(), http, new ChatCompletionsCodec(new ObjectMapper()),
+    private Client clientWithMockedHttp(List<TraceEvent> events) {
+        return new Client(configWithTheKey(), http, new TextCodec(),
                 events::add, NO_WAIT);
-    }
-
-    private static final String ACCESS_TOKEN = "codex-access-token-do-not-log";
-
-    private static OpenAiConfig configWithTheCodexToken() {
-        return new OpenAiConfig(new CodexToken(ACCESS_TOKEN, "acct_1"), "gpt-5.5", "gpt-5.5", "https://example.test/codex", Duration.ofSeconds(1));
-    }
-
-    private OpenAiClient codexClientWithMockedHttp(List<TraceEvent> events) {
-        return new OpenAiClient(configWithTheCodexToken(), http, new ChatCompletionsCodec(new ObjectMapper()), events::add, NO_WAIT);
     }
 
     private HttpRequest sentRequest() throws Exception {
@@ -302,7 +300,7 @@ class OpenAiClientTest {
                 {"choices":[{"message":{"content":"hi"}}],
                  "usage":{"prompt_tokens":5,"completion_tokens":7,"total_tokens":12}}""");
         List<TraceEvent> events = new ArrayList<>();
-        OpenAiClient client = clientWithMockedHttp(events);
+        Client client = clientWithMockedHttp(events);
 
         AssistantMessage reply = client.chat(List.of(new UserMessage("what is here?")), List.of());
 
@@ -322,7 +320,7 @@ class OpenAiClientTest {
     @Test
     void sendsToThePathOfTheCodecWithTheAcceptHeaderOfTheCodec() throws Exception {
         stubHttpToReturn(200, "{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}");
-        OpenAiClient client = clientWithMockedHttp(new ArrayList<>());
+        Client client = clientWithMockedHttp(new ArrayList<>());
 
         client.chat(List.of(), List.of());
 
@@ -333,60 +331,47 @@ class OpenAiClientTest {
     }
 
     @Test
-    void aKeySendsTheAuthorizationHeaderAndNoCodexHeader() throws Exception {
+    void theHeadersOfTheCredentialReachTheRequest() throws Exception {
         stubHttpToReturn(200, "{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}");
-        clientWithMockedHttp(new ArrayList<>()).chat(List.of(), List.of());
+        List<TraceEvent> events = new ArrayList<>();
+        clientWithMockedHttp(events).chat(List.of(), List.of());
 
         HttpRequest sent = sentRequest();
 
         assertEquals(Optional.of("Bearer " + API_KEY), sent.headers().firstValue("Authorization"));
-        assertEquals(Optional.empty(), sent.headers().firstValue("ChatGPT-Account-ID"));
-        assertEquals(Optional.empty(), sent.headers().firstValue("originator"));
-    }
-
-    @Test
-    void aCodexTokenSendsTheAccountIdAndNamesKonacode() throws Exception {
-        stubHttpToReturn(200, "{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}");
-        List<TraceEvent> events = new ArrayList<>();
-        codexClientWithMockedHttp(events).chat(List.of(), List.of());
-
-        HttpRequest sent = sentRequest();
-
-        assertEquals(Optional.of("Bearer " + ACCESS_TOKEN), sent.headers().firstValue("Authorization"));
-        assertEquals(Optional.of("acct_1"), sent.headers().firstValue("ChatGPT-Account-ID"));
-        assertEquals(Optional.of("konacode"), sent.headers().firstValue("originator"));
-        assertEquals(Optional.of("konacode"), sent.headers().firstValue("User-Agent"));
+        assertEquals(Optional.of("konacode"), sent.headers().firstValue("X-Stamp"));
         for (TraceEvent event : events) {
-            assertFalse(event.toString().contains(ACCESS_TOKEN), event.toString());
+            assertFalse(event.toString().contains(API_KEY), event.toString());
         }
     }
 
     @Test
-    void a401WithACodexTokenNamesTheCommandToRun() throws Exception {
+    void theHintOfTheCredentialEndsTheMessageOfARefusedRequest() throws Exception {
         stubHttpToReturn(401, "{\"detail\":\"Unauthorized\"}");
-        OpenAiClient client = codexClientWithMockedHttp(new ArrayList<>());
+        Client client = clientWithMockedHttp(new ArrayList<>());
 
         LlmException thrown = assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
 
         assertTrue(thrown.getMessage().startsWith("HTTP 401"), thrown.getMessage());
-        assertTrue(thrown.getMessage().endsWith("Run `codex login`, then start konacode again."), thrown.getMessage());
+        assertTrue(thrown.getMessage().endsWith(" Run the login again."), thrown.getMessage());
     }
 
     @Test
-    void a401WithAKeyNamesNoCommand() throws Exception {
-        stubHttpToReturn(401, "{\"error\":\"bad key\"}");
-        OpenAiClient client = clientWithMockedHttp(new ArrayList<>());
+    void aStatusWithNoHintAddsNothing() throws Exception {
+        stubHttpToReturn(403, "{\"detail\":\"Forbidden\"}");
+        Client client = clientWithMockedHttp(new ArrayList<>());
 
         LlmException thrown = assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
 
-        assertFalse(thrown.getMessage().contains("codex login"), thrown.getMessage());
+        assertFalse(thrown.getMessage().contains("login"), thrown.getMessage());
+        assertTrue(thrown.getMessage().endsWith("Forbidden\"}"), thrown.getMessage());
     }
 
     @Test
     void replyReceivedIsEmittedForANon2xxStatusBeforeTheExceptionIsThrown() throws Exception {
         stubHttpToReturn(500, "{\"error\":\"boom\"}");
         List<TraceEvent> events = new ArrayList<>();
-        OpenAiClient client = clientWithMockedHttp(events);
+        Client client = clientWithMockedHttp(events);
 
         assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
 
@@ -404,7 +389,7 @@ class OpenAiClientTest {
                 {"choices":[{"message":{"content":"hi"}}],
                  "usage":{"prompt_tokens":5,"completion_tokens":7,"total_tokens":12}}""");
         List<TraceEvent> events = new ArrayList<>();
-        OpenAiClient client = clientWithMockedHttp(events);
+        Client client = clientWithMockedHttp(events);
 
         client.chat(List.of(), List.of());
 
@@ -422,7 +407,7 @@ class OpenAiClientTest {
     void tokensUsedIsAbsentWhenTheReplyReportsNone() throws Exception {
         stubHttpToReturn(200, "{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}");
         List<TraceEvent> events = new ArrayList<>();
-        OpenAiClient client = clientWithMockedHttp(events);
+        Client client = clientWithMockedHttp(events);
 
         client.chat(List.of(), List.of());
 
@@ -437,7 +422,7 @@ class OpenAiClientTest {
         HttpResponse<String> ok = answer(200, "{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}");
         when(http.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
                 .thenReturn(busy, ok);
-        OpenAiClient client = clientWithMockedHttp(new ArrayList<>());
+        Client client = clientWithMockedHttp(new ArrayList<>());
 
         assertEquals("hi", client.chat(List.of(), List.of()).text());
 
@@ -450,7 +435,7 @@ class OpenAiClientTest {
         when(http.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
                 .thenThrow(new IOException("connection reset"))
                 .thenReturn(ok);
-        OpenAiClient client = clientWithMockedHttp(new ArrayList<>());
+        Client client = clientWithMockedHttp(new ArrayList<>());
 
         assertEquals("hi", client.chat(List.of(), List.of()).text());
 
@@ -460,10 +445,62 @@ class OpenAiClientTest {
     @Test
     void doesNotRetryA401() throws Exception {
         stubHttpToReturn(401, "{\"error\":\"bad key\"}");
-        OpenAiClient client = clientWithMockedHttp(new ArrayList<>());
+        Client client = clientWithMockedHttp(new ArrayList<>());
 
         assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
 
         verify(http, times(1)).send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
+    }
+
+    /** The smallest codec that reads the replies these tests stub: one text choice, and the usage. */
+    private static final class TextCodec implements Codec {
+
+        private final ObjectMapper mapper = new ObjectMapper();
+
+        @Override
+        public String path() {
+            return "/chat/completions";
+        }
+
+        @Override
+        public String accept() {
+            return "application/json";
+        }
+
+        @Override
+        public ObjectNode encodeRequest(String model, List<Message> history, List<ToolSpec> tools) {
+            ObjectNode request = mapper.createObjectNode();
+            request.put("model", model);
+            ArrayNode messages = request.putArray("messages");
+            for (Message message : history) {
+                if (message instanceof UserMessage user) {
+                    messages.addObject().put("role", "user").put("content", user.text());
+                }
+            }
+            return request;
+        }
+
+        @Override
+        public AssistantMessage decodeResponse(String body) {
+            try {
+                JsonNode root = mapper.readTree(body);
+                return new AssistantMessage(root.path("choices").path(0).path("message").path("content").asText(""), List.of());
+            } catch (JsonProcessingException e) {
+                throw new LlmException("Could not parse the response as JSON: " + e.getOriginalMessage(), e);
+            }
+        }
+
+        @Override
+        public Optional<Usage> decodeUsage(String body) {
+            try {
+                JsonNode usage = mapper.readTree(body).path("usage");
+                if (!usage.isObject()) {
+                    return Optional.empty();
+                }
+                return Optional.of(new Usage(usage.path("prompt_tokens").asInt(), usage.path("completion_tokens").asInt(), usage.path("total_tokens").asInt()));
+            } catch (JsonProcessingException e) {
+                return Optional.empty();
+            }
+        }
     }
 }

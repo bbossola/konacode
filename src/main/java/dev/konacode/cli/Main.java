@@ -1,6 +1,5 @@
 package dev.konacode.cli;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.konacode.agent.Agent;
 import dev.konacode.agent.AgentJudge;
 import dev.konacode.agent.Approvals;
@@ -11,10 +10,8 @@ import dev.konacode.agent.PlanTool;
 import dev.konacode.agent.TurnBudget;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.Message.SystemMessage;
-import dev.konacode.llm.openai.Codec;
-import dev.konacode.llm.openai.CodexAuth;
-import dev.konacode.llm.openai.OpenAiClient;
-import dev.konacode.llm.openai.OpenAiConfig;
+import dev.konacode.llm.http.Client;
+import dev.konacode.llm.openai.OpenAi;
 import dev.konacode.policy.EffectPolicy;
 import dev.konacode.policy.Judge;
 import dev.konacode.policy.JudgePolicy;
@@ -50,14 +47,14 @@ public final class Main {
 
     public static void main(String[] args) {
         Cancellation cancellation = new Cancellation();
-        OpenAiConfig config;
+        OpenAi.Provider provider;
         TurnBudget budget;
         Level traceLevel;
         int maxTraceFiles;
         Duration commandTimeout;
         Ui ui;
         try {
-            config = OpenAiConfig.fromEnvironment(System.getenv(), CodexAuth.file(System.getenv(), Path.of(System.getProperty("user.home"))));
+            provider = OpenAi.fromEnvironment(System.getenv(), Path.of(System.getProperty("user.home")));
             budget = budget();
             traceLevel = Level.configured();
             maxTraceFiles = maxTraceFiles();
@@ -81,8 +78,8 @@ public final class Main {
         SkillRegistry skills = new SkillRegistry(new Workspace(skillsRoot()));
 
         try (ui; file) {
-            HttpClient http = HttpClient.newBuilder().connectTimeout(config.timeout()).build();
-            Clients clients = clients(config, http, trace);
+            HttpClient http = HttpClient.newBuilder().connectTimeout(provider.config().timeout()).build();
+            Clients clients = clients(provider, http, trace);
             build(clients.loop(), clients.judge(), skills, ui, fileLevel, cancellation,
                     budget, trace, workspace, commandTimeout).run();
         } catch (Exception e) {
@@ -236,18 +233,16 @@ public final class Main {
     }
 
     /**
-     * Builds the two clients on one {@link HttpClient} and one {@link Codec}. Both are stateless for
-     * a request, and one connection pool serves both agents. The credential picks the codec, so
-     * the judge speaks the same wire format as the loop.
+     * Builds the two clients on one {@link HttpClient} and the codec the provider chose. Both are
+     * stateless for a request, and one connection pool serves both agents.
      *
      * <p>Each client gets its own name, because a judgement makes its own request and reports its
      * own token counts. Without the name a user cannot tell the cost of a judgement from the cost
      * of the turn.
      */
-    static Clients clients(OpenAiConfig config, HttpClient http, Trace trace) {
-        Codec codec = Codec.forCredential(config.credential(), new ObjectMapper());
-        return new Clients(new OpenAiClient(config, http, codec, new NamedTrace("kona", trace)),
-                new OpenAiClient(config.forJudge(), http, codec, new NamedTrace("judge", trace)));
+    static Clients clients(OpenAi.Provider provider, HttpClient http, Trace trace) {
+        return new Clients(new Client(provider.config(), http, provider.codec(), new NamedTrace("kona", trace)),
+                new Client(provider.config().forJudge(), http, provider.codec(), new NamedTrace("judge", trace)));
     }
 
     static Path skillsRoot() {

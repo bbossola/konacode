@@ -1,14 +1,11 @@
-package dev.konacode.llm.openai;
+package dev.konacode.llm.http;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.LlmException;
 import dev.konacode.llm.Message;
 import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.ToolSpec;
-import dev.konacode.llm.openai.Credential.ApiKey;
-import dev.konacode.llm.openai.Credential.CodexToken;
 import dev.konacode.trace.Trace;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.RequestSent;
@@ -30,7 +27,7 @@ import java.util.function.Supplier;
  * Transport. Owns HTTP status handling and nothing else — the translation lives in the
  * {@link Codec}.
  */
-public final class OpenAiClient implements LlmClient {
+public final class Client implements LlmClient {
 
     private static final int ERROR_BODY_LIMIT = 500;
 
@@ -40,7 +37,7 @@ public final class OpenAiClient implements LlmClient {
     static final int MAX_ATTEMPTS = 3;
     private static final Duration FIRST_WAIT = Duration.ofMillis(500);
 
-    private final OpenAiConfig config;
+    private final ClientConfig config;
     private final HttpClient http;
     private final Codec codec;
     private final Trace trace;
@@ -53,20 +50,11 @@ public final class OpenAiClient implements LlmClient {
         void pauseBefore(int attempt);
     }
 
-    public OpenAiClient(OpenAiConfig config, Trace trace) {
-        this(config,
-                HttpClient.newBuilder().connectTimeout(config.timeout()).build(),
-                Codec.forCredential(config.credential(), new ObjectMapper()),
-                trace);
+    public Client(ClientConfig config, HttpClient http, Codec codec, Trace trace) {
+        this(config, http, codec, trace, Client::sleepBefore);
     }
 
-    public OpenAiClient(OpenAiConfig config, HttpClient http, Codec codec,
-                        Trace trace) {
-        this(config, http, codec, trace, OpenAiClient::sleepBefore);
-    }
-
-    OpenAiClient(OpenAiConfig config, HttpClient http, Codec codec, Trace trace,
-                 Backoff backoff) {
+    Client(ClientConfig config, HttpClient http, Codec codec, Trace trace, Backoff backoff) {
         this.config = config;
         this.http = http;
         this.codec = codec;
@@ -176,7 +164,7 @@ public final class OpenAiClient implements LlmClient {
         }
 
         if (response.statusCode() / 100 != 2) {
-            throw new LlmException("HTTP " + response.statusCode() + ": " + truncate(response.body()) + loginHint(response.statusCode()));
+            throw new LlmException("HTTP " + response.statusCode() + ": " + truncate(response.body()) + config.credential().hint(response.statusCode()));
         }
 
         codec.decodeUsage(response.body()).ifPresent(usage ->
@@ -185,31 +173,8 @@ public final class OpenAiClient implements LlmClient {
         return codec.decodeResponse(response.body());
     }
 
-    /**
-     * konacode names itself in {@code originator} and {@code User-Agent}. It never writes the name of
-     * the Codex CLI. If the server refuses a client that is not Codex, that is the answer of the
-     * provider, and konacode stops.
-     */
     private void authorize(HttpRequest.Builder builder) {
-        switch (config.credential()) {
-            case ApiKey key -> builder.header("Authorization", "Bearer " + key.key());
-            case CodexToken token -> builder
-                    .header("Authorization", "Bearer " + token.accessToken())
-                    .header("ChatGPT-Account-ID", token.accountId())
-                    .header("originator", "konacode")
-                    .header("User-Agent", "konacode");
-        }
-    }
-
-    /** A 401 on a Codex token has one repair, and the user reads it here and not in a log. */
-    private String loginHint(int status) {
-        if (status != 401) {
-            return "";
-        }
-        return switch (config.credential()) {
-            case ApiKey ignored -> "";
-            case CodexToken ignored -> CodexAuth.RUN_LOGIN;
-        };
+        config.credential().headers().forEach(builder::header);
     }
 
     private static String truncate(String body) {

@@ -1,12 +1,9 @@
-package dev.konacode.llm.openai;
+package dev.konacode.llm.http;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.konacode.llm.Message;
 import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.ToolSpec;
-import dev.konacode.llm.openai.Credential.ApiKey;
-import dev.konacode.llm.openai.Credential.CodexToken;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,16 +26,4 @@ public interface Codec {
 
     /** The token counts of a reply, when the provider reported them. It never throws. */
     Optional<Usage> decodeUsage(String body);
-
-    /**
-     * The credential decides the wire format. A key speaks Chat Completions, and a Codex token
-     * speaks the Responses API of the Codex backend. The switch is exhaustive, so a third
-     * credential must name its codec here.
-     */
-    static Codec forCredential(Credential credential, ObjectMapper mapper) {
-        return switch (credential) {
-            case ApiKey ignored -> new ChatCompletionsCodec(mapper);
-            case CodexToken ignored -> new ResponsesCodec(mapper);
-        };
-    }
 }

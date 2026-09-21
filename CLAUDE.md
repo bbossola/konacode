@@ -48,12 +48,18 @@ Dependencies run strictly downhill:
 ```
 cli -> agent -> { llm, tools, policy } -> trace
 cli -> skills -> tools
+cli -> llm.openai -> llm.http -> llm
 ```
 
 **`tools` must not depend on `llm`.** A tool exposes a name, a description and a JSON schema
 as plain types; the `ToolSpecs` adapter in `agent` translates that into whatever a provider
 needs. This keeps tools writable without knowing an LLM exists. If you find yourself importing
 `dev.konacode.llm` from `dev.konacode.tools`, the adapter is the answer, not the import.
+
+**`llm.http` must not depend on a provider.** The transport holds a `Codec` for the body and a
+`Credential` for the headers, and it knows nothing about either. A provider package such as
+`llm.openai` implements both and pairs them. A second provider is a second package beside it, with
+no new client.
 
 The approval seam keeps three jobs apart. The tool states a fact, the policy decides, and the
 loop asks the user. No part does two of those jobs. A standing permission is a decision the user
@@ -87,20 +93,28 @@ and write a verdict of its own. A payload with nothing after it can forge nothin
 | `LlmClient` | interface | `AssistantMessage chat(List<Message>, List<ToolSpec>)`. Blocking. The entire provider SPI. |
 | `LlmException` | RuntimeException | Transport or protocol failure. Not a tool failure — see Error channels. |
 
-### `dev.konacode.llm.openai` — the one implementation
+### `dev.konacode.llm.http` — the transport
 
 | Element | Kind | Definition |
 |---|---|---|
-| `OpenAiConfig` | record `(credential, model, judgeModel, baseUrl, timeout)` | Provider settings. `KONACODE_AUTH` picks the `Credential`, and the credential picks the defaults: `gpt-5-mini` and `https://api.openai.com/v1` for a key, `gpt-5.5` and `https://chatgpt.com/backend-api/codex` for a Codex token. `forJudge()` gives the same credential, base URL and timeout, with the model the judge uses. `uri(path)` builds the endpoint by concatenation, because `URI.resolve` drops a trailing `/v1`. |
-| `Credential` | sealed interface | `ApiKey(key)` or `CodexToken(accessToken, accountId)`. Sealed, so a third kind is a compile error at the header switch in `OpenAiClient` and at `Codec.forCredential`. |
-| `CodexAuth` | final class | `read(Path, Instant)` reads `auth.json` once at start, and refuses it with one line when the file is missing, is not a ChatGPT login, lacks a field, or holds a token whose `exp` claim has passed. Every refusal ends with "Run `codex login`, then start konacode again." It holds no refresh, no write and no network. `file(env, home)` resolves `$CODEX_HOME/auth.json`, the way the CLI does. |
-| `Codec` | interface | `path()`, `accept()`, `encodeRequest`, `decodeResponse`, `decodeUsage`. The wire format of one endpoint, with no HTTP, so a codec is tested against fixtures. `forCredential` picks the codec: a key speaks Chat Completions, a Codex token speaks the Responses API. |
-| `ResponsesCodec` | implements `Codec` | The Responses API of the Codex backend. The system message becomes `instructions`, and the other messages become `input` items. Every request sends `store: false` and `stream: true`, because the CLI never sends a request that does not stream. The reply is the whole SSE body, read after the stream closes. A finished `message` item adds text, and a finished `function_call` item adds a `ToolCall`. `response.failed` and `response.incomplete` are an `LlmException`, and so is a body with no `response.completed`. It asks for no reasoning item; the passthrough is the next change. |
+| `Client` | implements `LlmClient` | `java.net.http.HttpClient` plus a `Codec` and a `Credential`. It writes `credential.headers()` into the request and appends `credential.hint(status)` to the message of a refused request, and it knows nothing else about either. Owns status handling and error translation, nothing else. It holds two retry loops, and two budgets. `sendUntilAccepted` repairs the protocol through `ReplyValidator`, on a garbled reply. `sendUntilDelivered` repairs the transport: three attempts, and a wait of 500 ms then 1 s, which a test replaces with a `Backoff` that does not sleep. The two budgets stay apart, so a garbled reply on a poor network spends neither twice. The name repeats a word of `LlmClient`, and that is accepted: the package gives the adjective. |
+| `ClientConfig` | record `(credential, model, judgeModel, baseUrl, timeout)` | The settings of one transport. It reads no environment variable and names no provider. `forJudge()` gives the same credential, base URL and timeout, with the model the judge uses. `uri(path)` builds the endpoint by concatenation, because `URI.resolve` drops a trailing `/v1`. |
+| `Codec` | interface | `path()`, `accept()`, `encodeRequest`, `decodeResponse`, `decodeUsage`. The wire format of one endpoint, with no HTTP, so a codec is tested against fixtures. |
+| `Credential` | interface | `headers()` and `hint(status)`. Both abstract and not a default, so a new credential must answer both. That is the force a sealed switch would give, and it lets each provider own its kinds. |
 | `Usage` | record `(prompt, completion, total)` | The token counts of one reply. Each codec reads them in `decodeUsage`, and never throws: a count is a diagnostic, so a reply konacode cannot read here has no counts and is not a failed turn. |
-| `ChatCompletionsCodec` | final class, implements `Codec`, pure | Translates `Message`/`ToolSpec` to request JSON and response JSON back to `AssistantMessage`. **Contains no HTTP.** This is what makes the wire format testable against fixtures. Its path is `/chat/completions`. |
-| `OpenAiClient` | implements `LlmClient` | `java.net.http.HttpClient` plus a `Codec`. One switch on the `Credential` writes the headers: a key gives `Authorization`; a Codex token gives `Authorization`, `ChatGPT-Account-ID`, `originator: konacode` and `User-Agent: konacode`, and a `401` with it adds the `codex login` sentence. Owns status handling and error translation, nothing else. It holds two retry loops, and two budgets. `sendUntilAccepted` repairs the protocol through `ReplyValidator`, on a garbled reply. `sendUntilDelivered` repairs the transport: three attempts, and a wait of 500 ms then 1 s, which a test replaces with a `Backoff` that does not sleep. The two budgets stay apart, so a garbled reply on a poor network spends neither twice. |
 | `TransientFailure` | extends `LlmException`, package-private | A failure another attempt may pass: `429`, `502`, `503`, `504`, or a request that did not arrive. `sendOnce` states this fact and decides nothing; `sendUntilDelivered` reads the type and decides. It carries `retryReason` beside the message, because the message holds the answer of the provider and a trace line must carry only the words konacode wrote. Every other status ends the turn at once: the model cannot fix a 401, and a second attempt wastes the time of the user twice. |
 | `ReplyValidator` | class, one for each request | Finds a tool call that the model wrote as prose. Owns the budget for a second attempt. `accepts` is final, so the retry loop in the client always stops. `isMisencodedToolCall` is the extension point for the quirk of another model. |
+
+### `dev.konacode.llm.openai` — what OpenAI wrote
+
+| Element | Kind | Definition |
+|---|---|---|
+| `OpenAi` | final class | `fromEnvironment(env, home)` reads `KONACODE_AUTH` and gives a `Provider(ClientConfig, Codec)`. The credential picks the defaults and the wire format: `gpt-5-mini`, `https://api.openai.com/v1` and Chat Completions for a key; `gpt-5.5`, `https://chatgpt.com/backend-api/codex` and the Responses API for a Codex token. The one place that knows `OPENAI_API_KEY`. |
+| `ChatCompletionsCodec` | final class, implements `Codec`, pure | Translates `Message`/`ToolSpec` to request JSON and response JSON back to `AssistantMessage`. **Contains no HTTP.** This is what makes the wire format testable against fixtures. Its path is `/chat/completions`. It serves the OpenAI platform, Ollama and every OpenAI-compatible server. |
+| `ResponsesCodec` | implements `Codec` | The Responses API, as the Codex backend serves it. The system message becomes `instructions`, and the other messages become `input` items. Every request sends `store: false` and `stream: true`, because the CLI never sends a request that does not stream. The reply is the whole SSE body, read after the stream closes. A finished `message` item adds text, and a finished `function_call` item adds a `ToolCall`. `response.failed` and `response.incomplete` are an `LlmException`, and so is a body with no `response.completed`. It asks for no reasoning item; the passthrough is the next change. |
+| `ApiKey` | record, implements `Credential` | `Authorization: Bearer <key>`, and no hint. Checked for presence and nothing else, so a local server that ignores the key still works. |
+| `CodexToken` | record, implements `Credential` | `Authorization`, `ChatGPT-Account-ID`, `originator: konacode` and `User-Agent: konacode`. konacode never claims to be the Codex CLI. `hint(401)` is the `codex login` sentence. |
+| `CodexAuth` | final class | `read(Path, Instant)` reads `auth.json` once at start, and refuses it with one line when the file is missing, is not a ChatGPT login, lacks a field, or holds a token whose `exp` claim has passed. Every refusal ends with "Run `codex login`, then start konacode again." It holds no refresh, no write and no network. `file(env, home)` resolves `$CODEX_HOME/auth.json`, the way the CLI does. |
 
 ### `dev.konacode.tools`
 
@@ -183,7 +197,7 @@ and write a verdict of its own. A payload with nothing after it can forge nothin
 | `Banner` | final class | The art from the README, which reads `kona`. It is 41 columns wide, so a narrower terminal gets the plain name. Generated from `README.md`, not retyped. |
 | `Ansi` | final class | The escape codes, plus `strip`, `visibleLength`, `cutToColumns` and `oneLine`. A code takes bytes and no columns, so word wrap and table alignment both need `visibleLength`. It counts columns and not characters, and `cutToColumns` cuts by columns, because a fullwidth character takes two columns: a count of characters let a padded operand pass the cut in `RichUi` and wrap into a line that reads as a line konacode wrote. `oneLine` makes one line of a string the model wrote, and it lives here because every place that prints such a string needs the same guard. |
 | `TraceLine` | final class | `of(TraceEvent)`. One event as one line of text. `PlainUi` and `RichUi` both call it, so the two interfaces show the same words. It calls `Ansi.oneLine` on every payload the model or the provider chose, the name of a tool included, and on no word konacode writes, because one guard here covers both interfaces. A line ends with the payload the model chose, and puts no delimiter around it: a delimiter is a character the model can write too, so an operand closed a backtick and wrote a verdict of its own. A `FromAgent` writes the agent name, then `> `, then the line of the event inside it. `inside` and `names` give an interface the event a `FromAgent` holds and the names around it, because an interface that matches one kind of event must reach through the name first. |
-| `Main` | final class | Reads the environment and every `konacode.*` system property, picks the interface, wires the parts. The only place that names a concrete implementation. It builds two clients on one `HttpClient` and one `Codec`, which `Codec.forCredential` picks, `kona` and `judge`, so the request, the reply and the token counts of a judgement carry their own name. It builds them inside the `try`, so a failure there closes the interface and the trace file. It writes the system prompt, four lines that name the working directory, ask for a read before an edit, and say that an `<error>` is recoverable; `MainTest` pins them, because a prompt is prompt engineering and no compiler checks it. `Level.configured` stays on `Level`, because it is a factory for its own type; a reader that returns a plain value belongs here. |
+| `Main` | final class | Reads the environment and every `konacode.*` system property, picks the interface, wires the parts. The only place that names a concrete implementation. It builds two clients on one `HttpClient` and the codec that `OpenAi.fromEnvironment` chose, `kona` and `judge`, so the request, the reply and the token counts of a judgement carry their own name. It builds them inside the `try`, so a failure there closes the interface and the trace file. It writes the system prompt, four lines that name the working directory, ask for a read before an edit, and say that an `<error>` is recoverable; `MainTest` pins them, because a prompt is prompt engineering and no compiler checks it. `Level.configured` stays on `Level`, because it is a factory for its own type; a reader that returns a plain value belongs here. |
 
 ### `dev.konacode.cli.markdown`
 

@@ -11,7 +11,7 @@ import dev.konacode.llm.Message.ToolMessage;
 import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.llm.ToolCall;
 import dev.konacode.llm.ToolSpec;
-import dev.konacode.llm.openai.Credential.CodexToken;
+import dev.konacode.llm.http.Usage;
 import dev.konacode.tools.Schemas;
 import org.junit.jupiter.api.Test;
 
@@ -23,7 +23,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -58,11 +57,6 @@ class ResponsesCodecTest {
     void namesItsPathAndItsAcceptHeader() {
         assertEquals("/responses", codec.path());
         assertEquals("text/event-stream", codec.accept());
-    }
-
-    @Test
-    void aCodexTokenSelectsThisCodec() {
-        assertInstanceOf(ResponsesCodec.class, Codec.forCredential(new CodexToken("t", "acct_1"), mapper));
     }
 
     @Test

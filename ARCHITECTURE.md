@@ -273,8 +273,8 @@ opposite. Some local models do this. qwen3-coder does it in about one turn in fo
 
 konacode treats this as a provider defect. It is not a domain idea. `LlmClient` promises text or
 tool calls, and it promises them faithfully. A model that writes the call as prose gives a broken
-response from that provider. Therefore the provider repairs it. The OpenAI provider finds such a
-reply and sends the same request again, one time. The loop never learns that this happens.
+response from that provider. Therefore the transport repairs it. `Client` finds such a reply
+and sends the same request again, one time. The loop never learns that this happens.
 
 The detector misses cases on purpose. A wrong refusal costs more than a missed one. konacode reads
 its own repository, which contains many tool call formats. A model that quotes one of them is
