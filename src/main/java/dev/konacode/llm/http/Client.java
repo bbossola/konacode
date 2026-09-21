@@ -50,13 +50,11 @@ public final class Client implements LlmClient {
         void pauseBefore(int attempt);
     }
 
-    public Client(ClientConfig config, HttpClient http, Codec codec,
-                        Trace trace) {
+    public Client(ClientConfig config, HttpClient http, Codec codec, Trace trace) {
         this(config, http, codec, trace, Client::sleepBefore);
     }
 
-    Client(ClientConfig config, HttpClient http, Codec codec, Trace trace,
-                 Backoff backoff) {
+    Client(ClientConfig config, HttpClient http, Codec codec, Trace trace, Backoff backoff) {
         this.config = config;
         this.http = http;
         this.codec = codec;

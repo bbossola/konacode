@@ -7,8 +7,8 @@ import java.util.Objects;
 /**
  * The settings of one transport: as whom, which model, where, and for how long.
  *
- * <p>It reads no environment variable. A provider reads them, for example `OpenAi`, so this record
- * names no provider and no default.
+ * <p>It reads no environment variable. A provider reads them, so this record names no provider
+ * and no default.
  *
  * <p>The judge model sits beside the model, because the judge speaks to the same endpoint with the
  * same credential and only the model name differs.

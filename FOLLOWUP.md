@@ -316,8 +316,8 @@ Each item below comes from memory of the Codex CLI, and it moves. Read the sourc
 
 **A second codec, not a second client.** `ResponsesCodec` sits beside `ChatCompletionsCodec`.
 `Client` keeps the HTTP, the two retry loops and `ReplyValidator`, and takes the codec in
-its constructor. The codec is the seam that was built for this, so the change stays inside
-`dev.konacode.llm.openai`. Read the Responses API reference for the shapes; from memory they are:
+its constructor. The codec is the seam that was built for this, so the change stayed inside
+the OpenAI package; the transport has since moved to `dev.konacode.llm.http`. Read the Responses API reference for the shapes; from memory they are:
 `input` instead of `messages`, `instructions` for the system prompt, a `function_call` item with
 a `call_id` for a tool call, a `function_call_output` item for a tool result, a flat tool
 definition with `parameters`, and an `output` list in the reply.

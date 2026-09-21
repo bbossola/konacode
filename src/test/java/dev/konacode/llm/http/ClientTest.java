@@ -494,7 +494,10 @@ class ClientTest {
         public Optional<Usage> decodeUsage(String body) {
             try {
                 JsonNode usage = mapper.readTree(body).path("usage");
-                return usage.isObject() ? Optional.of(new Usage(usage.path("prompt_tokens").asInt(), usage.path("completion_tokens").asInt(), usage.path("total_tokens").asInt())) : Optional.empty();
+                if (!usage.isObject()) {
+                    return Optional.empty();
+                }
+                return Optional.of(new Usage(usage.path("prompt_tokens").asInt(), usage.path("completion_tokens").asInt(), usage.path("total_tokens").asInt()));
             } catch (JsonProcessingException e) {
                 return Optional.empty();
             }

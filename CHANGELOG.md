@@ -24,7 +24,9 @@ route can close.
 `dev.konacode.llm.http` holds the transport, `Client`, and the two contracts it needs, `Codec`
 and `Credential`. `dev.konacode.llm.openai` holds what OpenAI wrote: the two codecs, the two
 credentials, and `OpenAi`, which reads the environment. Nothing in the transport names a
-provider, so a second provider is a second package beside `openai`. No behaviour changed.
+provider, so a second provider is a second package beside `openai`. One behaviour changed: konacode
+resolves the Codex auth file under `KONACODE_AUTH=codex` only, so a `CODEX_HOME` that is not a path
+no longer stops a start with a key.
 
 ## 0.2.0 — 2026-08-30
 

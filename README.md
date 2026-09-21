@@ -278,8 +278,9 @@ src/main/java/dev/konacode/
 ├── agent/      the conversation and the tool loop
 ├── tools/      the Tool interface, the registry, the five tools
 ├── policy/     what the agent is allowed to do
-└── llm/        the provider interface, and one implementation of it
-    └── openai/
+└── llm/        the provider interface
+    ├── http/       the transport, and the codec and credential contracts
+    └── openai/     what OpenAI wrote: two codecs, two credentials
 ```
 
 Dependencies run strictly downhill: `cli → agent → {llm, tools, policy}`.
