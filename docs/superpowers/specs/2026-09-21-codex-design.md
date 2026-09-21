@@ -177,7 +177,8 @@ Each refusal is an `IllegalArgumentException` with one line, and the line ends w
 `codex login`, then start konacode again.":
 
 - the file does not exist, or cannot be read
-- the file is not JSON, or `auth_mode` is not `chatgpt`
+- the file is not JSON, or `auth_mode` is present and is not `chatgpt`. An absent `auth_mode`
+  is accepted, because the CLI infers `chatgpt` when nothing else is set.
 - `tokens.access_token` or `tokens.account_id` is missing or blank
 - `exp` is at or before `now`
 

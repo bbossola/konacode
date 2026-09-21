@@ -164,13 +164,18 @@ Things worth trying:
 
 | Variable | Required | Default |
 |---|---|---|
-| `OPENAI_API_KEY` | yes | — |
+| `KONACODE_AUTH` | no | `key` |
+| `OPENAI_API_KEY` | with `KONACODE_AUTH=key` | — |
 | `KONACODE_MODEL` | no | `gpt-5-mini` |
 | `KONACODE_JUDGE_MODEL` | no | the value of `KONACODE_MODEL` |
 | `KONACODE_BASE_URL` | no | `https://api.openai.com/v1` |
 
 The judge uses the same key and the same base URL. It runs on every call outside this project and
 on every command, so a large main model can have a small fast judge.
+
+`KONACODE_AUTH=codex` uses a ChatGPT subscription in place of the key. See
+[A ChatGPT subscription](#a-chatgpt-subscription). The defaults then change: the base URL is
+`https://chatgpt.com/backend-api/codex`, and the model is `gpt-5.5`.
 
 Plus six system properties.
 
@@ -232,8 +237,36 @@ Pick a model that is genuinely good at function calling — `qwen2.5-coder` and 
 are. Smaller general-purpose models will emit a single tool call and then fail to chain, which
 is the one thing an agent needs them to do well.
 
-Note that a Claude Pro or Max subscription cannot be used here. Those do not grant API access;
-the Anthropic API is billed separately and needs its own key.
+A Claude Pro or Max subscription cannot be used here. Anthropic bans the OAuth token of a Free,
+Pro or Max account in every third-party tool since 4 April 2026, and konacode is one.
+
+### A ChatGPT subscription
+
+A ChatGPT subscription pays for the Codex CLI, and konacode can use the same login.
+
+```bash
+codex login                     # once; it writes ~/.codex/auth.json
+export KONACODE_AUTH=codex
+java -jar target/konacode.jar
+```
+
+konacode reads the token that `codex login` wrote, and it speaks the Responses API of the Codex
+backend. The default model is `gpt-5.5`. `KONACODE_MODEL` picks another one; `codex` shows the
+list your plan allows. When the token is stale, konacode prints one line that says to run
+`codex login` again. konacode refreshes nothing, and it writes nothing into that file.
+
+Four things to know before you use this:
+
+- The terms of use neither permit nor prohibit it. OpenAI staff said in public that a subscriber
+  may use the subscription in the tool they prefer, for personal use of their own subscription.
+  A pooled account or a shared credential is not that. Read the terms yourself.
+- The endpoint has no SLA, and it can change with no notice.
+- OpenAI recommends an API key for production work.
+- This route can close. Anthropic tolerated the same thing, then banned it on 4 April 2026.
+  `OPENAI_API_KEY` stays the supported route.
+
+konacode names itself in the `originator` and `User-Agent` headers. It never claims to be the
+Codex CLI.
 
 ## How it is put together
 

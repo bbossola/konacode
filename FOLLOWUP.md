@@ -28,10 +28,10 @@ thinking blocks — which must be passed back unchanged when continuing on the s
 provider fields not yet encountered. Each becomes a codec-local change instead of a
 hierarchy-wide one.
 
-**Recommendation:** add it when a *second* provider lands, or when reasoning support does —
-whichever comes first — and not before. The OpenAI Chat Completions provider is the baseline and
-needs nothing from this field, so adding it there would mean guessing the shape against a payload
-that never exercises it.
+**Recommendation:** add it now, for the Responses codec. The Codex backend returns the reasoning of
+the model as an encrypted item when the request asks for `reasoning.encrypted_content`, and a
+client that sends it back keeps the reasoning across the tool calls of one turn. `ResponsesCodec`
+is the payload this field waited for. The Chat Completions codec fills it with nothing.
 
 ## 2. Reasoning
 
@@ -242,7 +242,10 @@ in most applications. Design the codec so cache breakpoints have somewhere to go
 
 ## 6. A Codex provider on a ChatGPT subscription
 
-**Status:** next.
+**Status:** built. See [the design](docs/superpowers/specs/2026-09-21-codex-design.md) and
+[the research](docs/research/2026-09-21-codex-subscription-api.md). Three things stayed out, and
+the first is the next task: the reasoning passthrough (sections 1 and 2), the refresh of the token,
+and the live model list.
 
 A Claude subscription cannot pay for konacode (section 5). A ChatGPT subscription can. OpenAI
 ships a "Sign in with ChatGPT" flow, and its staff said in public that a subscriber may use the
@@ -297,9 +300,9 @@ the passthrough field. Add it here, against a payload that exercises it, and not
 
 **The credential breaks one rule, so make it explicit.** "The environment configures the
 provider", but this token comes from a file that another program writes and refreshes.
-`KONACODE_AUTH=codex` selects the file. The default stays `OPENAI_API_KEY`, and a set
-`OPENAI_API_KEY` with `KONACODE_AUTH=codex` is a wrong value: print one line and exit 1, the way
-every other property does.
+`KONACODE_AUTH=codex` selects the file. The default stays `OPENAI_API_KEY`. A set `OPENAI_API_KEY`
+beside `KONACODE_AUTH=codex` is not an error: the word is the explicit choice, so konacode ignores
+the key. A key in a shell profile must not force the user to unset it.
 
 **Fail loudly on an expired token, first.** Read `auth.json` once at start. On a `401`, end the
 turn with one line that says to run `codex login`. A refresh inside konacode is a second step,

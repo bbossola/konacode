@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### A ChatGPT subscription
+
+`KONACODE_AUTH=codex` reads the token that `codex login` wrote and speaks the Responses API of the
+Codex backend. The default model is then `gpt-5.5`. konacode refreshes nothing: a stale token
+prints one line that names `codex login`. konacode names itself in `originator` and `User-Agent`,
+and never claims to be the Codex CLI. The README states the four caveats: the terms neither permit
+nor prohibit it, the endpoint has no SLA, OpenAI recommends a key for production, and the route can
+close.
+
 ## 0.2.0 — 2026-08-30
 
 konacode 0.1.0 was the loop, three tools and two interfaces. The loop is the same. Everything
