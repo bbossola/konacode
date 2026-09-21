@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### `/compact`
+
+konacode sends the whole conversation on each request, and a planned turn can add 48 messages.
+`/compact` asks the model for a summary and replaces the conversation with the system message and
+that summary. The summary names every file the model changed, and what it changed. The user asks
+for it, and no policy decides: konacode compacts nothing on its own. A failure leaves the
+conversation as it was, and `esc` takes the same path.
+
 ## 0.2.0 — 2026-08-30
 
 konacode 0.1.0 was the loop, three tools and two interfaces. The loop is the same. Everything

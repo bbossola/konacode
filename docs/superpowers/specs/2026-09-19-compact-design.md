@@ -79,7 +79,8 @@ The command runs in this order:
 spinner code.
 
 When `compact()` returns empty, the command shows "Nothing to compact. The conversation is
-empty." and the spinner never starts.
+empty." The count is the only fact `Commands` reads from the conversation; whether there is
+something to compact is a fact `Compaction` owns.
 
 ## Where the interrupt is cleared
 
@@ -159,7 +160,8 @@ message is first in history and never removed, and `/clear` would then need the 
 
 `ReplTest`: the cancellation is cleared before a command runs.
 
-`MainTest`: `build` gives `Commands` a `Compaction`, and the prompt is pinned.
+`MainTest`: `build` gives `Commands` a `Compaction` on the loop's client. `CompactionTest` pins
+the prompt, because `Compaction` writes it.
 
 ## Documents
 

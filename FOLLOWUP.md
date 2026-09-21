@@ -97,10 +97,11 @@ change.
   [the design](docs/superpowers/specs/2026-08-24-approval-design.md).
 - **Interactive approval — built.** `Decision` gained the `Ask` case this entry proposed. See
   [the design](docs/superpowers/specs/2026-08-24-approval-design.md).
-- **`/compact`.** The command reads `conversation.messages()`, asks the model for a summary, and
-  calls `conversation.restart(List.of(systemMessage, summary))`. It needs the `LlmClient`, which
-  `Commands` does not hold today. This replaces the older plan to swap the conversation for one
-  with a token budget. The user asks for it, and no policy decides.
+- **`/compact` — built.** The command asks the model for a summary, and it restarts the
+  conversation with the system message and that summary. `Compaction` in `agent` makes the call
+  with no tool, under the interrupt, so a failure stays typed and the conversation stays as it
+  was. See [the design](docs/superpowers/specs/2026-09-19-compact-design.md). konacode compacts
+  nothing on its own: the user asks, and no policy decides.
 - **A `run_command` tool — built.** It runs one shell line with `sh -c`. See
   [the design](docs/superpowers/specs/2026-08-27-run-command-design.md).
 - **`showAnswer` prints the model's answer with no guard.** Every other place that prints text the
