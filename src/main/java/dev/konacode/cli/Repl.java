@@ -24,6 +24,8 @@ final class Repl {
             if (text.isEmpty()) {
                 continue;
             }
+            // The user can press a key at the prompt, and that key must not stop the next command or turn.
+            cancellation.clear();
             if (commands.handles(text)) {
                 if (!commands.run(text)) {
                     return;
@@ -31,8 +33,6 @@ final class Repl {
                 continue;
             }
             ui.thinking();
-            // The user can press a key at the prompt, and that key must not stop the next turn.
-            cancellation.clear();
             ui.showAnswer(agent.respond(text));
         }
     }

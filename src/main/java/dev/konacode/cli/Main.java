@@ -5,6 +5,7 @@ import dev.konacode.agent.Agent;
 import dev.konacode.agent.AgentJudge;
 import dev.konacode.agent.Approvals;
 import dev.konacode.agent.Cancellation;
+import dev.konacode.agent.Compaction;
 import dev.konacode.agent.Conversation;
 import dev.konacode.agent.PlanTool;
 import dev.konacode.agent.TurnBudget;
@@ -115,7 +116,7 @@ public final class Main {
         Agent agent = new Agent(client, registry, policies, new Approvals(ui), conversation, kona,
                 cancellation, budget);
         Commands commands = new Commands(conversation, system, registry, skills, ui, fileLevel,
-                policies, judgePolicy);
+                policies, judgePolicy, new Compaction(client, system, conversation, cancellation));
 
         return new Repl(agent, ui, cancellation, commands);
     }

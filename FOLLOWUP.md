@@ -97,10 +97,11 @@ change.
   [the design](docs/superpowers/specs/2026-08-24-approval-design.md).
 - **Interactive approval — built.** `Decision` gained the `Ask` case this entry proposed. See
   [the design](docs/superpowers/specs/2026-08-24-approval-design.md).
-- **`/compact`.** The command reads `conversation.messages()`, asks the model for a summary, and
-  calls `conversation.restart(List.of(systemMessage, summary))`. It needs the `LlmClient`, which
-  `Commands` does not hold today. This replaces the older plan to swap the conversation for one
-  with a token budget. The user asks for it, and no policy decides.
+- **`/compact` — built.** The command asks the model for a summary, and it restarts the
+  conversation with the system message and that summary. `Compaction` in `agent` makes the call
+  with no tool, under the interrupt, so a failure stays typed and the conversation stays as it
+  was. See [the design](docs/superpowers/specs/2026-09-19-compact-design.md). konacode compacts
+  nothing on its own: the user asks, and no policy decides.
 - **A `run_command` tool — built.** It runs one shell line with `sh -c`. See
   [the design](docs/superpowers/specs/2026-08-27-run-command-design.md).
 - **`showAnswer` prints the model's answer with no guard.** Every other place that prints text the
@@ -233,7 +234,80 @@ Two credential details worth handling when it is written:
   token from `ant auth print-credentials --access-token` — note `Authorization`, not
   `x-api-key`. Check for a profile before demanding a key.
 - A Claude Pro/Max subscription does **not** grant API access, and cannot be used to
-  authenticate konacode. This comes up often enough to be worth stating in the README.
+  authenticate konacode. Since 4 April 2026 Anthropic bans the OAuth token of a Free, Pro or Max
+  account in every third-party tool, and konacode is one. This comes up often enough to be worth
+  stating in the README. A ChatGPT subscription is different: see section 6.
 
 Because the whole conversation is resent on every turn, prompt caching is worth more here than
 in most applications. Design the codec so cache breakpoints have somewhere to go.
+
+## 6. A Codex provider on a ChatGPT subscription
+
+**Status:** next.
+
+A Claude subscription cannot pay for konacode (section 5). A ChatGPT subscription can. OpenAI
+ships a "Sign in with ChatGPT" flow, and its staff said in public that a subscriber may use the
+subscription in the tool they prefer. Third-party tools made about 10% of Codex traffic in July
+2026. Four caveats, all checked on 2026-09-19:
+
+- The terms of use neither permit nor prohibit it. OpenAI tolerates personal use of your own
+  subscription. Pooled accounts and shared credentials are not that.
+- The endpoint has no SLA, and it can change with no notice.
+- OpenAI recommends an API key for production work.
+- Anthropic tolerated the same thing until it did not. The README must say that this route can
+  close, and that `OPENAI_API_KEY` stays the supported one.
+
+### What is known
+
+- `codex login` writes `~/.codex/auth.json`. It holds an access token and a refresh token. A copy
+  of the file on a headless machine authenticates with no browser, so the file is the whole
+  credential.
+- The endpoint is `https://chatgpt.com/backend-api/codex/responses`.
+- The wire format is the **Responses API**, not Chat Completions. A base URL swap is not enough.
+- Streaming may differ from the SSE contract of the public API.
+
+### Verify before implementing
+
+Each item below comes from memory of the Codex CLI, and it moves. Read the source of
+`openai/codex` (`codex-rs/login` and `codex-rs/core`) before writing code.
+
+- The headers beside `Authorization: Bearer <access token>`. The CLI sends the account id in a
+  `chatgpt-account-id` header, and the id is a claim inside the JWT. There may be an `originator`
+  header too.
+- Whether the endpoint accepts `stream: false`. If it refuses, the codec must join SSE events,
+  and section 4 stops being optional for this provider.
+- The refresh: the token endpoint, the client id, and whether a refresh rotates the refresh token.
+  A rotated token that konacode does not write back breaks the next `codex` run.
+- The exact JSON of `auth.json`.
+- Which models the endpoint serves. The default `KONACODE_MODEL` must exist there, or the first
+  request fails and the user learns nothing about why.
+
+### Design
+
+**A second codec, not a second client.** `ResponsesCodec` sits beside `ChatCompletionsCodec`.
+`OpenAiClient` keeps the HTTP, the two retry loops and `ReplyValidator`, and takes the codec in
+its constructor. The codec is the seam that was built for this, so the change stays inside
+`dev.konacode.llm.openai`. Read the Responses API reference for the shapes; from memory they are:
+`input` instead of `messages`, `instructions` for the system prompt, a `function_call` item with
+a `call_id` for a tool call, a `function_call_output` item for a tool result, a flat tool
+definition with `parameters`, and an `output` list in the reply.
+
+**This is the second provider that section 1 waits for.** A reasoning model on the Responses API
+returns `reasoning` items, and it works better when the next request carries them back. That is
+the passthrough field. Add it here, against a payload that exercises it, and not before.
+
+**The credential breaks one rule, so make it explicit.** "The environment configures the
+provider", but this token comes from a file that another program writes and refreshes.
+`KONACODE_AUTH=codex` selects the file. The default stays `OPENAI_API_KEY`, and a set
+`OPENAI_API_KEY` with `KONACODE_AUTH=codex` is a wrong value: print one line and exit 1, the way
+every other property does.
+
+**Fail loudly on an expired token, first.** Read `auth.json` once at start. On a `401`, end the
+turn with one line that says to run `codex login`. A refresh inside konacode is a second step,
+and only after the rotation question above has an answer.
+
+**The suite stays offline.** Record one real reply of each kind once, and keep them as fixtures
+beside the Chat Completions ones. The codec is pure, so that is the whole test.
+
+**Cost:** about 150 lines for the codec and its fixtures, about 40 for the credential, and the
+passthrough field from section 1.
