@@ -156,6 +156,26 @@ class MainTest {
         assertTrue(policyLine(false).contains("uses `judge`"), policyLine(false));
     }
 
+    @Test
+    void compactAsksTheLoopsClientAndShowsTheSummary() {
+        Workspace workspace = new Workspace(root);
+        SkillRegistry skills = new SkillRegistry(new Workspace(root.resolve("skills")));
+        ScriptedClient client = new ScriptedClient()
+                .reply(new AssistantMessage("the answer", List.of()))
+                .reply(new AssistantMessage("the summary", List.of()));
+        RecordingUi ui = new RecordingUi("hello", "/compact");
+
+        Main.build(client, new ScriptedClient(), skills, ui, Level.OFF, new Cancellation(), new TurnBudget(8, 24), Trace.NONE,
+                workspace, Duration.ofSeconds(600)).run();
+
+        assertEquals(2, client.histories.size(), "the turn and the compaction each make one request");
+        Message last = client.histories.get(1).get(client.histories.get(1).size() - 1);
+        assertTrue(last instanceof Message.UserMessage prompt && prompt.text().startsWith("Summarize this conversation"), last.toString());
+        String shown = ui.answers.get(ui.answers.size() - 1);
+        assertTrue(shown.startsWith("the summary"), shown);
+        assertTrue(shown.endsWith("The conversation held 3 messages. It now holds 3."), shown);
+    }
+
     @Mock
     HttpClient http;
 
