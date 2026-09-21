@@ -1,8 +1,6 @@
 package dev.konacode.llm.openai;
 
 import dev.konacode.llm.http.ClientConfig;
-import dev.konacode.llm.openai.ApiKey;
-import dev.konacode.llm.openai.CodexToken;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
