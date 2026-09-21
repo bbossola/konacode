@@ -161,4 +161,10 @@ class ChatCompletionsCodecTest {
     void reportsNoTokenCountsForABodyThatIsNotJson() {
         assertEquals(Optional.empty(), codec.decodeUsage("not json"));
     }
+
+    @Test
+    void namesItsPathAndItsAcceptHeader() {
+        assertEquals("/chat/completions", codec.path());
+        assertEquals("application/json", codec.accept());
+    }
 }

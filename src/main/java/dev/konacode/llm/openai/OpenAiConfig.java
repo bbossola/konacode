@@ -58,10 +58,10 @@ public record OpenAiConfig(String apiKey, String model, String judgeModel, Strin
     }
 
     /**
-     * Built by string concatenation rather than {@link URI#resolve}, which would treat the
-     * trailing {@code /v1} as a file rather than a directory and silently drop it.
+     * The endpoint for one path. Built by string concatenation and not by {@link URI#resolve},
+     * which treats the trailing {@code /v1} as a file and drops it.
      */
-    public URI chatCompletionsUri() {
-        return URI.create(baseUrl + "/chat/completions");
+    public URI uri(String path) {
+        return URI.create(baseUrl + path);
     }
 }

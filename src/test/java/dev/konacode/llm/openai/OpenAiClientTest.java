@@ -14,6 +14,7 @@ import dev.konacode.trace.TraceEvent.RetryRequested;
 import dev.konacode.trace.TraceEvent.TokensUsed;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -28,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -285,6 +287,19 @@ class OpenAiClientTest {
         for (TraceEvent event : events) {
             assertFalse(event.toString().contains(API_KEY), event.toString());
         }
+    }
+
+    @Test
+    void sendsToThePathOfTheCodecWithTheAcceptHeaderOfTheCodec() throws Exception {
+        stubHttpToReturn(200, "{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}");
+        OpenAiClient client = clientWithMockedHttp(new ArrayList<>());
+
+        client.chat(List.of(), List.of());
+
+        ArgumentCaptor<HttpRequest> sent = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http).send(sent.capture(), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
+        assertEquals("https://example.test/v1/chat/completions", sent.getValue().uri().toString());
+        assertEquals(Optional.of("application/json"), sent.getValue().headers().firstValue("Accept"));
     }
 
     @Test

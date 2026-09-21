@@ -94,9 +94,9 @@ class OpenAiConfigTest {
 
         // URI.resolve would drop the /v1 segment here, which is why the URI is built by hand.
         assertEquals("https://example.test/v1/chat/completions",
-                withSlash.chatCompletionsUri().toString());
+                withSlash.uri("/chat/completions").toString());
         assertEquals("https://example.test/v1/chat/completions",
-                withoutSlash.chatCompletionsUri().toString());
+                withoutSlash.uri("/chat/completions").toString());
     }
 
     @Test

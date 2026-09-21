@@ -14,6 +14,7 @@ import dev.konacode.trace.TraceEvent.RetryRequested;
 import dev.konacode.trace.TraceEvent.TokensUsed;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -24,8 +25,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * Transport. Owns HTTP status handling and nothing else — the translation lives in
- * {@link ChatCompletionsCodec}.
+ * Transport. Owns HTTP status handling and nothing else — the translation lives in the
+ * {@link Codec}.
  */
 public final class OpenAiClient implements LlmClient {
 
@@ -39,7 +40,7 @@ public final class OpenAiClient implements LlmClient {
 
     private final OpenAiConfig config;
     private final HttpClient http;
-    private final ChatCompletionsCodec codec;
+    private final Codec codec;
     private final Trace trace;
     private final Backoff backoff;
 
@@ -57,12 +58,12 @@ public final class OpenAiClient implements LlmClient {
                 trace);
     }
 
-    public OpenAiClient(OpenAiConfig config, HttpClient http, ChatCompletionsCodec codec,
+    public OpenAiClient(OpenAiConfig config, HttpClient http, Codec codec,
                         Trace trace) {
         this(config, http, codec, trace, OpenAiClient::sleepBefore);
     }
 
-    OpenAiClient(OpenAiConfig config, HttpClient http, ChatCompletionsCodec codec, Trace trace,
+    OpenAiClient(OpenAiConfig config, HttpClient http, Codec codec, Trace trace,
                  Backoff backoff) {
         this.config = config;
         this.http = http;
@@ -134,24 +135,26 @@ public final class OpenAiClient implements LlmClient {
     }
 
     private AssistantMessage sendOnce(ObjectNode body, int messageCount, int toolCount) {
+        URI uri;
         HttpRequest request;
         try {
-            request = HttpRequest.newBuilder(config.chatCompletionsUri())
+            uri = config.uri(codec.path());
+            request = HttpRequest.newBuilder(uri)
                     .timeout(config.timeout())
                     .header("Content-Type", "application/json")
+                    .header("Accept", codec.accept())
                     .header("Authorization", "Bearer " + config.apiKey())
                     .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
                     .build();
         } catch (IllegalArgumentException e) {
             // A malformed base URL, or a key carrying a control character - a trailing newline
             // survives isBlank() - would otherwise escape as an unchecked exception and kill the
-            // session, since the agent loop catches only LlmException.
+            // session, since the agent loop catches only LlmException. URI.create throws it too.
             throw new LlmException("Could not build the request: " + e.getMessage(), e);
         }
 
         // The body and never the headers. The API key is a header, so it cannot reach a sink.
-        trace.emit(new RequestSent(config.chatCompletionsUri().toString(), config.model(),
-                messageCount, toolCount, body.toString()));
+        trace.emit(new RequestSent(uri.toString(), config.model(), messageCount, toolCount, body.toString()));
 
         long started = System.nanoTime();
         HttpResponse<String> response;
@@ -159,9 +162,7 @@ public final class OpenAiClient implements LlmClient {
             response = http.send(request,
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         } catch (IOException e) {
-            throw new TransientFailure(
-                    "Request to " + config.chatCompletionsUri() + " failed: " + e.getMessage(),
-                    "The request did not reach the provider.", e);
+            throw new TransientFailure("Request to " + uri + " failed: " + e.getMessage(), "The request did not reach the provider.", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new LlmException("Request was interrupted.", e);
