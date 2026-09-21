@@ -1,6 +1,8 @@
 package dev.konacode.cli;
 
+import dev.konacode.agent.Compaction;
 import dev.konacode.agent.Conversation;
+import dev.konacode.llm.LlmException;
 import dev.konacode.llm.Message;
 import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.UserMessage;
@@ -33,10 +35,11 @@ final class Commands {
     private final Level fileLevel;
     private final SelectedPolicy policies;
     private final JudgePolicy judge;
+    private final Compaction compaction;
 
     Commands(Conversation conversation, Message systemMessage, ToolRegistry registry,
              SkillRegistry skills, Ui ui, Level fileLevel, SelectedPolicy policies,
-             JudgePolicy judge) {
+             JudgePolicy judge, Compaction compaction) {
         this.conversation = conversation;
         this.systemMessage = systemMessage;
         this.registry = registry;
@@ -45,6 +48,7 @@ final class Commands {
         this.fileLevel = fileLevel;
         this.policies = policies;
         this.judge = judge;
+        this.compaction = compaction;
     }
 
     boolean handles(String line) {
@@ -68,6 +72,7 @@ final class Commands {
             case "/tools" -> tools();
             case "/skill" -> skill(argument);
             case "/clear" -> clear();
+            case "/compact" -> compact();
             case "/trace" -> trace(argument);
             case "/policy" -> policy(argument);
             case "/exit" -> {
@@ -92,6 +97,7 @@ final class Commands {
                 /policy  show or set what konacode asks before it acts
                 /trace   show or set how much the screen reports
                 /clear   forget the conversation and start again
+                /compact replace the conversation with a summary the model writes
                 /exit    end the session
                 ```""");
     }
@@ -202,5 +208,27 @@ final class Commands {
     private void clear() {
         conversation.restart(List.of(systemMessage));
         ui.showAnswer("The conversation is empty.");
+    }
+
+    /**
+     * The spinner starts here, and {@code showAnswer} or {@code showError} stops it. An
+     * {@code LlmException} is the whole failure: the conversation is then as it was.
+     */
+    private void compact() {
+        int before = conversation.messages().size();
+        ui.thinking();
+        Optional<String> summary;
+        try {
+            summary = compaction.compact();
+        } catch (LlmException e) {
+            ui.showError(e.getMessage());
+            return;
+        }
+        if (summary.isEmpty()) {
+            ui.showAnswer("Nothing to compact. The conversation is empty.");
+            return;
+        }
+        ui.showAnswer(summary.get() + "\n\nThe conversation held " + before + " messages. It now holds "
+                + conversation.messages().size() + ".");
     }
 }

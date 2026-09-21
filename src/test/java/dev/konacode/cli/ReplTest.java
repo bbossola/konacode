@@ -3,6 +3,7 @@ package dev.konacode.cli;
 import dev.konacode.agent.Agent;
 import dev.konacode.agent.Approvals;
 import dev.konacode.agent.Cancellation;
+import dev.konacode.agent.Compaction;
 import dev.konacode.agent.Conversation;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.Message;
@@ -52,7 +53,8 @@ class ReplTest {
         return new Repl(agent, ui, cancellation,
                 new Commands(conversation, SYSTEM, registry, skills, ui, Level.OFF,
                         new SelectedPolicy(new AllowAllPolicy()),
-                        new JudgePolicy(new EffectPolicy(), (ask, userText) -> ask, Trace.NONE)));
+                        new JudgePolicy(new EffectPolicy(), (ask, userText) -> ask, Trace.NONE),
+                        new Compaction(client, SYSTEM, conversation, cancellation)));
     }
 
     @Test
