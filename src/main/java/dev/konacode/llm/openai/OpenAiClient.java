@@ -6,8 +6,6 @@ import dev.konacode.llm.LlmException;
 import dev.konacode.llm.Message;
 import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.ToolSpec;
-import dev.konacode.llm.openai.Credential.ApiKey;
-import dev.konacode.llm.openai.Credential.CodexToken;
 import dev.konacode.trace.Trace;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.RequestSent;
@@ -168,7 +166,7 @@ public final class OpenAiClient implements LlmClient {
         }
 
         if (response.statusCode() / 100 != 2) {
-            throw new LlmException("HTTP " + response.statusCode() + ": " + truncate(response.body()) + loginHint(response.statusCode()));
+            throw new LlmException("HTTP " + response.statusCode() + ": " + truncate(response.body()) + config.credential().hint(response.statusCode()));
         }
 
         codec.decodeUsage(response.body()).ifPresent(usage ->
@@ -177,31 +175,8 @@ public final class OpenAiClient implements LlmClient {
         return codec.decodeResponse(response.body());
     }
 
-    /**
-     * konacode names itself in {@code originator} and {@code User-Agent}. It never writes the name of
-     * the Codex CLI. If the server refuses a client that is not Codex, that is the answer of the
-     * provider, and konacode stops.
-     */
     private void authorize(HttpRequest.Builder builder) {
-        switch (config.credential()) {
-            case ApiKey key -> builder.header("Authorization", "Bearer " + key.key());
-            case CodexToken token -> builder
-                    .header("Authorization", "Bearer " + token.accessToken())
-                    .header("ChatGPT-Account-ID", token.accountId())
-                    .header("originator", "konacode")
-                    .header("User-Agent", "konacode");
-        }
-    }
-
-    /** A 401 on a Codex token has one repair, and the user reads it here and not in a log. */
-    private String loginHint(int status) {
-        if (status != 401) {
-            return "";
-        }
-        return switch (config.credential()) {
-            case ApiKey ignored -> "";
-            case CodexToken ignored -> CodexAuth.RUN_LOGIN;
-        };
+        config.credential().headers().forEach(builder::header);
     }
 
     private static String truncate(String body) {

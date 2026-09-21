@@ -1,6 +1,6 @@
 package dev.konacode.llm.openai;
 
-import dev.konacode.llm.openai.Credential.CodexToken;
+import dev.konacode.llm.openai.CodexToken;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

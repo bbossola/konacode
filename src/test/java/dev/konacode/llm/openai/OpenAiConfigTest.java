@@ -1,6 +1,6 @@
 package dev.konacode.llm.openai;
 
-import dev.konacode.llm.openai.Credential.ApiKey;
+import dev.konacode.llm.openai.ApiKey;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;

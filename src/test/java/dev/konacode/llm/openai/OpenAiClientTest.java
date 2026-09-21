@@ -5,8 +5,6 @@ import dev.konacode.llm.LlmException;
 import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.llm.ToolSpec;
-import dev.konacode.llm.openai.Credential.ApiKey;
-import dev.konacode.llm.openai.Credential.CodexToken;
 import dev.konacode.tools.Schemas;
 import dev.konacode.trace.Trace;
 import dev.konacode.trace.TraceEvent;
@@ -31,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -49,8 +48,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class OpenAiClientTest {
 
-    private static OpenAiClient clientWith(String apiKey, String baseUrl) {
-        OpenAiConfig config = new OpenAiConfig(new ApiKey(apiKey), "gpt-5-mini", "gpt-5-mini", baseUrl, Duration.ofSeconds(1));
+    private static OpenAiClient clientWith(String secret, String baseUrl) {
+        OpenAiConfig config = new OpenAiConfig(new Stamp(secret), "gpt-5-mini", "gpt-5-mini", baseUrl, Duration.ofSeconds(1));
         return new OpenAiClient(config, HttpClient.newHttpClient(), new ChatCompletionsCodec(new ObjectMapper()), Trace.NONE);
     }
 
@@ -71,16 +70,6 @@ class OpenAiClientTest {
         LlmException thrown = assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
 
         assertFalse(thrown.getMessage().contains("sk-abc"), thrown.getMessage());
-    }
-
-    @Test
-    void aCodexTokenCarryingAControlCharacterReachesNoExceptionMessage() {
-        OpenAiConfig config = new OpenAiConfig(new CodexToken("tok\nen", "acct_1"), "gpt-5.5", "gpt-5.5", "https://example.test/codex", Duration.ofSeconds(1));
-        OpenAiClient client = new OpenAiClient(config, HttpClient.newHttpClient(), new ResponsesCodec(new ObjectMapper()), Trace.NONE);
-
-        LlmException thrown = assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
-
-        assertFalse(thrown.getMessage().contains("tok"), thrown.getMessage());
     }
 
     private static AssistantMessage garbled() {
@@ -170,6 +159,20 @@ class OpenAiClientTest {
     private static final OpenAiClient.Backoff NO_WAIT = attempt -> {
     };
 
+    /** One credential the tests own, so no test here names an OpenAI type. */
+    private record Stamp(String secret) implements Credential {
+
+        @Override
+        public Map<String, String> headers() {
+            return Map.of("Authorization", "Bearer " + secret, "X-Stamp", "konacode");
+        }
+
+        @Override
+        public String hint(int status) {
+            return status == 401 ? " Run the login again." : "";
+        }
+    }
+
     private static Supplier<AssistantMessage> failsThenAnswers(int failures, AtomicInteger sends) {
         return () -> {
             if (sends.incrementAndGet() <= failures) {
@@ -256,7 +259,7 @@ class OpenAiClientTest {
     private static final String API_KEY = "sk-secret-do-not-log";
 
     private static OpenAiConfig configWithTheKey() {
-        return new OpenAiConfig(new ApiKey(API_KEY), "gpt-5-mini", "gpt-5-mini", "https://example.test/v1", Duration.ofSeconds(1));
+        return new OpenAiConfig(new Stamp(API_KEY), "gpt-5-mini", "gpt-5-mini", "https://example.test/v1", Duration.ofSeconds(1));
     }
 
     private void stubHttpToReturn(int status, String body) throws Exception {
@@ -270,16 +273,6 @@ class OpenAiClientTest {
     private OpenAiClient clientWithMockedHttp(List<TraceEvent> events) {
         return new OpenAiClient(configWithTheKey(), http, new ChatCompletionsCodec(new ObjectMapper()),
                 events::add, NO_WAIT);
-    }
-
-    private static final String ACCESS_TOKEN = "codex-access-token-do-not-log";
-
-    private static OpenAiConfig configWithTheCodexToken() {
-        return new OpenAiConfig(new CodexToken(ACCESS_TOKEN, "acct_1"), "gpt-5.5", "gpt-5.5", "https://example.test/codex", Duration.ofSeconds(1));
-    }
-
-    private OpenAiClient codexClientWithMockedHttp(List<TraceEvent> events) {
-        return new OpenAiClient(configWithTheCodexToken(), http, new ChatCompletionsCodec(new ObjectMapper()), events::add, NO_WAIT);
     }
 
     private HttpRequest sentRequest() throws Exception {
@@ -333,53 +326,40 @@ class OpenAiClientTest {
     }
 
     @Test
-    void aKeySendsTheAuthorizationHeaderAndNoCodexHeader() throws Exception {
+    void theHeadersOfTheCredentialReachTheRequest() throws Exception {
         stubHttpToReturn(200, "{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}");
-        clientWithMockedHttp(new ArrayList<>()).chat(List.of(), List.of());
+        List<TraceEvent> events = new ArrayList<>();
+        clientWithMockedHttp(events).chat(List.of(), List.of());
 
         HttpRequest sent = sentRequest();
 
         assertEquals(Optional.of("Bearer " + API_KEY), sent.headers().firstValue("Authorization"));
-        assertEquals(Optional.empty(), sent.headers().firstValue("ChatGPT-Account-ID"));
-        assertEquals(Optional.empty(), sent.headers().firstValue("originator"));
-    }
-
-    @Test
-    void aCodexTokenSendsTheAccountIdAndNamesKonacode() throws Exception {
-        stubHttpToReturn(200, "{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}");
-        List<TraceEvent> events = new ArrayList<>();
-        codexClientWithMockedHttp(events).chat(List.of(), List.of());
-
-        HttpRequest sent = sentRequest();
-
-        assertEquals(Optional.of("Bearer " + ACCESS_TOKEN), sent.headers().firstValue("Authorization"));
-        assertEquals(Optional.of("acct_1"), sent.headers().firstValue("ChatGPT-Account-ID"));
-        assertEquals(Optional.of("konacode"), sent.headers().firstValue("originator"));
-        assertEquals(Optional.of("konacode"), sent.headers().firstValue("User-Agent"));
+        assertEquals(Optional.of("konacode"), sent.headers().firstValue("X-Stamp"));
         for (TraceEvent event : events) {
-            assertFalse(event.toString().contains(ACCESS_TOKEN), event.toString());
+            assertFalse(event.toString().contains(API_KEY), event.toString());
         }
     }
 
     @Test
-    void a401WithACodexTokenNamesTheCommandToRun() throws Exception {
+    void theHintOfTheCredentialEndsTheMessageOfARefusedRequest() throws Exception {
         stubHttpToReturn(401, "{\"detail\":\"Unauthorized\"}");
-        OpenAiClient client = codexClientWithMockedHttp(new ArrayList<>());
-
-        LlmException thrown = assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
-
-        assertTrue(thrown.getMessage().startsWith("HTTP 401"), thrown.getMessage());
-        assertTrue(thrown.getMessage().endsWith("Run `codex login`, then start konacode again."), thrown.getMessage());
-    }
-
-    @Test
-    void a401WithAKeyNamesNoCommand() throws Exception {
-        stubHttpToReturn(401, "{\"error\":\"bad key\"}");
         OpenAiClient client = clientWithMockedHttp(new ArrayList<>());
 
         LlmException thrown = assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
 
-        assertFalse(thrown.getMessage().contains("codex login"), thrown.getMessage());
+        assertTrue(thrown.getMessage().startsWith("HTTP 401"), thrown.getMessage());
+        assertTrue(thrown.getMessage().endsWith(" Run the login again."), thrown.getMessage());
+    }
+
+    @Test
+    void aStatusWithNoHintAddsNothing() throws Exception {
+        stubHttpToReturn(403, "{\"detail\":\"Forbidden\"}");
+        OpenAiClient client = clientWithMockedHttp(new ArrayList<>());
+
+        LlmException thrown = assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
+
+        assertFalse(thrown.getMessage().contains("login"), thrown.getMessage());
+        assertTrue(thrown.getMessage().endsWith("Forbidden\"}"), thrown.getMessage());
     }
 
     @Test

@@ -1,7 +1,6 @@
 package dev.konacode.llm.openai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.konacode.llm.openai.Credential.ApiKey;
 
 import java.nio.file.Path;
 import java.time.Instant;
