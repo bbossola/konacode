@@ -44,17 +44,20 @@ The model thinks before it answers. This improves *single-step* decisions: which
 with what arguments, whether this is really the right file.
 
 **Basic support is nearly free.** A `reasoningEffort` field on `OpenAiConfig` and one line in
-`ChatCompletionsCodec`. Perhaps five lines, no structural impact.
+each codec. Perhaps five lines, no structural impact.
 
 **Doing it properly is where the trap is.** When a reasoning model makes a tool call, its
 reasoning for that turn should be carried into the next request, or it re-derives its thinking
 from scratch on every iteration of the loop — paying for it twice, in tokens and in coherence.
 Preserving it requires the passthrough field from section 1.
 
-> **Verify before implementing:** the exact semantics of reasoning-state persistence on Chat
-> Completions versus the Responses API. This determines whether `LlmClient` needs any notion of
-> conversation state at all, or whether the passthrough field is sufficient. Read the current
-> provider documentation rather than trusting recollection — this detail moves.
+**This is the next item, for the Responses codec.** The research on the Codex backend settled the
+question for that provider: the CLI sends `store: false` with `include: ["reasoning.encrypted_content"]`,
+the reasoning comes back as an encrypted item, and the CLI sends it back in `input` on the next
+request. So the passthrough field of section 1 is sufficient there, and `LlmClient` needs no notion
+of conversation state. `ResponsesCodec` asks for no reasoning item today. The change is: ask for it,
+carry it in the passthrough field, and write it back. Chat Completions has no such item, so that
+codec fills the field with nothing.
 
 ### Harness-side reasoning
 
@@ -243,9 +246,11 @@ in most applications. Design the codec so cache breakpoints have somewhere to go
 ## 6. A Codex provider on a ChatGPT subscription
 
 **Status:** built. See [the design](docs/superpowers/specs/2026-09-21-codex-design.md) and
-[the research](docs/research/2026-09-21-codex-subscription-api.md). Three things stayed out, and
+[the research](docs/research/2026-09-21-codex-subscription-api.md). Four things stayed out, and
 the first is the next task: the reasoning passthrough (sections 1 and 2), the refresh of the token,
-and the live model list.
+the live model list, and a retry on a rate limit inside a stream. The CLI treats a `response.failed`
+with the code `rate_limit_exceeded` or `slow_down` as transient; konacode retries on HTTP `429` only,
+and a subscription meets a usage limit more often than a key does.
 
 A Claude subscription cannot pay for konacode (section 5). A ChatGPT subscription can. OpenAI
 ships a "Sign in with ChatGPT" flow, and its staff said in public that a subscriber may use the

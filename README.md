@@ -170,7 +170,7 @@ Things worth trying:
 | `KONACODE_JUDGE_MODEL` | no | the value of `KONACODE_MODEL` |
 | `KONACODE_BASE_URL` | no | `https://api.openai.com/v1` |
 
-The judge uses the same key and the same base URL. It runs on every call outside this project and
+The judge uses the same credential and the same base URL. It runs on every call outside this project and
 on every command, so a large main model can have a small fast judge.
 
 `KONACODE_AUTH=codex` uses a ChatGPT subscription in place of the key. See
@@ -257,7 +257,7 @@ list your plan allows. When the token is stale, konacode prints one line that sa
 
 Four things to know before you use this:
 
-- The terms of use neither permit nor prohibit it. OpenAI staff said in public that a subscriber
+- No page we could read permits or prohibits it. OpenAI staff said in public that a subscriber
   may use the subscription in the tool they prefer, for personal use of their own subscription.
   A pooled account or a shared credential is not that. Read the terms yourself.
 - The endpoint has no SLA, and it can change with no notice.

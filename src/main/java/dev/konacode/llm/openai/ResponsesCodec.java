@@ -119,6 +119,8 @@ public final class ResponsesCodec implements Codec {
                 case "response.output_item.done" -> readItem(event.path("item"), text, toolCalls);
                 case "response.failed" -> throw new LlmException("The provider failed the response: "
                         + event.path("response").path("error").path("message").asText("no message"));
+                case "response.incomplete" -> throw new LlmException("The provider left the response incomplete: "
+                        + event.path("response").path("incomplete_details").path("reason").asText("no reason"));
                 case "response.completed" -> completed = true;
                 default -> { }
             }
@@ -155,6 +157,9 @@ public final class ResponsesCodec implements Codec {
      * cannot read, and so is a line that is not JSON.
      */
     private List<JsonNode> events(String body) {
+        if (body == null) {
+            throw new LlmException("The response has no body.");
+        }
         List<JsonNode> events = new ArrayList<>();
         for (String raw : body.split("\n")) {
             String line = raw.strip();

@@ -63,12 +63,24 @@ class OpenAiClientTest {
     }
 
     @Test
-    void translatesAKeyCarryingAControlCharacterIntoAnLlmException() {
+    void translatesAKeyCarryingAControlCharacterIntoAnLlmExceptionThatDoesNotQuoteTheKey() {
         // Trimming handles a trailing newline; an embedded one still reaches
         // HttpRequest.header, which rejects it with an unchecked IllegalArgumentException.
         OpenAiClient client = clientWith("sk-abc\ndef", "https://example.test/v1");
 
-        assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
+        LlmException thrown = assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
+
+        assertFalse(thrown.getMessage().contains("sk-abc"), thrown.getMessage());
+    }
+
+    @Test
+    void aCodexTokenCarryingAControlCharacterReachesNoExceptionMessage() {
+        OpenAiConfig config = new OpenAiConfig(new CodexToken("tok\nen", "acct_1"), "gpt-5.5", "gpt-5.5", "https://example.test/codex", Duration.ofSeconds(1));
+        OpenAiClient client = new OpenAiClient(config, Trace.NONE);
+
+        LlmException thrown = assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
+
+        assertFalse(thrown.getMessage().contains("tok"), thrown.getMessage());
     }
 
     private static AssistantMessage garbled() {

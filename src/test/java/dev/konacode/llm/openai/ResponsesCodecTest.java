@@ -175,6 +175,33 @@ class ResponsesCodecTest {
     }
 
     @Test
+    void anIncompleteResponseIsAnLlmExceptionWithTheReason() {
+        String body = "data: {\"type\":\"response.incomplete\",\"response\":{\"incomplete_details\":{\"reason\":\"max_output_tokens\"}}}\n";
+
+        LlmException thrown = assertThrows(LlmException.class, () -> codec.decodeResponse(body));
+
+        assertTrue(thrown.getMessage().contains("max_output_tokens"), thrown.getMessage());
+    }
+
+    @Test
+    void joinsTheTextOfTwoFinishedMessagesAndReadsWindowsLineEnds() {
+        String body = "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"A\"}]}}\r\n"
+                + "data:\r\n"
+                + "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"B\"}]}}\r\n"
+                + "data: {\"type\":\"response.completed\",\"response\":{}}\r\n"
+                + "data: [DONE]\r\n";
+
+        AssistantMessage reply = codec.decodeResponse(body);
+
+        assertEquals("AB", reply.text());
+    }
+
+    @Test
+    void aNullBodyIsAnLlmException() {
+        assertThrows(LlmException.class, () -> codec.decodeResponse(null));
+    }
+
+    @Test
     void aStreamWithNoCompletedEventIsAnLlmException() {
         String body = "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"r\"}}\n\n";
 

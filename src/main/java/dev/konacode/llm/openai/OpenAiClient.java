@@ -149,10 +149,8 @@ public final class OpenAiClient implements LlmClient {
             authorize(builder);
             request = builder.build();
         } catch (IllegalArgumentException e) {
-            // A malformed base URL, or a key carrying a control character - a trailing newline
-            // survives isBlank() - would otherwise escape as an unchecked exception and kill the
-            // session, since the agent loop catches only LlmException.
-            throw new LlmException("Could not build the request: " + e.getMessage(), e);
+            // The message of e quotes the header, and the header holds the credential, so konacode writes its own sentence.
+            throw new LlmException("Could not build the request: the base URL is malformed, or a header holds a character HTTP does not allow.", e);
         }
 
         // The body and never the headers. The credential is a header, so it cannot reach a sink.
@@ -189,7 +187,7 @@ public final class OpenAiClient implements LlmClient {
 
     /**
      * konacode names itself in {@code originator} and {@code User-Agent}. It never writes the name of
-     * the Codex CLI: if the server refuses a client that is not Codex, that is the answer of the
+     * the Codex CLI. If the server refuses a client that is not Codex, that is the answer of the
      * provider, and konacode stops.
      */
     private void authorize(HttpRequest.Builder builder) {

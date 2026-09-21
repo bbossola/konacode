@@ -81,6 +81,21 @@ class CodexAuthTest {
     }
 
     @Test
+    void acceptsAFileWithANullAuthModeTheWayTheCliDoes() throws IOException {
+        String token = tokenExpiringAt(NOW.plusSeconds(3600));
+        Path file = write(authJson("null", quoted(token), "\"acct_1\""));
+
+        assertEquals(new CodexToken(token, "acct_1"), CodexAuth.read(file, NOW));
+    }
+
+    @Test
+    void trimsTheTokenSoAStrayNewlineCannotReachAHeader() throws IOException {
+        Path file = write(authJson("\"chatgpt\"", "\"opaque-token\\n\"", "\"acct_1\""));
+
+        assertEquals(new CodexToken("opaque-token", "acct_1"), CodexAuth.read(file, NOW));
+    }
+
+    @Test
     void refusesAMissingFileAndNamesTheCommandToRun() {
         Path missing = home.resolve("nowhere").resolve("auth.json");
 

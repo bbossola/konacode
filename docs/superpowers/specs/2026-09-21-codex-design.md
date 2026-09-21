@@ -21,7 +21,7 @@ both. The default stays `OPENAI_API_KEY` and Chat Completions.
 
 Four caveats, and the README states each one:
 
-- The terms of use neither permit nor prohibit it. OpenAI tolerates personal use of your own
+- No page we could read permits or prohibits it. OpenAI tolerates personal use of your own
   subscription. A pooled account or a shared credential is not that.
 - The endpoint has no SLA, and it can change with no notice.
 - OpenAI recommends an API key for production work.
@@ -156,6 +156,7 @@ with `data:` as JSON and looks at `type`:
 | `response.output_item.done`, `item.type == "message"` | appends the `text` of every `output_text` part to the text |
 | `response.output_item.done`, `item.type == "function_call"` | adds `ToolCall(call_id, name, arguments)`. A missing `call_id` is an `LlmException`, as in the other codec. |
 | `response.failed` | throws an `LlmException` with `response.error.message` |
+| `response.incomplete` | throws an `LlmException` with `response.incomplete_details.reason` |
 | `response.completed` | marks the end |
 | any other | ignored, the way the CLI ignores it |
 

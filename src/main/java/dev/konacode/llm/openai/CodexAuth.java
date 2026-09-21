@@ -46,12 +46,12 @@ public final class CodexAuth {
      */
     public static CodexToken read(Path authFile, Instant now) {
         JsonNode root = parse(authFile);
-        // The CLI infers chatgpt when the mode is absent, so only a present other mode is refused.
+        // The CLI infers chatgpt when the mode is absent, so this refuses a present other mode only.
         String mode = root.path("auth_mode").asText("chatgpt");
         if (!mode.equals("chatgpt")) {
             throw new IllegalArgumentException(authFile + " holds no ChatGPT login: auth_mode is " + mode + "." + RUN_LOGIN);
         }
-        String token = root.path("tokens").path("access_token").asText("");
+        String token = root.path("tokens").path("access_token").asText("").strip();
         if (token.isBlank()) {
             throw new IllegalArgumentException(authFile + " holds no access token." + RUN_LOGIN);
         }

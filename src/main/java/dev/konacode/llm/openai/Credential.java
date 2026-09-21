@@ -16,7 +16,7 @@ public sealed interface Credential {
         public ApiKey {
             key = key == null ? null : key.trim();
             if (key == null || key.isBlank()) {
-                throw new IllegalArgumentException("OPENAI_API_KEY is not set.");
+                throw new IllegalArgumentException("The API key is blank.");
             }
         }
     }

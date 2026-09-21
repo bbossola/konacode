@@ -60,7 +60,11 @@ public record OpenAiConfig(Credential credential, String model, String judgeMode
         String defaultBaseUrl;
         switch (auth.trim().toLowerCase(Locale.ROOT)) {
             case "key" -> {
-                credential = new ApiKey(environment.get("OPENAI_API_KEY"));
+                String key = environment.get("OPENAI_API_KEY");
+                if (key == null || key.isBlank()) {
+                    throw new IllegalArgumentException("OPENAI_API_KEY is not set.");
+                }
+                credential = new ApiKey(key);
                 defaultModel = DEFAULT_MODEL;
                 defaultBaseUrl = DEFAULT_BASE_URL;
             }
