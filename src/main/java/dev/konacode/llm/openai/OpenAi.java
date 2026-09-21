@@ -1,6 +1,9 @@
 package dev.konacode.llm.openai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.konacode.llm.http.ClientConfig;
+import dev.konacode.llm.http.Codec;
+import dev.konacode.llm.http.Credential;
 
 import java.nio.file.Path;
 import java.time.Instant;
@@ -22,7 +25,7 @@ public final class OpenAi {
     public static final String DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex";
 
     /** The config and the codec for one process. The credential decides both. */
-    public record Provider(OpenAiConfig config, Codec codec) {
+    public record Provider(ClientConfig config, Codec codec) {
     }
 
     private OpenAi() {
@@ -60,8 +63,8 @@ public final class OpenAi {
             default -> throw new IllegalArgumentException("KONACODE_AUTH must be key or codex, but was: " + auth);
         }
         String model = environment.getOrDefault("KONACODE_MODEL", defaultModel);
-        OpenAiConfig config = new OpenAiConfig(credential, model, environment.getOrDefault("KONACODE_JUDGE_MODEL", model),
-                environment.getOrDefault("KONACODE_BASE_URL", defaultBaseUrl), OpenAiConfig.DEFAULT_TIMEOUT);
+        ClientConfig config = new ClientConfig(credential, model, environment.getOrDefault("KONACODE_JUDGE_MODEL", model),
+                environment.getOrDefault("KONACODE_BASE_URL", defaultBaseUrl), ClientConfig.DEFAULT_TIMEOUT);
         return new Provider(config, codec);
     }
 }

@@ -11,6 +11,7 @@ import dev.konacode.llm.Message.ToolMessage;
 import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.llm.ToolCall;
 import dev.konacode.llm.ToolSpec;
+import dev.konacode.llm.http.Usage;
 import dev.konacode.tools.Schemas;
 import org.junit.jupiter.api.Test;
 

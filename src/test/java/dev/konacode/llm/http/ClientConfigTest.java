@@ -1,26 +1,36 @@
-package dev.konacode.llm.openai;
+package dev.konacode.llm.http;
 
-import dev.konacode.llm.openai.ApiKey;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-class OpenAiConfigTest {
+class ClientConfigTest {
 
-    private static final ApiKey KEY = new ApiKey("sk-test");
+    private static final Credential KEY = new Credential() {
+        @Override
+        public Map<String, String> headers() {
+            return Map.of("Authorization", "Bearer sk-test");
+        }
 
-    private static OpenAiConfig config(String model, String judgeModel, String baseUrl) {
-        return new OpenAiConfig(KEY, model, judgeModel, baseUrl, Duration.ofSeconds(1));
+        @Override
+        public String hint(int status) {
+            return "";
+        }
+    };
+
+    private static ClientConfig config(String model, String judgeModel, String baseUrl) {
+        return new ClientConfig(KEY, model, judgeModel, baseUrl, Duration.ofSeconds(1));
     }
 
     @Test
     void theJudgeTalksToTheSameEndpointWithTheSameCredential() {
-        OpenAiConfig config = config("gpt-5", "gpt-5-mini", "https://example.test/v1");
+        ClientConfig config = config("gpt-5", "gpt-5-mini", "https://example.test/v1");
 
-        OpenAiConfig judge = config.forJudge();
+        ClientConfig judge = config.forJudge();
 
         assertEquals("gpt-5-mini", judge.model());
         assertEquals("gpt-5-mini", judge.judgeModel());
@@ -38,7 +48,7 @@ class OpenAiConfigTest {
 
     @Test
     void trimsEveryValue() {
-        OpenAiConfig config = config(" gpt-5-mini ", " gpt-5 ", " https://example.test/v1 ");
+        ClientConfig config = config(" gpt-5-mini ", " gpt-5 ", " https://example.test/v1 ");
 
         assertEquals("gpt-5-mini", config.model());
         assertEquals("gpt-5", config.judgeModel());
@@ -50,6 +60,6 @@ class OpenAiConfigTest {
         assertThrows(IllegalArgumentException.class, () -> config(" ", "m", "https://example.test/v1"));
         assertThrows(IllegalArgumentException.class, () -> config("m", " ", "https://example.test/v1"));
         assertThrows(IllegalArgumentException.class, () -> config("m", "m", " "));
-        assertThrows(NullPointerException.class, () -> new OpenAiConfig(null, "m", "m", "https://example.test/v1", Duration.ofSeconds(1)));
+        assertThrows(NullPointerException.class, () -> new ClientConfig(null, "m", "m", "https://example.test/v1", Duration.ofSeconds(1)));
     }
 }

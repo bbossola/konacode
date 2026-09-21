@@ -11,7 +11,7 @@ import dev.konacode.agent.TurnBudget;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.openai.OpenAi;
-import dev.konacode.llm.openai.OpenAiClient;
+import dev.konacode.llm.http.Client;
 import dev.konacode.policy.EffectPolicy;
 import dev.konacode.policy.Judge;
 import dev.konacode.policy.JudgePolicy;
@@ -241,8 +241,8 @@ public final class Main {
      * of the turn.
      */
     static Clients clients(OpenAi.Provider provider, HttpClient http, Trace trace) {
-        return new Clients(new OpenAiClient(provider.config(), http, provider.codec(), new NamedTrace("kona", trace)),
-                new OpenAiClient(provider.config().forJudge(), http, provider.codec(), new NamedTrace("judge", trace)));
+        return new Clients(new Client(provider.config(), http, provider.codec(), new NamedTrace("kona", trace)),
+                new Client(provider.config().forJudge(), http, provider.codec(), new NamedTrace("judge", trace)));
     }
 
     static Path skillsRoot() {

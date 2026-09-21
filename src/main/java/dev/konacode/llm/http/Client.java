@@ -1,4 +1,4 @@
-package dev.konacode.llm.openai;
+package dev.konacode.llm.http;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.konacode.llm.LlmClient;
@@ -27,7 +27,7 @@ import java.util.function.Supplier;
  * Transport. Owns HTTP status handling and nothing else — the translation lives in the
  * {@link Codec}.
  */
-public final class OpenAiClient implements LlmClient {
+public final class Client implements LlmClient {
 
     private static final int ERROR_BODY_LIMIT = 500;
 
@@ -37,7 +37,7 @@ public final class OpenAiClient implements LlmClient {
     static final int MAX_ATTEMPTS = 3;
     private static final Duration FIRST_WAIT = Duration.ofMillis(500);
 
-    private final OpenAiConfig config;
+    private final ClientConfig config;
     private final HttpClient http;
     private final Codec codec;
     private final Trace trace;
@@ -50,12 +50,12 @@ public final class OpenAiClient implements LlmClient {
         void pauseBefore(int attempt);
     }
 
-    public OpenAiClient(OpenAiConfig config, HttpClient http, Codec codec,
+    public Client(ClientConfig config, HttpClient http, Codec codec,
                         Trace trace) {
-        this(config, http, codec, trace, OpenAiClient::sleepBefore);
+        this(config, http, codec, trace, Client::sleepBefore);
     }
 
-    OpenAiClient(OpenAiConfig config, HttpClient http, Codec codec, Trace trace,
+    Client(ClientConfig config, HttpClient http, Codec codec, Trace trace,
                  Backoff backoff) {
         this.config = config;
         this.http = http;

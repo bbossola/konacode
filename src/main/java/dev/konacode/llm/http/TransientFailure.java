@@ -1,4 +1,4 @@
-package dev.konacode.llm.openai;
+package dev.konacode.llm.http;
 
 import dev.konacode.llm.LlmException;
 

@@ -14,7 +14,7 @@ import dev.konacode.llm.openai.ChatCompletionsCodec;
 import dev.konacode.llm.openai.ApiKey;
 import dev.konacode.llm.openai.CodexToken;
 import dev.konacode.llm.openai.OpenAi;
-import dev.konacode.llm.openai.OpenAiConfig;
+import dev.konacode.llm.http.ClientConfig;
 import dev.konacode.llm.openai.ResponsesCodec;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.Workspace;
@@ -196,7 +196,7 @@ class MainTest {
         when(response.statusCode()).thenReturn(200);
         when(response.body()).thenReturn("{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}");
         when(http.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any())).thenReturn(response);
-        OpenAiConfig config = new OpenAiConfig(new ApiKey("sk-test"), "big", "small", "https://example.test/v1", Duration.ofSeconds(1));
+        ClientConfig config = new ClientConfig(new ApiKey("sk-test"), "big", "small", "https://example.test/v1", Duration.ofSeconds(1));
         List<TraceEvent> events = new ArrayList<>();
 
         Main.Clients clients = Main.clients(new OpenAi.Provider(config, new ChatCompletionsCodec(new ObjectMapper())), http, events::add);
@@ -219,7 +219,7 @@ class MainTest {
                 data: {"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}
                 """);
         when(http.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any())).thenReturn(response);
-        OpenAiConfig config = new OpenAiConfig(new CodexToken("tok", "acct_1"), "gpt-5.5", "gpt-5.5", "https://example.test/codex", Duration.ofSeconds(1));
+        ClientConfig config = new ClientConfig(new CodexToken("tok", "acct_1"), "gpt-5.5", "gpt-5.5", "https://example.test/codex", Duration.ofSeconds(1));
 
         AssistantMessage reply = Main.clients(new OpenAi.Provider(config, new ResponsesCodec(new ObjectMapper())), http, Trace.NONE).loop().chat(List.of(), List.of());
 

@@ -1,5 +1,6 @@
 package dev.konacode.llm.openai;
 
+import dev.konacode.llm.http.ClientConfig;
 import dev.konacode.llm.openai.ApiKey;
 import dev.konacode.llm.openai.CodexToken;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,7 @@ class OpenAiTest {
         return OpenAi.fromEnvironment(environment, home, NOW);
     }
 
-    private OpenAiConfig config(Map<String, String> environment) {
+    private ClientConfig config(Map<String, String> environment) {
         return provider(environment).config();
     }
 
@@ -43,17 +44,17 @@ class OpenAiTest {
 
     @Test
     void fillsInDefaultsForEverythingButTheKey() {
-        OpenAiConfig config = config(Map.of("OPENAI_API_KEY", "sk-test"));
+        ClientConfig config = config(Map.of("OPENAI_API_KEY", "sk-test"));
 
         assertEquals(new ApiKey("sk-test"), config.credential());
         assertEquals(OpenAi.DEFAULT_MODEL, config.model());
         assertEquals(OpenAi.DEFAULT_BASE_URL, config.baseUrl());
-        assertEquals(OpenAiConfig.DEFAULT_TIMEOUT, config.timeout());
+        assertEquals(ClientConfig.DEFAULT_TIMEOUT, config.timeout());
     }
 
     @Test
     void readsTheModelAndBaseUrlOverrides() {
-        OpenAiConfig config = config(Map.of("OPENAI_API_KEY", "ollama", "KONACODE_MODEL", "qwen2.5-coder:32b", "KONACODE_BASE_URL", "http://localhost:11434/v1"));
+        ClientConfig config = config(Map.of("OPENAI_API_KEY", "ollama", "KONACODE_MODEL", "qwen2.5-coder:32b", "KONACODE_BASE_URL", "http://localhost:11434/v1"));
 
         assertEquals("qwen2.5-coder:32b", config.model());
         assertEquals("http://localhost:11434/v1", config.baseUrl());
@@ -66,7 +67,7 @@ class OpenAiTest {
 
     @Test
     void theJudgeModelCanBeSetOnItsOwn() {
-        OpenAiConfig config = config(Map.of("OPENAI_API_KEY", "k", "KONACODE_MODEL", "gpt-5", "KONACODE_JUDGE_MODEL", "gpt-5-mini"));
+        ClientConfig config = config(Map.of("OPENAI_API_KEY", "k", "KONACODE_MODEL", "gpt-5", "KONACODE_JUDGE_MODEL", "gpt-5-mini"));
 
         assertEquals("gpt-5-mini", config.forJudge().model());
         assertEquals("gpt-5", config.model());
@@ -74,7 +75,7 @@ class OpenAiTest {
 
     @Test
     void bothModelsFallBackToTheSameBuiltInDefault() {
-        OpenAiConfig config = config(Map.of("OPENAI_API_KEY", "k"));
+        ClientConfig config = config(Map.of("OPENAI_API_KEY", "k"));
 
         assertEquals(OpenAi.DEFAULT_MODEL, config.model());
         assertEquals(OpenAi.DEFAULT_MODEL, config.forJudge().model());
@@ -99,7 +100,7 @@ class OpenAiTest {
     void trimsSurroundingWhitespaceSoAKeyReadFromAFileStillWorks() {
         // "sk-test\n".isBlank() is false, so validation passes and the newline reaches
         // HttpRequest.header, which rejects it with an unchecked exception.
-        OpenAiConfig config = config(Map.of("OPENAI_API_KEY", "sk-test\n", "KONACODE_MODEL", " gpt-5-mini ", "KONACODE_BASE_URL", " https://example.test/v1 "));
+        ClientConfig config = config(Map.of("OPENAI_API_KEY", "sk-test\n", "KONACODE_MODEL", " gpt-5-mini ", "KONACODE_BASE_URL", " https://example.test/v1 "));
 
         assertEquals(new ApiKey("sk-test"), config.credential());
         assertEquals("gpt-5-mini", config.model());
@@ -120,7 +121,7 @@ class OpenAiTest {
     void codexReadsTheAuthFileUnderHomeAndTakesTheCodexDefaults() throws IOException {
         codexLogin();
 
-        OpenAiConfig config = config(Map.of("KONACODE_AUTH", "codex"));
+        ClientConfig config = config(Map.of("KONACODE_AUTH", "codex"));
 
         assertEquals("acct_1", ((CodexToken) config.credential()).accountId());
         assertEquals(OpenAi.DEFAULT_CODEX_MODEL, config.model());
@@ -140,7 +141,7 @@ class OpenAiTest {
     void codexKeepsTheModelAndBaseUrlOverrides() throws IOException {
         codexLogin();
 
-        OpenAiConfig config = config(Map.of("KONACODE_AUTH", "codex", "KONACODE_MODEL", "gpt-5.4", "KONACODE_BASE_URL", "https://example.test/codex/"));
+        ClientConfig config = config(Map.of("KONACODE_AUTH", "codex", "KONACODE_MODEL", "gpt-5.4", "KONACODE_BASE_URL", "https://example.test/codex/"));
 
         assertEquals("gpt-5.4", config.model());
         assertEquals("https://example.test/codex", config.baseUrl());
@@ -158,7 +159,7 @@ class OpenAiTest {
         Path elsewhere = Files.createDirectories(home.resolve("elsewhere"));
         Files.writeString(elsewhere.resolve("auth.json"), "{\"auth_mode\":\"chatgpt\",\"tokens\":{\"access_token\":\"opaque\",\"account_id\":\"acct_2\"}}");
 
-        OpenAiConfig config = config(Map.of("KONACODE_AUTH", "codex", "CODEX_HOME", elsewhere.toString()));
+        ClientConfig config = config(Map.of("KONACODE_AUTH", "codex", "CODEX_HOME", elsewhere.toString()));
 
         assertEquals("acct_2", ((CodexToken) config.credential()).accountId());
     }

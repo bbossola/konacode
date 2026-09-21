@@ -1,4 +1,4 @@
-package dev.konacode.llm.openai;
+package dev.konacode.llm.http;
 
 import java.net.URI;
 import java.time.Duration;
@@ -7,17 +7,17 @@ import java.util.Objects;
 /**
  * The settings of one transport: as whom, which model, where, and for how long.
  *
- * <p>It reads no environment variable. {@link OpenAi} reads them, so this record names no provider
- * and no default.
+ * <p>It reads no environment variable. A provider reads them, for example `OpenAi`, so this record
+ * names no provider and no default.
  *
  * <p>The judge model sits beside the model, because the judge speaks to the same endpoint with the
  * same credential and only the model name differs.
  */
-public record OpenAiConfig(Credential credential, String model, String judgeModel, String baseUrl, Duration timeout) {
+public record ClientConfig(Credential credential, String model, String judgeModel, String baseUrl, Duration timeout) {
 
     public static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(2);
 
-    public OpenAiConfig {
+    public ClientConfig {
         Objects.requireNonNull(credential, "credential");
         model = model == null ? null : model.trim();
         judgeModel = judgeModel == null ? null : judgeModel.trim();
@@ -37,8 +37,8 @@ public record OpenAiConfig(Credential credential, String model, String judgeMode
     }
 
     /** The same credential, base URL and timeout, with the model the judge uses. */
-    public OpenAiConfig forJudge() {
-        return new OpenAiConfig(credential, judgeModel, judgeModel, baseUrl, timeout);
+    public ClientConfig forJudge() {
+        return new ClientConfig(credential, judgeModel, judgeModel, baseUrl, timeout);
     }
 
     /**

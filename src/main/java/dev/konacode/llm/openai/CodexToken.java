@@ -1,5 +1,7 @@
 package dev.konacode.llm.openai;
 
+import dev.konacode.llm.http.Credential;
+
 import java.util.Map;
 
 /**

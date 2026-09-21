@@ -1,4 +1,4 @@
-package dev.konacode.llm.openai;
+package dev.konacode.llm.http;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.konacode.llm.Message;
