@@ -188,7 +188,7 @@ before it ran, so the dangling call invariant above holds with no special case.
 
 The user presses ESC. `EscapeWatcher` reads the byte from the terminal and calls
 `Cancellation.request()`. That does two things at once: it sets a flag the loop reads, and it
-interrupts the thread the loop armed. `Repl` clears the flag before each turn, so a key pressed at
+interrupts the thread the loop armed. `Repl` clears the flag before each command and each turn, so a key pressed at
 the prompt does not stop the next turn.
 
 ```

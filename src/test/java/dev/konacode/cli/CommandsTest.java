@@ -1,10 +1,16 @@
 package dev.konacode.cli;
 
+import dev.konacode.agent.Cancellation;
+import dev.konacode.agent.Compaction;
 import dev.konacode.agent.Conversation;
+import dev.konacode.llm.LlmClient;
+import dev.konacode.llm.LlmException;
 import dev.konacode.llm.Message;
 import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.SystemMessage;
+import dev.konacode.llm.Message.ToolMessage;
 import dev.konacode.llm.Message.UserMessage;
+import dev.konacode.llm.ToolCall;
 import dev.konacode.policy.AllowAllPolicy;
 import dev.konacode.policy.EffectPolicy;
 import dev.konacode.policy.JudgePolicy;
@@ -40,14 +46,19 @@ class CommandsTest {
     private SelectedPolicy selected;
 
     private Commands commands(RecordingUi ui, Conversation conversation) {
+        return commands(ui, conversation, (history, tools) -> new AssistantMessage("The summary.", List.of()));
+    }
+
+    private Commands commands(RecordingUi ui, Conversation conversation, LlmClient client) {
         Workspace workspace = new Workspace(root);
         Workspace skillRoot = new Workspace(root.resolve("skills"));
         selected = new SelectedPolicy(new EffectPolicy());
         JudgePolicy judge = new JudgePolicy(new EffectPolicy(), (ask, userText) -> ask, Trace.NONE);
+        Compaction compaction = new Compaction(client, SYSTEM, conversation, new Cancellation());
         return new Commands(conversation, SYSTEM,
                 ToolRegistry.of(new ListFiles(workspace, StopCheck.NEVER),
                         new ReadFile(workspace, StopCheck.NEVER)),
-                new SkillRegistry(skillRoot), ui, Level.BASIC, selected, judge);
+                new SkillRegistry(skillRoot), ui, Level.BASIC, selected, judge, compaction);
     }
 
     private void writeSkill(String name, String description) throws IOException {
@@ -87,6 +98,7 @@ class CommandsTest {
         assertTrue(shown.contains("/tools"), shown);
         assertTrue(shown.contains("/skill"), shown);
         assertTrue(shown.contains("/clear"), shown);
+        assertTrue(shown.contains("/compact"), shown);
         assertTrue(shown.contains("/exit"), shown);
     }
 
@@ -546,5 +558,76 @@ class CommandsTest {
         commands(ui, new Conversation(SYSTEM)).run("/help");
 
         assertTrue(String.join("\n", ui.answers).contains("/policy"), ui.answers.toString());
+    }
+
+    /** One turn that called a tool: five messages, so the count after a compact differs from the count before. */
+    private static Conversation conversationWithOneTurn() {
+        Conversation conversation = new Conversation(SYSTEM);
+        conversation.add(new UserMessage("read pom.xml"));
+        conversation.add(new AssistantMessage("", List.of(new ToolCall("c1", "read_file", "{\"path\":\"pom.xml\"}"))));
+        conversation.add(new ToolMessage("c1", "<project/>"));
+        conversation.add(new AssistantMessage("It is a Maven project.", List.of()));
+        return conversation;
+    }
+
+    @Test
+    void compactShowsTheSummaryAndTheCount() {
+        Conversation conversation = conversationWithOneTurn();
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, conversation).run("/compact");
+
+        assertEquals(1, ui.answers.size(), ui.answers.toString());
+        assertTrue(ui.answers.get(0).startsWith("The conversation held 5 messages. It now holds 3."), ui.answers.get(0));
+        assertTrue(ui.answers.get(0).endsWith("The summary."), ui.answers.get(0));
+        assertEquals(3, conversation.messages().size());
+        assertInstanceOf(UserMessage.class, conversation.messages().get(1));
+    }
+
+    @Test
+    void compactTellsTheInterfaceThatWorkStartedBeforeItShowsTheAnswer() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, conversationWithOneTurn()).run("/compact");
+
+        assertEquals(List.of("thinking", "answer"), ui.events);
+    }
+
+    @Test
+    void compactShowsTheErrorAndKeepsTheConversationOnAFailure() {
+        Conversation conversation = conversationWithOneTurn();
+        List<Message> before = conversation.messages();
+        RecordingUi ui = new RecordingUi();
+        LlmClient failing = (history, tools) -> {
+            throw new LlmException("HTTP 500");
+        };
+
+        commands(ui, conversation, failing).run("/compact");
+
+        assertEquals(List.of("HTTP 500"), ui.errors);
+        assertEquals(List.of(), ui.answers);
+        assertEquals(before, conversation.messages());
+    }
+
+    @Test
+    void compactOnAnEmptyConversationMakesNoRequest() {
+        RecordingUi ui = new RecordingUi();
+        LlmClient neverCalled = (history, tools) -> {
+            throw new AssertionError("no request must be made");
+        };
+
+        commands(ui, new Conversation(SYSTEM), neverCalled).run("/compact");
+
+        assertEquals(List.of("Nothing to compact. The conversation is empty."), ui.answers);
+    }
+
+    @Test
+    void compactTakesNoArgument() {
+        RecordingUi ui = new RecordingUi();
+
+        commands(ui, conversationWithOneTurn()).run("/compact now");
+
+        assertEquals(1, ui.errors.size(), ui.errors.toString());
+        assertTrue(ui.errors.get(0).startsWith("Unknown command"), ui.errors.get(0));
     }
 }

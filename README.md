@@ -202,7 +202,7 @@ what it did.
 `ctrl-c` behaves as it always has, and `esc` did not change it: at the prompt it clears the line,
 and during a turn it ends konacode. `ctrl-d` quits.
 
-Seven commands work in both interfaces.
+Eight commands work in both interfaces.
 
 | Command | Action |
 |---|---|
@@ -212,6 +212,7 @@ Seven commands work in both interfaces.
 | `/policy` | show or set what konacode asks before it acts |
 | `/trace` | show or set how much the screen reports |
 | `/clear` | forget the conversation and start again |
+| `/compact` | replace the conversation with a summary the model writes |
 | `/exit` | end the session |
 
 Set `konacode.trace=basic` or `konacode.trace=full` and konacode writes a trace of the session

@@ -2,14 +2,22 @@
 
 ## Unreleased
 
+### `/compact`
+
+konacode sends the whole conversation on each request, and a planned turn can add 48 messages.
+`/compact` asks the model for a summary and replaces the conversation with the system message and
+that summary. The summary names every file the model changed, and what it changed. The user asks
+for it, and no policy decides: konacode compacts nothing on its own. A failure leaves the
+conversation as it was, and `esc` takes the same path.
+
 ### A ChatGPT subscription
 
 `KONACODE_AUTH=codex` reads the token that `codex login` wrote and speaks the Responses API of the
 Codex backend. The default model is then `gpt-5.5`. konacode refreshes nothing: a stale token
 prints one line that names `codex login`. konacode names itself in `originator` and `User-Agent`,
-and never claims to be the Codex CLI. The README states the four caveats: the terms neither permit
-nor prohibit it, the endpoint has no SLA, OpenAI recommends a key for production, and the route can
-close.
+and never claims to be the Codex CLI. The README states the four caveats: no page we could read
+permits or prohibits it, the endpoint has no SLA, OpenAI recommends a key for production, and the
+route can close.
 
 ## 0.2.0 — 2026-08-30
 
