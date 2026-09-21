@@ -19,6 +19,13 @@ and never claims to be the Codex CLI. The README states the four caveats: no pag
 permits or prohibits it, the endpoint has no SLA, OpenAI recommends a key for production, and the
 route can close.
 
+### The transport and the providers
+
+`dev.konacode.llm.http` holds the transport, `Client`, and the two contracts it needs, `Codec`
+and `Credential`. `dev.konacode.llm.openai` holds what OpenAI wrote: the two codecs, the two
+credentials, and `OpenAi`, which reads the environment. Nothing in the transport names a
+provider, so a second provider is a second package beside `openai`. No behaviour changed.
+
 ## 0.2.0 — 2026-08-30
 
 konacode 0.1.0 was the loop, three tools and two interfaces. The loop is the same. Everything

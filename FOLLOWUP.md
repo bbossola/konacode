@@ -43,7 +43,7 @@ having; they are not substitutes.
 The model thinks before it answers. This improves *single-step* decisions: which tool to call,
 with what arguments, whether this is really the right file.
 
-**Basic support is nearly free.** A `reasoningEffort` field on `OpenAiConfig` and one line in
+**Basic support is nearly free.** A `reasoningEffort` field on `ClientConfig` and one line in
 each codec. Perhaps five lines, no structural impact.
 
 **Doing it properly is where the trap is.** When a reasoning model makes a tool call, its
@@ -143,7 +143,7 @@ change.
   decide, and `PlainUi` answers `NO` to every question. So a provider failure in the judge turns a
   routine call into a refusal in a piped session, where a terminal would show the user the question.
   There is no `never` answer either, so a user cannot record a standing refusal.
-- **Bounded retry in `OpenAiClient` — built.** The client made exactly one attempt, so one
+- **Bounded retry in `Client` — built.** The client made exactly one attempt, so one
   transient `429` or `5xx` discarded a whole turn. `sendUntilDelivered` now makes three attempts,
   and waits 500 ms then 1 s. It retries `429`, `502`, `503`, `504` and a request that did not
   arrive, and nothing else: the model cannot fix a 401. The interrupt ends the retry, so `esc`
@@ -196,7 +196,7 @@ konacode during a turn. See
 Two notes for anyone reading the original entry, because the built design differs from what this
 document proposed.
 
-**The abort is a thread interrupt, not `sendAsync`.** `OpenAiClient` already translated
+**The abort is a thread interrupt, not `sendAsync`.** `Client` already translated
 `InterruptedException`, so `LlmClient` did not change and no future provider inherits a
 cancellation contract. `Cancellation` arms the interrupt around the provider call and around a
 tool that answers `stopsOnInterrupt()` with true, and around nothing else.
@@ -228,6 +228,10 @@ Completions. `system` is a top-level parameter rather than a message; tool resul
 user-role content blocks rather than a `tool` role; completion is signalled by
 `stop_reason: "tool_use"`; and thinking blocks must be returned unchanged when continuing on
 the same model, which needs the passthrough field from section 1.
+
+The split of `llm.http` from `llm.openai` fixed the shape of that change. It is one package,
+`llm.anthropic`, with one `Codec` for the Messages API and one `Credential` for `x-api-key`, and a
+second factory that `Main` picks by one environment variable. `Client` does not change.
 
 Two credential details worth handling when it is written:
 
@@ -311,7 +315,7 @@ Each item below comes from memory of the Codex CLI, and it moves. Read the sourc
 ### Design
 
 **A second codec, not a second client.** `ResponsesCodec` sits beside `ChatCompletionsCodec`.
-`OpenAiClient` keeps the HTTP, the two retry loops and `ReplyValidator`, and takes the codec in
+`Client` keeps the HTTP, the two retry loops and `ReplyValidator`, and takes the codec in
 its constructor. The codec is the seam that was built for this, so the change stays inside
 `dev.konacode.llm.openai`. Read the Responses API reference for the shapes; from memory they are:
 `input` instead of `messages`, `instructions` for the system prompt, a `function_call` item with

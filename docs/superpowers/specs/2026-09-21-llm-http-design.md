@@ -163,6 +163,6 @@ The suite holds 756 tests before the change, and it holds 756 plus the credentia
 
 `CLAUDE.md` gains the section `dev.konacode.llm.http` and moves the transport rows into it; the
 `openai` section keeps the codecs, the credentials, `CodexAuth` and `OpenAi`. The architecture
-rule gains one line: `llm.openai -> llm.http -> llm`. `ARCHITECTURE.md` and `README.md` change
-where they name `OpenAiClient`. `FOLLOWUP.md` §5 says that the Anthropic provider is one package
-beside `openai`, with one codec and one credential, and no client.
+rule gains one line: `llm.openai -> llm.http -> llm`. `ARCHITECTURE.md` and `README.md` do not
+name the transport, so they do not change. `FOLLOWUP.md` §5 says that the Anthropic provider is
+one package beside `openai`, with one codec and one credential, and no client.
