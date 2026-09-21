@@ -149,11 +149,13 @@ class ResponsesCodecTest {
         assertFalse(request.has("reasoning"), request.toString());
     }
 
+    /** The fixture is a reply the Codex backend sent on 2026-09-21, with the safety identifier redacted. */
     @Test
-    void decodesTheTextOfTheFinishedMessageAndIgnoresTheDeltasAndTheReasoning() throws IOException {
+    void decodesTheTextOfTheFinishedMessageAndIgnoresTheDeltas() throws IOException {
         AssistantMessage reply = codec.decodeResponse(fixture("responses-text.sse"));
 
-        assertEquals("Hello from Codex.", reply.text());
+        assertTrue(reply.text().startsWith("Files/directories here:\n\n- `.git/`"), reply.text());
+        assertTrue(reply.text().endsWith("- `target/`"), reply.text());
         assertFalse(reply.hasToolCalls());
     }
 
@@ -232,7 +234,7 @@ class ResponsesCodecTest {
 
     @Test
     void readsTheUsageFromTheCompletedEvent() throws IOException {
-        assertEquals(Optional.of(new Usage(12, 5, 17)), codec.decodeUsage(fixture("responses-text.sse")));
+        assertEquals(Optional.of(new Usage(964, 86, 1050)), codec.decodeUsage(fixture("responses-text.sse")));
     }
 
     @Test

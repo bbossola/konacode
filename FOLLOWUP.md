@@ -246,11 +246,29 @@ in most applications. Design the codec so cache breakpoints have somewhere to go
 ## 6. A Codex provider on a ChatGPT subscription
 
 **Status:** built. See [the design](docs/superpowers/specs/2026-09-21-codex-design.md) and
-[the research](docs/research/2026-09-21-codex-subscription-api.md). Four things stayed out, and
+[the research](docs/research/2026-09-21-codex-subscription-api.md). Five things stayed out, and
 the first is the next task: the reasoning passthrough (sections 1 and 2), the refresh of the token,
-the live model list, and a retry on a rate limit inside a stream. The CLI treats a `response.failed`
-with the code `rate_limit_exceeded` or `slow_down` as transient; konacode retries on HTTP `429` only,
-and a subscription meets a usage limit more often than a key does.
+the live model list, a retry on a rate limit inside a stream, and a stable `prompt_cache_key`. The
+CLI treats a `response.failed` with the code `rate_limit_exceeded` or `slow_down` as transient;
+konacode retries on HTTP `429` only, and a subscription meets a usage limit more often than a key
+does.
+
+**The first real run, 2026-09-21.** The backend accepted the plain shape, with `instructions` and
+`tools` at the top level, `gpt-5.5`, and `originator: konacode`. One turn called `list_files` and
+answered. Three facts from the reply, which echoes the request as the server read it:
+
+- The server applies `strict: true` to every function tool, adds `additionalProperties: false`,
+  and puts every property in `required`. The optional `path` of `list_files` became required, and
+  the model wrote `{"path":"."}`. A tool with an optional property is a tool with a required one
+  under Codex.
+- The server assigns a new `prompt_cache_key` to each request, with `prompt_cache_retention:
+  24h`, and reports `cached_tokens: 0`. konacode sends the whole conversation on each request, so
+  one stable key for each session would make every iteration after the first a cache hit. That is
+  one field in `ResponsesCodec`, and the research names it.
+- The server sets `reasoning.effort: medium` and `reasoning.context: current_turn` when the
+  request names neither. `output_tokens_details.reasoning_tokens` was 0 on both replies.
+
+The recorded reply is the fixture `responses-text.sse`, with the safety identifier redacted.
 
 A Claude subscription cannot pay for konacode (section 5). A ChatGPT subscription can. OpenAI
 ships a "Sign in with ChatGPT" flow, and its staff said in public that a subscriber may use the
