@@ -50,8 +50,8 @@ import static org.mockito.Mockito.when;
 class OpenAiClientTest {
 
     private static OpenAiClient clientWith(String apiKey, String baseUrl) {
-        return new OpenAiClient(
-                new OpenAiConfig(new ApiKey(apiKey), "gpt-5-mini", "gpt-5-mini", baseUrl, Duration.ofSeconds(1)), Trace.NONE);
+        OpenAiConfig config = new OpenAiConfig(new ApiKey(apiKey), "gpt-5-mini", "gpt-5-mini", baseUrl, Duration.ofSeconds(1));
+        return new OpenAiClient(config, HttpClient.newHttpClient(), new ChatCompletionsCodec(new ObjectMapper()), Trace.NONE);
     }
 
     @Test
@@ -76,7 +76,7 @@ class OpenAiClientTest {
     @Test
     void aCodexTokenCarryingAControlCharacterReachesNoExceptionMessage() {
         OpenAiConfig config = new OpenAiConfig(new CodexToken("tok\nen", "acct_1"), "gpt-5.5", "gpt-5.5", "https://example.test/codex", Duration.ofSeconds(1));
-        OpenAiClient client = new OpenAiClient(config, Trace.NONE);
+        OpenAiClient client = new OpenAiClient(config, HttpClient.newHttpClient(), new ResponsesCodec(new ObjectMapper()), Trace.NONE);
 
         LlmException thrown = assertThrows(LlmException.class, () -> client.chat(List.of(), List.of()));
 

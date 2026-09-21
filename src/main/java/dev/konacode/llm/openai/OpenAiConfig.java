@@ -1,32 +1,20 @@
 package dev.konacode.llm.openai;
 
-import dev.konacode.llm.openai.Credential.ApiKey;
-
 import java.net.URI;
-import java.nio.file.Path;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 /**
- * Provider settings.
+ * The settings of one transport: as whom, which model, where, and for how long.
  *
- * <p>{@code KONACODE_AUTH} picks the credential, and the credential picks the defaults. A key
- * speaks to {@code https://api.openai.com/v1}, or to any OpenAI-compatible endpoint through
- * {@code KONACODE_BASE_URL}. A Codex token speaks to the Codex backend.
+ * <p>It reads no environment variable. {@link OpenAi} reads them, so this record names no provider
+ * and no default.
  *
  * <p>The judge model sits beside the model, because the judge speaks to the same endpoint with the
  * same credential and only the model name differs.
  */
 public record OpenAiConfig(Credential credential, String model, String judgeModel, String baseUrl, Duration timeout) {
 
-    public static final String DEFAULT_MODEL = "gpt-5-mini";
-    public static final String DEFAULT_BASE_URL = "https://api.openai.com/v1";
-    /** On the bundled list of the CLI, and one of the two models that take the plain Responses shape. */
-    public static final String DEFAULT_CODEX_MODEL = "gpt-5.5";
-    public static final String DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex";
     public static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(2);
 
     public OpenAiConfig {
@@ -46,38 +34,6 @@ public record OpenAiConfig(Credential credential, String model, String judgeMode
         while (baseUrl.endsWith("/")) {
             baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
         }
-    }
-
-    public static OpenAiConfig fromEnvironment(Map<String, String> environment, Path codexAuthFile) {
-        return fromEnvironment(environment, codexAuthFile, Instant.now());
-    }
-
-    /** {@code now} is a parameter, so a test can hold a token that expires at a known time. */
-    static OpenAiConfig fromEnvironment(Map<String, String> environment, Path codexAuthFile, Instant now) {
-        String auth = environment.getOrDefault("KONACODE_AUTH", "key");
-        Credential credential;
-        String defaultModel;
-        String defaultBaseUrl;
-        switch (auth.trim().toLowerCase(Locale.ROOT)) {
-            case "key" -> {
-                String key = environment.get("OPENAI_API_KEY");
-                if (key == null || key.isBlank()) {
-                    throw new IllegalArgumentException("OPENAI_API_KEY is not set.");
-                }
-                credential = new ApiKey(key);
-                defaultModel = DEFAULT_MODEL;
-                defaultBaseUrl = DEFAULT_BASE_URL;
-            }
-            case "codex" -> {
-                credential = CodexAuth.read(codexAuthFile, now);
-                defaultModel = DEFAULT_CODEX_MODEL;
-                defaultBaseUrl = DEFAULT_CODEX_BASE_URL;
-            }
-            default -> throw new IllegalArgumentException("KONACODE_AUTH must be key or codex, but was: " + auth);
-        }
-        String model = environment.getOrDefault("KONACODE_MODEL", defaultModel);
-        return new OpenAiConfig(credential, model, environment.getOrDefault("KONACODE_JUDGE_MODEL", model),
-                environment.getOrDefault("KONACODE_BASE_URL", defaultBaseUrl), DEFAULT_TIMEOUT);
     }
 
     /** The same credential, base URL and timeout, with the model the judge uses. */

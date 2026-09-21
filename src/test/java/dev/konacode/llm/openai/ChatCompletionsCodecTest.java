@@ -11,7 +11,6 @@ import dev.konacode.llm.Message.ToolMessage;
 import dev.konacode.llm.Message.UserMessage;
 import dev.konacode.llm.ToolCall;
 import dev.konacode.llm.ToolSpec;
-import dev.konacode.llm.openai.Credential.ApiKey;
 import dev.konacode.tools.Schemas;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +21,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -168,10 +166,5 @@ class ChatCompletionsCodecTest {
     void namesItsPathAndItsAcceptHeader() {
         assertEquals("/chat/completions", codec.path());
         assertEquals("application/json", codec.accept());
-    }
-
-    @Test
-    void anApiKeySelectsThisCodec() {
-        assertInstanceOf(ChatCompletionsCodec.class, Codec.forCredential(new ApiKey("sk-test"), mapper));
     }
 }

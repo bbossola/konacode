@@ -1,6 +1,5 @@
 package dev.konacode.llm.openai;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.LlmException;
@@ -51,13 +50,6 @@ public final class OpenAiClient implements LlmClient {
     interface Backoff {
         /** Waits before {@code attempt}, which counts from two. */
         void pauseBefore(int attempt);
-    }
-
-    public OpenAiClient(OpenAiConfig config, Trace trace) {
-        this(config,
-                HttpClient.newBuilder().connectTimeout(config.timeout()).build(),
-                Codec.forCredential(config.credential(), new ObjectMapper()),
-                trace);
     }
 
     public OpenAiClient(OpenAiConfig config, HttpClient http, Codec codec,

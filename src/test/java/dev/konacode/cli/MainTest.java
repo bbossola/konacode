@@ -1,5 +1,6 @@
 package dev.konacode.cli;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.konacode.agent.Cancellation;
 import dev.konacode.agent.ToolApproval.Answer;
 import dev.konacode.agent.TurnBudget;
@@ -9,9 +10,12 @@ import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.ToolMessage;
 import dev.konacode.llm.ToolCall;
 import dev.konacode.llm.ToolSpec;
+import dev.konacode.llm.openai.ChatCompletionsCodec;
 import dev.konacode.llm.openai.Credential.ApiKey;
 import dev.konacode.llm.openai.Credential.CodexToken;
+import dev.konacode.llm.openai.OpenAi;
 import dev.konacode.llm.openai.OpenAiConfig;
+import dev.konacode.llm.openai.ResponsesCodec;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.Workspace;
 import dev.konacode.trace.Level;
@@ -195,7 +199,7 @@ class MainTest {
         OpenAiConfig config = new OpenAiConfig(new ApiKey("sk-test"), "big", "small", "https://example.test/v1", Duration.ofSeconds(1));
         List<TraceEvent> events = new ArrayList<>();
 
-        Main.Clients clients = Main.clients(config, http, events::add);
+        Main.Clients clients = Main.clients(new OpenAi.Provider(config, new ChatCompletionsCodec(new ObjectMapper())), http, events::add);
 
         assertNotSame(clients.loop(), clients.judge(), "the judge needs its own trace, so it needs its own client");
         clients.loop().chat(List.of(), List.of());
@@ -217,7 +221,7 @@ class MainTest {
         when(http.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any())).thenReturn(response);
         OpenAiConfig config = new OpenAiConfig(new CodexToken("tok", "acct_1"), "gpt-5.5", "gpt-5.5", "https://example.test/codex", Duration.ofSeconds(1));
 
-        AssistantMessage reply = Main.clients(config, http, Trace.NONE).loop().chat(List.of(), List.of());
+        AssistantMessage reply = Main.clients(new OpenAi.Provider(config, new ResponsesCodec(new ObjectMapper())), http, Trace.NONE).loop().chat(List.of(), List.of());
 
         assertEquals("hi", reply.text());
         ArgumentCaptor<HttpRequest> sent = ArgumentCaptor.forClass(HttpRequest.class);
