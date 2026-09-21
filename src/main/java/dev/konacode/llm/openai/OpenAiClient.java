@@ -7,6 +7,8 @@ import dev.konacode.llm.LlmException;
 import dev.konacode.llm.Message;
 import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.ToolSpec;
+import dev.konacode.llm.openai.Credential.ApiKey;
+import dev.konacode.llm.openai.Credential.CodexToken;
 import dev.konacode.trace.Trace;
 import dev.konacode.trace.TraceEvent.ReplyReceived;
 import dev.konacode.trace.TraceEvent.RequestSent;
@@ -139,21 +141,21 @@ public final class OpenAiClient implements LlmClient {
         HttpRequest request;
         try {
             uri = config.uri(codec.path());
-            request = HttpRequest.newBuilder(uri)
+            HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
                     .timeout(config.timeout())
                     .header("Content-Type", "application/json")
                     .header("Accept", codec.accept())
-                    .header("Authorization", "Bearer " + config.apiKey())
-                    .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
-                    .build();
+                    .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8));
+            authorize(builder);
+            request = builder.build();
         } catch (IllegalArgumentException e) {
             // A malformed base URL, or a key carrying a control character - a trailing newline
             // survives isBlank() - would otherwise escape as an unchecked exception and kill the
-            // session, since the agent loop catches only LlmException. URI.create throws it too.
+            // session, since the agent loop catches only LlmException.
             throw new LlmException("Could not build the request: " + e.getMessage(), e);
         }
 
-        // The body and never the headers. The API key is a header, so it cannot reach a sink.
+        // The body and never the headers. The credential is a header, so it cannot reach a sink.
         trace.emit(new RequestSent(uri.toString(), config.model(), messageCount, toolCount, body.toString()));
 
         long started = System.nanoTime();
@@ -176,14 +178,40 @@ public final class OpenAiClient implements LlmClient {
         }
 
         if (response.statusCode() / 100 != 2) {
-            throw new LlmException(
-                    "HTTP " + response.statusCode() + ": " + truncate(response.body()));
+            throw new LlmException("HTTP " + response.statusCode() + ": " + truncate(response.body()) + loginHint(response.statusCode()));
         }
 
         codec.decodeUsage(response.body()).ifPresent(usage ->
                 trace.emit(new TokensUsed(usage.prompt(), usage.completion(), usage.total())));
 
         return codec.decodeResponse(response.body());
+    }
+
+    /**
+     * konacode names itself in {@code originator} and {@code User-Agent}. It never writes the name of
+     * the Codex CLI: if the server refuses a client that is not Codex, that is the answer of the
+     * provider, and konacode stops.
+     */
+    private void authorize(HttpRequest.Builder builder) {
+        switch (config.credential()) {
+            case ApiKey key -> builder.header("Authorization", "Bearer " + key.key());
+            case CodexToken token -> builder
+                    .header("Authorization", "Bearer " + token.accessToken())
+                    .header("ChatGPT-Account-ID", token.accountId())
+                    .header("originator", "konacode")
+                    .header("User-Agent", "konacode");
+        }
+    }
+
+    /** A 401 on a Codex token has one repair, and the user reads it here and not in a log. */
+    private String loginHint(int status) {
+        if (status != 401) {
+            return "";
+        }
+        return switch (config.credential()) {
+            case ApiKey ignored -> "";
+            case CodexToken ignored -> CodexAuth.RUN_LOGIN;
+        };
     }
 
     private static String truncate(String body) {

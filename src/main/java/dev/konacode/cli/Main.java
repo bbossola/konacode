@@ -11,6 +11,7 @@ import dev.konacode.agent.TurnBudget;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.Message.SystemMessage;
 import dev.konacode.llm.openai.ChatCompletionsCodec;
+import dev.konacode.llm.openai.CodexAuth;
 import dev.konacode.llm.openai.OpenAiClient;
 import dev.konacode.llm.openai.OpenAiConfig;
 import dev.konacode.policy.EffectPolicy;
@@ -55,7 +56,7 @@ public final class Main {
         Duration commandTimeout;
         Ui ui;
         try {
-            config = OpenAiConfig.fromEnvironment(System.getenv());
+            config = OpenAiConfig.fromEnvironment(System.getenv(), CodexAuth.file(System.getenv(), Path.of(System.getProperty("user.home"))));
             budget = budget();
             traceLevel = Level.configured();
             maxTraceFiles = maxTraceFiles();

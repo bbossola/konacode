@@ -9,6 +9,7 @@ import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.ToolMessage;
 import dev.konacode.llm.ToolCall;
 import dev.konacode.llm.ToolSpec;
+import dev.konacode.llm.openai.Credential.ApiKey;
 import dev.konacode.llm.openai.OpenAiConfig;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.Workspace;
@@ -167,7 +168,7 @@ class MainTest {
         when(response.statusCode()).thenReturn(200);
         when(response.body()).thenReturn("{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}");
         when(http.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any())).thenReturn(response);
-        OpenAiConfig config = new OpenAiConfig("sk-test", "big", "small", "https://example.test/v1", Duration.ofSeconds(1));
+        OpenAiConfig config = new OpenAiConfig(new ApiKey("sk-test"), "big", "small", "https://example.test/v1", Duration.ofSeconds(1));
         List<TraceEvent> events = new ArrayList<>();
 
         Main.Clients clients = Main.clients(config, http, events::add);
