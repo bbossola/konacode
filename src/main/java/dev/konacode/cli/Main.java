@@ -11,7 +11,8 @@ import dev.konacode.agent.PlanTool;
 import dev.konacode.agent.TurnBudget;
 import dev.konacode.llm.LlmClient;
 import dev.konacode.llm.Message.SystemMessage;
-import dev.konacode.llm.openai.ChatCompletionsCodec;
+import dev.konacode.llm.openai.Codec;
+import dev.konacode.llm.openai.CodexAuth;
 import dev.konacode.llm.openai.OpenAiClient;
 import dev.konacode.llm.openai.OpenAiConfig;
 import dev.konacode.policy.EffectPolicy;
@@ -56,7 +57,7 @@ public final class Main {
         Duration commandTimeout;
         Ui ui;
         try {
-            config = OpenAiConfig.fromEnvironment(System.getenv());
+            config = OpenAiConfig.fromEnvironment(System.getenv(), CodexAuth.file(System.getenv(), Path.of(System.getProperty("user.home"))));
             budget = budget();
             traceLevel = Level.configured();
             maxTraceFiles = maxTraceFiles();
@@ -235,15 +236,16 @@ public final class Main {
     }
 
     /**
-     * Builds the two clients on one {@link HttpClient} and one {@link ChatCompletionsCodec}. Both
-     * are stateless for a request, and one connection pool serves both agents.
+     * Builds the two clients on one {@link HttpClient} and one {@link Codec}. Both are stateless for
+     * a request, and one connection pool serves both agents. The credential picks the codec, so
+     * the judge speaks the same wire format as the loop.
      *
      * <p>Each client gets its own name, because a judgement makes its own request and reports its
      * own token counts. Without the name a user cannot tell the cost of a judgement from the cost
      * of the turn.
      */
     static Clients clients(OpenAiConfig config, HttpClient http, Trace trace) {
-        ChatCompletionsCodec codec = new ChatCompletionsCodec(new ObjectMapper());
+        Codec codec = Codec.forCredential(config.credential(), new ObjectMapper());
         return new Clients(new OpenAiClient(config, http, codec, new NamedTrace("kona", trace)),
                 new OpenAiClient(config.forJudge(), http, codec, new NamedTrace("judge", trace)));
     }

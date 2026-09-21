@@ -28,10 +28,10 @@ thinking blocks — which must be passed back unchanged when continuing on the s
 provider fields not yet encountered. Each becomes a codec-local change instead of a
 hierarchy-wide one.
 
-**Recommendation:** add it when a *second* provider lands, or when reasoning support does —
-whichever comes first — and not before. The OpenAI Chat Completions provider is the baseline and
-needs nothing from this field, so adding it there would mean guessing the shape against a payload
-that never exercises it.
+**Recommendation:** add it now, for the Responses codec. The Codex backend returns the reasoning of
+the model as an encrypted item when the request asks for `reasoning.encrypted_content`, and a
+client that sends it back keeps the reasoning across the tool calls of one turn. `ResponsesCodec`
+is the payload this field waited for. The Chat Completions codec fills it with nothing.
 
 ## 2. Reasoning
 
@@ -44,17 +44,20 @@ The model thinks before it answers. This improves *single-step* decisions: which
 with what arguments, whether this is really the right file.
 
 **Basic support is nearly free.** A `reasoningEffort` field on `OpenAiConfig` and one line in
-`ChatCompletionsCodec`. Perhaps five lines, no structural impact.
+each codec. Perhaps five lines, no structural impact.
 
 **Doing it properly is where the trap is.** When a reasoning model makes a tool call, its
 reasoning for that turn should be carried into the next request, or it re-derives its thinking
 from scratch on every iteration of the loop — paying for it twice, in tokens and in coherence.
 Preserving it requires the passthrough field from section 1.
 
-> **Verify before implementing:** the exact semantics of reasoning-state persistence on Chat
-> Completions versus the Responses API. This determines whether `LlmClient` needs any notion of
-> conversation state at all, or whether the passthrough field is sufficient. Read the current
-> provider documentation rather than trusting recollection — this detail moves.
+**This is the next item, for the Responses codec.** The research on the Codex backend settled the
+question for that provider: the CLI sends `store: false` with `include: ["reasoning.encrypted_content"]`,
+the reasoning comes back as an encrypted item, and the CLI sends it back in `input` on the next
+request. So the passthrough field of section 1 is sufficient there, and `LlmClient` needs no notion
+of conversation state. `ResponsesCodec` asks for no reasoning item today. The change is: ask for it,
+carry it in the passthrough field, and write it back. Chat Completions has no such item, so that
+codec fills the field with nothing.
 
 ### Harness-side reasoning
 
@@ -243,7 +246,30 @@ in most applications. Design the codec so cache breakpoints have somewhere to go
 
 ## 6. A Codex provider on a ChatGPT subscription
 
-**Status:** next.
+**Status:** built. See [the design](docs/superpowers/specs/2026-09-21-codex-design.md) and
+[the research](docs/research/2026-09-21-codex-subscription-api.md). Five things stayed out, and
+the first is the next task: the reasoning passthrough (sections 1 and 2), the refresh of the token,
+the live model list, a retry on a rate limit inside a stream, and a stable `prompt_cache_key`. The
+CLI treats a `response.failed` with the code `rate_limit_exceeded` or `slow_down` as transient;
+konacode retries on HTTP `429` only, and a subscription meets a usage limit more often than a key
+does.
+
+**The first real run, 2026-09-21.** The backend accepted the plain shape, with `instructions` and
+`tools` at the top level, `gpt-5.5`, and `originator: konacode`. One turn called `list_files` and
+answered. Three facts from the reply, which echoes the request as the server read it:
+
+- The server applies `strict: true` to every function tool, adds `additionalProperties: false`,
+  and puts every property in `required`. The optional `path` of `list_files` became required, and
+  the model wrote `{"path":"."}`. A tool with an optional property is a tool with a required one
+  under Codex.
+- The server assigns a new `prompt_cache_key` to each request, with `prompt_cache_retention:
+  24h`, and reports `cached_tokens: 0`. konacode sends the whole conversation on each request, so
+  one stable key for each session would make every iteration after the first a cache hit. That is
+  one field in `ResponsesCodec`, and the research names it.
+- The server sets `reasoning.effort: medium` and `reasoning.context: current_turn` when the
+  request names neither. `output_tokens_details.reasoning_tokens` was 0 on both replies.
+
+The recorded reply is the fixture `responses-text.sse`, with the safety identifier redacted.
 
 A Claude subscription cannot pay for konacode (section 5). A ChatGPT subscription can. OpenAI
 ships a "Sign in with ChatGPT" flow, and its staff said in public that a subscriber may use the
@@ -298,9 +324,9 @@ the passthrough field. Add it here, against a payload that exercises it, and not
 
 **The credential breaks one rule, so make it explicit.** "The environment configures the
 provider", but this token comes from a file that another program writes and refreshes.
-`KONACODE_AUTH=codex` selects the file. The default stays `OPENAI_API_KEY`, and a set
-`OPENAI_API_KEY` with `KONACODE_AUTH=codex` is a wrong value: print one line and exit 1, the way
-every other property does.
+`KONACODE_AUTH=codex` selects the file. The default stays `OPENAI_API_KEY`. A set `OPENAI_API_KEY`
+beside `KONACODE_AUTH=codex` is not an error: the word is the explicit choice, so konacode ignores
+the key. A key in a shell profile must not force the user to unset it.
 
 **Fail loudly on an expired token, first.** Read `auth.json` once at start. On a `401`, end the
 turn with one line that says to run `codex login`. A refresh inside konacode is a second step,

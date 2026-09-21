@@ -9,6 +9,8 @@ import dev.konacode.llm.Message.AssistantMessage;
 import dev.konacode.llm.Message.ToolMessage;
 import dev.konacode.llm.ToolCall;
 import dev.konacode.llm.ToolSpec;
+import dev.konacode.llm.openai.Credential.ApiKey;
+import dev.konacode.llm.openai.Credential.CodexToken;
 import dev.konacode.llm.openai.OpenAiConfig;
 import dev.konacode.skills.SkillRegistry;
 import dev.konacode.tools.Workspace;
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -37,6 +40,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -46,6 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -187,7 +192,7 @@ class MainTest {
         when(response.statusCode()).thenReturn(200);
         when(response.body()).thenReturn("{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}");
         when(http.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any())).thenReturn(response);
-        OpenAiConfig config = new OpenAiConfig("sk-test", "big", "small", "https://example.test/v1", Duration.ofSeconds(1));
+        OpenAiConfig config = new OpenAiConfig(new ApiKey("sk-test"), "big", "small", "https://example.test/v1", Duration.ofSeconds(1));
         List<TraceEvent> events = new ArrayList<>();
 
         Main.Clients clients = Main.clients(config, http, events::add);
@@ -200,6 +205,26 @@ class MainTest {
         clients.judge().chat(List.of(), List.of());
         assertTrue(events.stream().allMatch(event -> event instanceof FromAgent named && named.agent().equals("judge")), events.toString());
         assertTrue(requestModel(events).contains("\"model\":\"small\""), requestModel(events));
+    }
+
+    @Test
+    void aCodexTokenSpeaksTheResponsesApiWithTheCodexHeaders() throws Exception {
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+                data: {"type":"response.output_item.done","item":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hi"}]}}
+                data: {"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}
+                """);
+        when(http.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any())).thenReturn(response);
+        OpenAiConfig config = new OpenAiConfig(new CodexToken("tok", "acct_1"), "gpt-5.5", "gpt-5.5", "https://example.test/codex", Duration.ofSeconds(1));
+
+        AssistantMessage reply = Main.clients(config, http, Trace.NONE).loop().chat(List.of(), List.of());
+
+        assertEquals("hi", reply.text());
+        ArgumentCaptor<HttpRequest> sent = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http).send(sent.capture(), ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
+        assertEquals("https://example.test/codex/responses", sent.getValue().uri().toString());
+        assertEquals(Optional.of("acct_1"), sent.getValue().headers().firstValue("ChatGPT-Account-ID"));
+        assertEquals(Optional.of("text/event-stream"), sent.getValue().headers().firstValue("Accept"));
     }
 
     private static String requestModel(List<TraceEvent> events) {

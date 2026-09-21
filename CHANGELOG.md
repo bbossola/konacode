@@ -10,6 +10,15 @@ that summary. The summary names every file the model changed, and what it change
 for it, and no policy decides: konacode compacts nothing on its own. A failure leaves the
 conversation as it was, and `esc` takes the same path.
 
+### A ChatGPT subscription
+
+`KONACODE_AUTH=codex` reads the token that `codex login` wrote and speaks the Responses API of the
+Codex backend. The default model is then `gpt-5.5`. konacode refreshes nothing: a stale token
+prints one line that names `codex login`. konacode names itself in `originator` and `User-Agent`,
+and never claims to be the Codex CLI. The README states the four caveats: no page we could read
+permits or prohibits it, the endpoint has no SLA, OpenAI recommends a key for production, and the
+route can close.
+
 ## 0.2.0 — 2026-08-30
 
 konacode 0.1.0 was the loop, three tools and two interfaces. The loop is the same. Everything

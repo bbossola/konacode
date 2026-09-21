@@ -24,7 +24,7 @@ import java.util.Optional;
  * <p>Deliberately free of HTTP, so the wire format can be tested against recorded fixtures with
  * no network and no mocking framework.
  */
-public final class ChatCompletionsCodec {
+public final class ChatCompletionsCodec implements Codec {
 
     private final ObjectMapper mapper;
 
@@ -32,6 +32,17 @@ public final class ChatCompletionsCodec {
         this.mapper = mapper;
     }
 
+    @Override
+    public String path() {
+        return "/chat/completions";
+    }
+
+    @Override
+    public String accept() {
+        return "application/json";
+    }
+
+    @Override
     public ObjectNode encodeRequest(String model, List<Message> history, List<ToolSpec> tools) {
         ObjectNode request = mapper.createObjectNode();
         request.put("model", model);
@@ -96,6 +107,7 @@ public final class ChatCompletionsCodec {
         return node;
     }
 
+    @Override
     public AssistantMessage decodeResponse(String body) {
         JsonNode root;
         try {
@@ -141,6 +153,7 @@ public final class ChatCompletionsCodec {
      * <p>It parses the body a second time on purpose. This class stays free of state, and each
      * method is testable alone.
      */
+    @Override
     public Optional<Usage> decodeUsage(String body) {
         if (body == null) {
             return Optional.empty();
