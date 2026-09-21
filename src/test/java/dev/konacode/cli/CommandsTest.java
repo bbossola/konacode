@@ -578,14 +578,14 @@ class CommandsTest {
         commands(ui, conversation).run("/compact");
 
         assertEquals(1, ui.answers.size(), ui.answers.toString());
-        assertTrue(ui.answers.get(0).startsWith("The summary."), ui.answers.get(0));
-        assertTrue(ui.answers.get(0).endsWith("The conversation held 5 messages. It now holds 3."), ui.answers.get(0));
+        assertTrue(ui.answers.get(0).startsWith("The conversation held 5 messages. It now holds 3."), ui.answers.get(0));
+        assertTrue(ui.answers.get(0).endsWith("The summary."), ui.answers.get(0));
         assertEquals(3, conversation.messages().size());
         assertInstanceOf(UserMessage.class, conversation.messages().get(1));
     }
 
     @Test
-    void compactTellsTheInterfaceThatWorkStartedBeforeItAsksTheModel() {
+    void compactTellsTheInterfaceThatWorkStartedBeforeItShowsTheAnswer() {
         RecordingUi ui = new RecordingUi();
 
         commands(ui, conversationWithOneTurn()).run("/compact");

@@ -212,7 +212,8 @@ final class Commands {
 
     /**
      * The spinner starts here, and {@code showAnswer} or {@code showError} stops it. An
-     * {@code LlmException} is the whole failure: the conversation is then as it was.
+     * {@code LlmException} is the whole failure: the conversation is then as it was. The count
+     * comes first, because a block ends with the payload the model chose and nothing after it.
      */
     private void compact() {
         int before = conversation.messages().size();
@@ -228,7 +229,6 @@ final class Commands {
             ui.showAnswer("Nothing to compact. The conversation is empty.");
             return;
         }
-        ui.showAnswer(summary.get() + "\n\nThe conversation held " + before + " messages. It now holds "
-                + conversation.messages().size() + ".");
+        ui.showAnswer("The conversation held " + before + " messages. It now holds " + conversation.messages().size() + ".\n\n" + summary.get());
     }
 }

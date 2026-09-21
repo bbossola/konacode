@@ -53,10 +53,8 @@ class CompactionTest {
         Optional<String> summary = new Compaction(client, SYSTEM, conversation, new Cancellation()).compact();
 
         assertEquals(Optional.of("The user read pom.xml."), summary);
-        assertEquals(List.of(SYSTEM,
-                        new UserMessage(Compaction.FRAME + "The user read pom.xml."),
-                        new AssistantMessage(Compaction.ACKNOWLEDGEMENT, List.of())),
-                conversation.messages());
+        List<Message> expected = List.of(SYSTEM, new UserMessage(Compaction.FRAME + "The user read pom.xml."), new AssistantMessage(Compaction.ACKNOWLEDGEMENT, List.of()));
+        assertEquals(expected, conversation.messages());
     }
 
     @Test
@@ -101,8 +99,7 @@ class CompactionTest {
     void aReplyWithAToolCallIsAFailure() {
         Conversation conversation = conversationWithOneTurn();
         List<Message> before = conversation.messages();
-        FakeLlmClient client = new FakeLlmClient()
-                .reply(new AssistantMessage("summary", List.of(new ToolCall("c2", "read_file", "{}"))));
+        FakeLlmClient client = new FakeLlmClient().reply(new AssistantMessage("summary", List.of(new ToolCall("c2", "read_file", "{}"))));
         Compaction compaction = new Compaction(client, SYSTEM, conversation, new Cancellation());
 
         assertThrows(LlmException.class, compaction::compact);
@@ -125,6 +122,17 @@ class CompactionTest {
 
         assertTrue(wasInterrupted[0], "the thread inside chat must be interrupted");
         assertFalse(Thread.interrupted(), "disarm must clear the interrupt status");
+    }
+
+    @Test
+    void leavesNoInterruptBehindWhenTheCallFails() {
+        Cancellation cancellation = new Cancellation();
+        FakeLlmClient client = new FakeLlmClient().beforeReply(cancellation::request).failWith(new LlmException("interrupted"));
+        Compaction compaction = new Compaction(client, SYSTEM, conversationWithOneTurn(), cancellation);
+
+        assertThrows(LlmException.class, compaction::compact);
+
+        assertFalse(Thread.interrupted(), "disarm must clear the interrupt status on the throw path too");
     }
 
     @Test

@@ -72,8 +72,9 @@ The command runs in this order:
 2. It calls `ui.thinking()`. In the rich interface this starts the spinner and the
    `EscapeWatcher`, so `esc` works while the model writes.
 3. It calls `compact()`.
-4. It shows the summary as markdown, then one line: "The conversation held 41 messages. It now
-   holds 3."
+4. It shows one line, "The conversation held 41 messages. It now holds 3.", then the summary as
+   markdown. The count comes first, because a block ends with the payload the model chose and
+   puts nothing after it.
 
 `showAnswer` and `showError` both stop the spinner and the watcher, so the command adds no
 spinner code.
