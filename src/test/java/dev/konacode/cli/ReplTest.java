@@ -123,6 +123,17 @@ class ReplTest {
     }
 
     @Test
+    void theReplClearsAStopBeforeACommandToo() {
+        RecordingUi ui = new RecordingUi("/help");
+        Cancellation cancellation = new Cancellation();
+        cancellation.request();
+
+        repl(ui, cancellation).run();
+
+        assertFalse(cancellation.stopped(), "a key pressed at the prompt must not stop a command that calls the model");
+    }
+
+    @Test
     void sendsACommandToTheCommandsAndNotToTheAgent() {
         RecordingUi ui = new RecordingUi("/help");
 
