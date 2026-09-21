@@ -56,7 +56,7 @@ public final class OpenAiClient implements LlmClient {
     public OpenAiClient(OpenAiConfig config, Trace trace) {
         this(config,
                 HttpClient.newBuilder().connectTimeout(config.timeout()).build(),
-                new ChatCompletionsCodec(new ObjectMapper()),
+                Codec.forCredential(config.credential(), new ObjectMapper()),
                 trace);
     }
 
